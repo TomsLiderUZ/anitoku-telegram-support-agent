@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>ANITOKU Agent — Kirish</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="login-wrap">
+    <form class="login-card" id="loginForm" autocomplete="on">
+      <div class="logo">
+        <div class="logo-mark">A</div>
+        <div>
+          <div class="logo-text">ANITOKU</div>
+          <div style="font-size:11px;color:var(--txt-mute);letter-spacing:1.2px">SUPPORT AGENT</div>
+        </div>
+      </div>
+      <div class="login-sub">Boshqaruv paneliga kirish</div>
+
+      <label class="field">
+        <span>Login</span>
+        <input type="text" id="username" name="username" autocomplete="username" required autofocus>
+      </label>
+
+      <label class="field">
+        <span>Parol</span>
+        <input type="password" id="password" name="password" autocomplete="current-password" required>
+      </label>
+
+      <button class="btn wide" type="submit" id="submitBtn">Kirish</button>
+      <div class="err-msg" id="err"></div>
+    </form>
+  </div>
+  <script src="/login.js"></script>
+</body>
+</html>

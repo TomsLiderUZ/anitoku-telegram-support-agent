@@ -1,0 +1,14 @@
+services:
+  agent:
+    build: .
+    container_name: anitoku-agent
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8787:8787"   # bind to loopback; expose via a reverse proxy if needed
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      ADMIN_HOST: 0.0.0.0
+      TZ: Asia/Tashkent

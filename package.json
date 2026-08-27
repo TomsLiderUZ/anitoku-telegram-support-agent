@@ -1,0 +1,24 @@
+{
+  "name": "anitoku-support-agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ANITOKU — autonomous Telegram support agent (self-training, 24/7) with local admin panel",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "setup": "node scripts/setup.js",
+    "train": "node scripts/train.js",
+    "reset-admin": "node scripts/reset-admin.js",
+    "health": "node scripts/health.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "qrcode": "^1.5.4",
+    "qrcode": "^1.5.4",
+    "telegram": "^2.26.22"
+  }
+}
