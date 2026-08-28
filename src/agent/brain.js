@@ -255,7 +255,7 @@ async function respond({ chatId, text, chatTitle = null, chatType = 'private', u
     // Only the template words themselves plus an optional ", Name" and
     // punctuation — never a free-form run of characters, which would eat the
     // start of the real answer when the model omits punctuation.
-    const PREAMBLE = /^\s*(?:(?:assalomu\s+alaykum|va\s+alaykum\s+assalom|salom)(?:,\s*[\p{L}'‘’]+)?[!.,]*|xush\s+kelibsiz[!.,]*|(?:sizga\s+)?qanday\s+yordam\s+bera\s+olaman\s*[?!.]*)\s*[🙂😊🤝✨🙏]*\s*/iu;
+    const PREAMBLE = /^\s*(?:(?:assalomu\s+alaykum|va\s+alaykum\s+assalom|salom)(?![\p{L}])(?:,\s*[\p{L}'‘’]+)?[!.,]*|xush\s+kelibsiz(?![\p{L}])[!.,]*|(?:sizga\s+)?qanday\s+yordam\s+bera\s+olaman\s*[?!.]*)\s*[🙂😊🤝✨🙏]*\s*/iu;
     let guard = 0;
     while (PREAMBLE.test(reply) && guard++ < 4) reply = reply.replace(PREAMBLE, '');
     reply = reply.replace(/^\s*[🙂😊🤝✨🙏]+\s*/u, '').trim();
