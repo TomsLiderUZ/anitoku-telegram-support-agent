@@ -675,7 +675,13 @@ router.post('/settings', (req, res) => {
       ignored.push(k);
       continue;
     }
-    settings.set(k, v);
+    // Numeric settings stay numeric: local_context_size once became
+    // "50005000500050005000" and llama.cpp aborted trying to honour it.
+    if (/^\d+$/.test(String(DEFAULT_SETTINGS[k] ?? '')) && !/^\d{1,8}$/.test(String(v).trim())) {
+      ignored.push(k);
+      continue;
+    }
+    settings.set(k, String(v).trim());
     changed.push(k);
   }
   if (changed.length) recordEvent('settings', 'Settings updated', { changed });

@@ -238,7 +238,14 @@ let nextId = 1;
 
 function startWorker() {
   const { fork } = require('node:child_process');
-  const contextSize = settings.int('local_context_size', CATALOG.chat.contextSize);
+  // The stored setting once read 50005000500050000000 (a mangled panel save);
+  // llama.cpp tried to allocate a KV cache for it and aborted. Clamp hard.
+  const wanted = settings.int('local_context_size', CATALOG.chat.contextSize);
+  const contextSize = Number.isFinite(wanted) && wanted >= 1024 && wanted <= 32768 ? wanted : CATALOG.chat.contextSize;
+  if (contextSize !== wanted) {
+    log.warn('local_context_size yaroqsiz — standart qiymat ishlatildi', { stored: String(wanted), used: contextSize });
+    settings.set('local_context_size', String(contextSize));
+  }
   // node-llama-cpp locates its prebuilt binary relative to the module file and
   // self-tests it in a subprocess that cannot cope with spaces in the path.
   // __dirname here is the real (space-containing) path even when the agent was
