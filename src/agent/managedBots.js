@@ -101,12 +101,16 @@ async function generateCode({ username, name, spec, previousError = null, previo
   return code;
 }
 
-/** Slash-commands named in the spec plus (for repairs) those the old code handled. */
+/**
+ * Slash-commands named in the spec plus those the existing code handles.
+ * A command is a "/word" at the start or after whitespace/punctuation — not a
+ * URL path segment, which is how "/top/anime" once demanded an /anime command.
+ */
 function requiredCommands(spec, previousCode) {
   const set = new Set(['start', 'help']);
-  for (const m of String(spec || '').matchAll(/\/([a-z][a-z0-9_]{1,30})\b/gi)) set.add(m[1].toLowerCase());
+  for (const m of String(spec || '').matchAll(/(?:^|[\s,;:(«"'])\/([a-z][a-z0-9_]{1,30})\b(?!\/)/gi)) set.add(m[1].toLowerCase());
   if (previousCode) {
-    for (const m of String(previousCode).matchAll(/['"`]\/([a-z][a-z0-9_]{1,30})\b/gi)) set.add(m[1].toLowerCase());
+    for (const m of String(previousCode).matchAll(/['"`]\/([a-z][a-z0-9_]{1,30})\b(?![/a-z0-9_])/gi)) set.add(m[1].toLowerCase());
   }
   return [...set];
 }
@@ -134,7 +138,11 @@ async function deploy({ username, name = null, token = null, spec, hint = null }
   if (!tok) throw new Error(`@${u} uchun token yo'q — avval yarating yoki tokenini bering`);
   saveToken(u, tok, name);
   const prev = record(u);
-  const effectiveSpec = String(spec || (prev && prev.spec) || '');
+  // Specs accumulate: "add /top" must not erase "/search and /random" from
+  // last week. Only an explicit rebuild (hint says so) starts from scratch.
+  const oldSpec = (prev && prev.spec) || '';
+  const fresh = /\b(boshidan|noldan|from scratch|qaytadan yoz|hammasini o['‘’ʻ]?zgartir)\b/i.test(String(hint || ''));
+  const effectiveSpec = fresh || !oldSpec ? String(spec || oldSpec) : spec && !oldSpec.includes(String(spec)) ? `${oldSpec}\nQo'shimcha: ${spec}` : oldSpec;
   db.prepare('UPDATE managed_bots SET spec = ?, updated_at = datetime(\'now\') WHERE username = ?').run(effectiveSpec, u);
   spec = effectiveSpec;
 
@@ -161,7 +169,9 @@ async function deploy({ username, name = null, token = null, spec, hint = null }
     // Every command the spec names — and, in a repair, every command the old
     // code had — must survive. The model dropped /top twice when asked to fix
     // /search; asking nicely did not work, checking does.
-    const required = requiredCommands(spec, hint ? prevCodeText : null);
+    // Existing commands are always required, repair or not: a rewrite that
+    // silently drops /search because the founder asked for /top is a bug.
+    const required = requiredCommands(spec, fresh ? null : prevCodeText);
     const missing = required.filter((c) => !new RegExp(`['"\`]/${c}\\b`).test(code));
     if (missing.length) {
       error = `Quyidagi buyruqlar kodda YO'Q, ular bo'lishi shart: ${missing.map((c) => '/' + c).join(', ')}. Hammasini qo'sh, boshqa hech narsani olib tashlama.`;
