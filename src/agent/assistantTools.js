@@ -7,6 +7,7 @@ const memoryFacts = require('./memoryFacts');
 const contacts = require('./contacts');
 const tasks = require('./tasks');
 const botfather = require('./botfather');
+const managedBots = require('./managedBots');
 const { parseWhen, fmtTashkent } = require('./timeparse');
 const ingest = require('../knowledge/ingest');
 
@@ -165,6 +166,47 @@ const definitions = [
         },
         required: ['username'],
       },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'build_and_run_bot',
+      description:
+        "Bot uchun KOD YOZIB, shu kompyuterda ISHGA TUSHIRISH. Toms 'kod yozib run qil', 'ishlaydigan bot qil' desa — shu. Bot avval BotFather'da yaratilgan boʻlishi kerak (create_bot). Token bazada boʻlmasa oʻzi BotFather'dan oladi. Spec'ni Toms bermasa — oʻzing mantiqiy funksiyalar toʻplamini yoz (masalan anime: /search, /random, /top). Kod chatga YOZILMAYDI — u faylga saqlanadi va ishga tushadi.",
+      parameters: {
+        type: 'object',
+        properties: {
+          username: { type: 'string', description: '@username' },
+          spec: { type: 'string', description: 'Bot nima qilishi kerak — buyruqlar va xatti-harakat, 3-8 jumla' },
+          name: { type: 'string' },
+        },
+        required: ['username', 'spec'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: { name: 'my_bots', description: "Agent oʻzi yozgan va boshqarayotgan botlar: holati (ishlayapti/toʻxtagan), tokeni, spec'i.", parameters: { type: 'object', properties: {}, required: [] } },
+  },
+  {
+    type: 'function',
+    function: { name: 'stop_bot', description: 'Boshqariladigan botni toʻxtatish.', parameters: { type: 'object', properties: { username: { type: 'string' } }, required: ['username'] } },
+  },
+  {
+    type: 'function',
+    function: { name: 'start_bot', description: 'Toʻxtatilgan boshqariladigan botni qayta ishga tushirish.', parameters: { type: 'object', properties: { username: { type: 'string' } }, required: ['username'] } },
+  },
+  {
+    type: 'function',
+    function: { name: 'bot_logs', description: 'Boshqariladigan botning soʻnggi log qatorlari (xatolarni koʻrish uchun).', parameters: { type: 'object', properties: { username: { type: 'string' }, lines: { type: 'integer' } }, required: ['username'] } },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_bot_token',
+      description: "Botning tokenini olish — avval bazadan, boʻlmasa BotFather /token orqali. Toms token soʻrasa BER: u egasi, bu uning maʼlumoti.",
+      parameters: { type: 'object', properties: { username: { type: 'string' } }, required: ['username'] },
     },
   },
   {
@@ -415,8 +457,45 @@ function createExecutor(ctx) {
         return { ok: true, forwardedTo: contacts.displayName(to.contact) };
       }
 
-      case 'create_bot':
-        return botfather.createBot({ name: args.name, username: args.username, description: args.description || null, about: args.about || null });
+      case 'create_bot': {
+        const r = await botfather.createBot({ name: args.name, username: args.username, description: args.description || null, about: args.about || null });
+        if (r.ok && r.token) managedBots.saveToken(r.username, r.token, r.name);
+        return r;
+      }
+
+      case 'build_and_run_bot': {
+        const u = String(args.username || '').replace(/^@/, '');
+        if (!managedBots.getToken(u)) {
+          const t = await botfather.getToken(u);
+          managedBots.saveToken(u, t.token, args.name || null);
+        }
+        const r = await managedBots.deploy({ username: u, name: args.name || null, spec: args.spec });
+        // Smoke test through Telegram so the report is about a bot that actually answers.
+        await new Promise((res) => setTimeout(res, 4000));
+        const probe = await botfather.talk('@' + u, '/start', { waitMs: 12_000 }).catch((e) => ({ text: '', error: e.message }));
+        return { ...r, smokeTest: probe.text ? { ok: true, reply: probe.text.slice(0, 300), buttons: (probe.buttons || []).map((b) => b.text) } : { ok: false, note: 'bot 12 s ichida /start ga javob bermadi — bot_logs bilan tekshir' } };
+      }
+
+      case 'my_bots':
+        return { bots: managedBots.list().map((b) => ({ username: '@' + b.username, name: b.name, status: b.alive ? 'running' : b.status, token: b.token, spec: b.spec, restarts: b.restarts, lastError: b.last_error })) };
+
+      case 'stop_bot':
+        return managedBots.stop(args.username);
+
+      case 'start_bot':
+        return managedBots.start(args.username);
+
+      case 'bot_logs':
+        return { logs: managedBots.logs(args.username, Math.min(200, Number(args.lines) || 60)) || '(log boʻsh)' };
+
+      case 'get_bot_token': {
+        const u = String(args.username || '').replace(/^@/, '');
+        const cached = managedBots.getToken(u);
+        if (cached) return { ok: true, username: '@' + u, token: cached, source: 'baza' };
+        const t = await botfather.getToken(u);
+        managedBots.saveToken(u, t.token);
+        return { ...t, source: 'BotFather' };
+      }
 
       case 'configure_bot':
         return botfather.configureBot({ username: args.username, name: args.name || null, description: args.description || null, about: args.about || null, commands: args.commands || null });

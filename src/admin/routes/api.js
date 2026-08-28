@@ -21,6 +21,7 @@ const runtime = require('../../agent/runtime');
 const tasks = require('../../agent/tasks');
 const memoryFacts = require('../../agent/memoryFacts');
 const contacts = require('../../agent/contacts');
+const managedBots = require('../../agent/managedBots');
 const auth = require('../auth');
 
 const log = createLogger('admin:api');
@@ -510,6 +511,14 @@ router.post(
     res.json({ embedded: total, ...vectors.stats() });
   })
 );
+
+// ── managed bots ────────────────────────────────────────────────────────────
+router.get('/bots', (req, res) => res.json(managedBots.list()));
+router.post('/bots/:u/start', wrap(async (req, res) => res.json(managedBots.start(req.params.u))));
+router.post('/bots/:u/stop', (req, res) => res.json(managedBots.stop(req.params.u)));
+router.delete('/bots/:u', (req, res) => res.json(managedBots.remove(req.params.u)));
+router.get('/bots/:u/logs', (req, res) => res.json({ logs: managedBots.logs(req.params.u, Number(req.query.lines) || 120) }));
+router.get('/bots/:u/code', (req, res) => res.json({ code: managedBots.code(req.params.u) }));
 
 // ── assistant: tasks & memory ───────────────────────────────────────────────
 

@@ -183,10 +183,29 @@ async function configureBot({ username, description = null, about = null, comman
   return out;
 }
 
-/** All bots this account owns, via BotFather's /mybots buttons. */
+/**
+ * All bots this account owns. BotFather shows a button per bot — except when
+ * there is exactly one, where it jumps straight to that bot's menu and the
+ * name is only in the text. Both shapes are read.
+ */
 async function listMyBots() {
   const r = await talk(BOTFATHER, '/mybots');
-  return { bots: r.buttons.filter((b) => /^@/.test(b.text)).map((b) => b.text), raw: r.text.slice(0, 200) };
+  const fromButtons = r.buttons.map((b) => b.text).filter((t) => /^@\w+bot$/i.test(t));
+  const fromText = (r.text.match(/@\w+bot\b/gi) || []);
+  const bots = [...new Set([...fromButtons, ...fromText])];
+  if (!bots.length && /don'?t have any bots|no bots/i.test(r.text)) return { bots: [], raw: r.text.slice(0, 200) };
+  return { bots, raw: r.text.slice(0, 200) };
 }
 
-module.exports = { talk, pressButton, readBot, buttonsOf, createBot, deleteBot, configureBot, setBotField, listMyBots };
+/** Read a bot's token from BotFather (/token → choose bot). */
+async function getToken(username) {
+  const uname = '@' + String(username || '').replace(/^@/, '');
+  const s1 = await talk(BOTFATHER, '/token');
+  let reply = s1;
+  if (/choose|bot/i.test(s1.text) && !TOKEN_RE.test(s1.text)) reply = await talk(BOTFATHER, uname, { waitMs: 12_000 });
+  const m = reply.text.match(TOKEN_RE);
+  if (!m) throw new Error(`Token olinmadi: ${reply.text.slice(0, 160)}`);
+  return { ok: true, username: uname, token: m[1] };
+}
+
+module.exports = { talk, pressButton, readBot, buttonsOf, createBot, deleteBot, configureBot, setBotField, listMyBots, getToken };

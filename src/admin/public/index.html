@@ -28,6 +28,7 @@
     <div class="nav-item" data-page="assistant"><span class="ico">◎</span> Buyruq berish</div>
     <div class="nav-item" data-page="tasks"><span class="ico">☰</span> Vazifalar <span class="badge" id="taskBadge" hidden>0</span></div>
     <div class="nav-item" data-page="memory"><span class="ico">✎</span> Xotira</div>
+    <div class="nav-item" data-page="bots"><span class="ico">🤖</span> Botlar</div>
 
     <div class="nav-group">Bilim</div>
     <div class="nav-item" data-page="training"><span class="ico">↻</span> O'qitish</div>
@@ -178,6 +179,26 @@
       <div class="card">
         <div class="card-title">Saqlangan faktlar <span id="memCount" class="pill">0</span></div>
         <div id="memList"></div>
+      </div>
+    </section>
+
+    <!-- ═══ Botlar ═══ -->
+    <section class="page" id="page-bots">
+      <div class="page-head">
+        <div>
+          <div class="page-title">Botlar</div>
+          <div class="page-desc">Agent o'zi kod yozib ishga tushirgan Telegram botlar. "Bot yasab run qil" buyrug'i shu yerga tushadi</div>
+        </div>
+        <button class="btn ghost sm" id="botsRefresh">Yangilash</button>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table><thead><tr><th>Bot</th><th>Holat</th><th>Vazifa</th><th>Token</th><th class="num">Qayta</th><th></th></tr></thead><tbody id="botsTable"></tbody></table>
+        </div>
+      </div>
+      <div class="card" id="botDetail" hidden>
+        <div class="card-title"><span id="botDetailTitle">—</span><span class="row"><button class="btn ghost sm" id="botShowCode">Kod</button><button class="btn ghost sm" id="botShowLogs">Log</button></span></div>
+        <pre class="block" id="botDetailBody" style="max-height:520px">—</pre>
       </div>
     </section>
 

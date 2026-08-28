@@ -14,6 +14,7 @@ const adminAuth = require('./admin/auth');
 const tasks = require('./agent/tasks');
 const executors = require('./agent/executors');
 const contacts = require('./agent/contacts');
+const managedBots = require('./agent/managedBots');
 const local = require('./ai/local');
 
 const log = createLogger('main');
@@ -176,6 +177,7 @@ async function main() {
   runtime.attach();
   executors.register();
   tasks.start(20_000);
+  managedBots.resumeAll();
   tg.on('connected', () => contacts.refreshFromDialogs(300).catch(() => {}));
 
   // 5. Telegram — resume an existing session if we have one
@@ -251,6 +253,7 @@ async function shutdown(signal) {
 
   for (const t of timers) clearInterval(t);
   tasks.stop();
+  managedBots.stopAll();
   if (httpServer) await new Promise((r) => httpServer.close(r)).catch(() => {});
   try {
     if (tg.isConnected()) await tg.setOnline(false);
