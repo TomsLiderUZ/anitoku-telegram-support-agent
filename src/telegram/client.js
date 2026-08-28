@@ -84,8 +84,38 @@ class TelegramService extends EventEmitter {
    * @returns {Promise<{status:string}>} resolves as soon as the flow needs input
    *          or has completed — never blocks the HTTP request.
    */
+  /**
+   * Abandon an in-progress login so a different method can start cleanly.
+   *
+   * A QR attempt sets `connecting = true` and runs a refresh loop; without
+   * this, switching to phone login was rejected with "already in progress"
+   * ("QR kutilmoqda") and neither method could recover. Called at the top of
+   * both login paths.
+   */
+  async cancelLogin() {
+    if (!this.connecting && !this.qr.url) return;
+    log.info('oldingi login urinishi bekor qilinmoqda', { status: this.status });
+    try {
+      for (const slot of ['code', 'password']) {
+        if (this._deferred[slot]) this._deferred[slot].reject(new Error('cancelled'));
+        this._deferred[slot] = null;
+      }
+    } catch {
+      /* ignore */
+    }
+    try {
+      if (this.client && !this.isConnected()) await this.client.disconnect().catch(() => {});
+    } catch {
+      /* ignore */
+    }
+    this.connecting = false;
+    this.qr = { url: null, expires: 0, generatedAt: 0 };
+    this._loginPromise = null;
+  }
+
   async login({ apiId, apiHash, phone, forceSms = false } = {}) {
-    if (this.connecting) return { status: this.status, message: 'already in progress' };
+    if (this.isConnected()) return { status: this.status, message: 'already connected' };
+    await this.cancelLogin();
 
     // Only overwrite stored credentials with a genuinely valid api_id. A
     // browser once autofilled the admin username into the API ID field and
@@ -218,7 +248,8 @@ class TelegramService extends EventEmitter {
    * that talks to Telegram, not the account, so no login method can skip them.
    */
   async loginQr({ apiId, apiHash } = {}) {
-    if (this.connecting) return { status: this.status, message: 'already in progress' };
+    if (this.isConnected()) return this.qrState();
+    await this.cancelLogin();
 
     // Never let a non-numeric api_id (browser autofill) overwrite good creds.
     if (/^\d{5,}$/.test(String(apiId || '')) && apiHash) {
