@@ -194,7 +194,13 @@ async function load({ chat = true, embed = true } = {}) {
     // After a crash the worker waits out its cooldown; the minute-ticker in
     // index.js must not shortcut that by calling load() again.
     const coolingDown = state.crashedAt && Date.now() - state.crashedAt < WORKER_RESTART_DELAY_MS;
-    if (chat && !state.worker && !coolingDown && fileStatus('chat').present) await startWorker();
+    if (chat && !state.worker && !coolingDown && !state.gaveUp && fileStatus('chat').present) {
+      // Let the embedding model settle in VRAM first: when both load at once
+      // the worker sees less free memory, offloads only part of the KV cache
+      // and llama.cpp aborts ("cache_k … cannot run the operation").
+      if (state.embedModel && !state.crashedAt) await new Promise((r) => setTimeout(r, 15_000));
+      await startWorker();
+    }
   } catch (err) {
     state.error = err.message;
     log.error('lokal model yuklanmadi', { error: err.message });
@@ -233,8 +239,17 @@ let nextId = 1;
 function startWorker() {
   const { fork } = require('node:child_process');
   const contextSize = settings.int('local_context_size', CATALOG.chat.contextSize);
-  const child = fork(path.join(__dirname, 'localWorker.js'), [JSON.stringify({ modelPath: filePath('chat'), contextSize, gpuOrder: ['vulkan', 'auto'] })], {
-    cwd: process.cwd(),
+  // node-llama-cpp locates its prebuilt binary relative to the module file and
+  // self-tests it in a subprocess that cannot cope with spaces in the path.
+  // __dirname here is the real (space-containing) path even when the agent was
+  // started through the junction, so the worker must be addressed through the
+  // junction too — otherwise it silently loads on CPU and aborts 90 s later.
+  const junctionScript = 'C:\\anitoku-agent\\src\\ai\\localWorker.js';
+  const script = /\s/.test(__dirname) && fs.existsSync(junctionScript) ? junctionScript : path.join(__dirname, 'localWorker.js');
+  const child = fork(script, [JSON.stringify({ modelPath: filePath('chat').replace(/^.*?[\\/]data[\\/]/, fs.existsSync('C:\\anitoku-agent\\data') && /\s/.test(__dirname) ? 'C:\\anitoku-agent\\data\\' : filePath('chat').match(/^.*?[\\/]data[\\/]/)[0]), contextSize, gpuOrder: ['vulkan', 'auto'] })], {
+    // The binding's self-test cannot cope with spaces in the path; the
+    // junction C:anitoku-agent is the documented space-free entry point.
+    cwd: /\s/.test(process.cwd()) && fs.existsSync('C:\\anitoku-agent') ? 'C:\\anitoku-agent' : process.cwd(),
     stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
     windowsHide: true,
   });
@@ -292,12 +307,19 @@ function startWorker() {
         return;
       }
       state.crashedAt = Date.now();
+      state.crashes = (state.crashes || 0) + 1;
+      if (state.crashes >= 3) {
+        // Three aborts in one run: stop burning 25 GB of RAM every five
+        // minutes. Cloud models carry the load until the next restart.
+        state.gaveUp = true;
+        log.error('lokal chat modeli 3 marta yiqildi — bu sessiyada oʻchirildi, bulut modellar ishlaydi');
+      }
       state.error = `jarayon yiqildi (${code ?? signal}) ${stderr.split('\n').filter(Boolean).slice(-1)[0] || ''}`.trim();
       log.error('lokal chat modeli jarayoni yiqildi — agent ishlashda davom etadi, bulut modellar javob beradi', { code, signal, tail: stderr.slice(-300) });
       const { recordEvent } = require('../core/db');
       recordEvent('local', 'Local model worker crashed', { code, signal, wasReady }, 'error');
       setTimeout(() => {
-        if (!state.worker && settings.bool('local_model_enabled', true) && fileStatus('chat').present) startWorker().catch(() => {});
+        if (!state.worker && !state.gaveUp && settings.bool('local_model_enabled', true) && fileStatus('chat').present) startWorker().catch(() => {});
       }, WORKER_RESTART_DELAY_MS);
       resolve(false);
     });
