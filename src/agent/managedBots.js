@@ -171,7 +171,9 @@ async function deploy({ username, name = null, token = null, spec, hint = null }
     // /search; asking nicely did not work, checking does.
     // Existing commands are always required, repair or not: a rewrite that
     // silently drops /search because the founder asked for /top is a bug.
-    const required = requiredCommands(spec, fresh ? null : prevCodeText);
+    // Commands named in the complaint ("add /search back") count too — the
+    // model happily reports "added" while producing code without them.
+    const required = requiredCommands(`${spec}\n${hint || ''}`, fresh ? null : prevCodeText);
     const missing = required.filter((c) => !new RegExp(`['"\`]/${c}\\b`).test(code));
     if (missing.length) {
       error = `Quyidagi buyruqlar kodda YO'Q, ular bo'lishi shart: ${missing.map((c) => '/' + c).join(', ')}. Hammasini qo'sh, boshqa hech narsani olib tashlama.`;
@@ -187,8 +189,9 @@ async function deploy({ username, name = null, token = null, spec, hint = null }
   if (error) throw new Error(`Kod 3 urinishda ham to'g'ri chiqmadi: ${error.slice(0, 200)}`);
 
   await start(u);
-  recordEvent('bots', 'Bot deployed', { username: u, chars: code.length });
-  return { ok: true, username: u, file, lines: code.split('\n').length };
+  const commands = [...new Set([...code.matchAll(/['"`]\/([a-z][a-z0-9_]{1,30})\b(?![/a-z0-9_])/gi)].map((m) => '/' + m[1].toLowerCase()))].sort();
+  recordEvent('bots', 'Bot deployed', { username: u, chars: code.length, commands });
+  return { ok: true, username: u, file, lines: code.split('\n').length, commands };
 }
 
 function start(username) {
