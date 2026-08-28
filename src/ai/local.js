@@ -64,8 +64,10 @@ const CATALOG = new Proxy({}, { get: (_, k) => catalog()[k] });
 
 const state = {
   llama: null,
-  chatModel: null,
-  chatContext: null,
+  chatModel: false, // true once the worker reports ready
+  worker: null,
+  crashedAt: null,
+  stopping: false,
   embedModel: null,
   embedContext: null,
   loading: false,
@@ -140,7 +142,7 @@ async function download(kind) {
 }
 
 function available() {
-  return settings.bool('local_model_enabled', true) && fileStatus('chat').present && !!state.chatModel;
+  return settings.bool('local_model_enabled', true) && fileStatus('chat').present && state.chatModel === true && !!state.worker;
 }
 
 async function lib() {
@@ -189,19 +191,10 @@ async function load({ chat = true, embed = true } = {}) {
       log.info('embedding modeli yuklandi', { model: CATALOG.embed.label });
     }
 
-    if (chat && !state.chatModel && fileStatus('chat').present) {
-      state.chatModel = await state.llama.loadModel({
-        modelPath: filePath('chat'),
-        gpuLayers: 'max',
-      });
-      state.chatContext = await state.chatModel.createContext({
-        contextSize: settings.int('local_context_size', CATALOG.chat.contextSize),
-        batchSize: 1024,
-        flashAttention: true,
-      });
-      state.loadedAt = Date.now();
-      log.info('chat modeli yuklandi', { model: CATALOG.chat.label, gpu: state.gpu });
-    }
+    // After a crash the worker waits out its cooldown; the minute-ticker in
+    // index.js must not shortcut that by calling load() again.
+    const coolingDown = state.crashedAt && Date.now() - state.crashedAt < WORKER_RESTART_DELAY_MS;
+    if (chat && !state.worker && !coolingDown && fileStatus('chat').present) await startWorker();
   } catch (err) {
     state.error = err.message;
     log.error('lokal model yuklanmadi', { error: err.message });
@@ -212,7 +205,8 @@ async function load({ chat = true, embed = true } = {}) {
 }
 
 async function unload() {
-  for (const k of ['sequence', 'chatContext', 'chatModel', 'embedContext', 'embedModel']) {
+  stopWorker('unload');
+  for (const k of ['embedContext', 'embedModel']) {
     try {
       if (state[k] && state[k].dispose) await state[k].dispose();
     } catch {
@@ -224,72 +218,131 @@ async function unload() {
   log.info('lokal modellar boʻshatildi');
 }
 
+// ── chat model: isolated worker process ─────────────────────────────────────
+//
+// llama.cpp aborted the whole agent once ("pre-allocated tensor … cannot run
+// the operation") — a native crash that no try/catch can catch. The chat
+// model therefore lives in a child process (see localWorker.js). If it dies,
+// in-flight requests fail over to the cloud and the worker is restarted after
+// a pause; the account never goes silent because of it.
+
+const WORKER_RESTART_DELAY_MS = 5 * 60_000;
+const pending = new Map(); // id -> { resolve, reject, timer }
+let nextId = 1;
+
+function startWorker() {
+  const { fork } = require('node:child_process');
+  const contextSize = settings.int('local_context_size', CATALOG.chat.contextSize);
+  const child = fork(path.join(__dirname, 'localWorker.js'), [JSON.stringify({ modelPath: filePath('chat'), contextSize, gpuOrder: ['vulkan', 'auto'] })], {
+    cwd: process.cwd(),
+    stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
+    windowsHide: true,
+  });
+  state.worker = child;
+  state.chatModel = false;
+  state.crashedAt = null;
+  let stderr = '';
+  child.stderr.on('data', (d) => {
+    stderr = (stderr + d.toString()).slice(-2000);
+  });
+
+  return new Promise((resolve) => {
+    const readyTimer = setTimeout(() => {
+      log.warn('lokal chat modeli 5 daqiqada yuklanmadi');
+      resolve(false);
+    }, 5 * 60_000);
+
+    child.on('message', (m) => {
+      if (!m) return;
+      if (m.type === 'ready') {
+        clearTimeout(readyTimer);
+        state.chatModel = true;
+        state.gpu = m.gpu;
+        state.loadedAt = Date.now();
+        log.info('chat modeli yuklandi (alohida jarayon)', { model: CATALOG.chat.label, gpu: m.gpu, pid: child.pid });
+        resolve(true);
+      } else if (m.type === 'fatal') {
+        clearTimeout(readyTimer);
+        state.error = m.error;
+        log.error('lokal chat modeli yuklanmadi', { error: m.error });
+        resolve(false);
+      } else if (m.type === 'result') {
+        const p = pending.get(m.id);
+        if (!p) return;
+        pending.delete(m.id);
+        clearTimeout(p.timer);
+        if (m.ok) p.resolve({ content: m.content, toolCalls: [], finishReason: 'stop', usage: {}, latencyMs: m.latencyMs });
+        else p.reject(new Error(m.error || 'lokal model xatosi'));
+      }
+    });
+
+    child.on('exit', (code, signal) => {
+      clearTimeout(readyTimer);
+      const wasReady = state.chatModel === true;
+      state.worker = null;
+      state.chatModel = false;
+      for (const [id, p] of pending) {
+        clearTimeout(p.timer);
+        p.reject(new Error('lokal model jarayoni yiqildi'));
+        pending.delete(id);
+      }
+      if (state.stopping) {
+        state.stopping = false;
+        resolve(false);
+        return;
+      }
+      state.crashedAt = Date.now();
+      state.error = `jarayon yiqildi (${code ?? signal}) ${stderr.split('\n').filter(Boolean).slice(-1)[0] || ''}`.trim();
+      log.error('lokal chat modeli jarayoni yiqildi — agent ishlashda davom etadi, bulut modellar javob beradi', { code, signal, tail: stderr.slice(-300) });
+      const { recordEvent } = require('../core/db');
+      recordEvent('local', 'Local model worker crashed', { code, signal, wasReady }, 'error');
+      setTimeout(() => {
+        if (!state.worker && settings.bool('local_model_enabled', true) && fileStatus('chat').present) startWorker().catch(() => {});
+      }, WORKER_RESTART_DELAY_MS);
+      resolve(false);
+    });
+  });
+}
+
+function stopWorker(reason) {
+  const w = state.worker;
+  if (!w) return;
+  state.stopping = true;
+  try {
+    w.kill();
+  } catch {
+    /* gone */
+  }
+  state.worker = null;
+  state.chatModel = false;
+  log.info('lokal chat modeli jarayoni toʻxtatildi', { reason });
+}
+
 /**
- * OpenAI-shaped messages → one completion.
+ * OpenAI-shaped messages → one completion from the worker.
  * Tools are not offered to the local model: it serves the high-volume support
  * path, where retrieval context is already in the prompt. Founder commands,
  * which need reliable tool calling, stay on the cloud providers.
  */
-let queue = Promise.resolve();
-
-async function chat({ messages, maxTokens = 600, temperature = 0.55 }) {
-  if (!state.chatModel || !state.chatContext) throw new Error('lokal chat modeli yuklanmagan');
-
-  // One request at a time: a single context sequence cannot be shared.
-  const run = async () => {
-    const { LlamaChatSession } = await lib();
-    const started = Date.now();
-
-    const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
-    const turns = messages.filter((m) => m.role === 'user' || m.role === 'assistant');
-    const last = turns[turns.length - 1];
-    const history = turns.slice(0, -1);
-
-    // One sequence for the lifetime of the context, cleared between calls.
-    // Taking a fresh sequence per call and disposing it leaked: the context
-    // has a single slot, and the fourth request failed with "No sequences left".
-    if (!state.sequence) state.sequence = state.chatContext.getSequence();
-    const sequence = state.sequence;
-    // No clearHistory(): the sequence keeps its evaluated tokens, and the next
-    // prompt only re-evaluates from the first token that differs. The support
-    // prompt starts with ~3.5k tokens of persona and rules that never change
-    // between requests, so that prefix costs nothing after the first call.
-
-    // Gemma's chat template has no system role and the wrapper dropped ours
-    // silently — a "start every reply with ZETA" instruction was ignored
-    // outright. The instructions are therefore folded into the first user
-    // turn, which is how Gemma is meant to receive them.
-    const session = new LlamaChatSession({ contextSequence: sequence });
-    const withSystem = (userText, isFirst) =>
-      isFirst && system ? `${system}\n\n════════\nFOYDALANUVCHI XABARI:\n${userText}` : userText;
-
-    const prompt = last && last.role === 'user' ? String(last.content) : '';
-    if (history.length) {
-      let firstUserSeen = false;
-      session.setChatHistory(
-        history.map((m) => {
-          if (m.role === 'user') {
-            const text = withSystem(String(m.content), !firstUserSeen);
-            firstUserSeen = true;
-            return { type: 'user', text };
-          }
-          return { type: 'model', response: [String(m.content)] };
-        })
-      );
-      var finalPrompt = firstUserSeen ? prompt : withSystem(prompt, true);
-    } else {
-      var finalPrompt = withSystem(prompt, true);
-    }
-    const text = await session.prompt(finalPrompt, { maxTokens, temperature });
-    const ms = Date.now() - started;
-    state.calls++;
-    state.totalMs += ms;
-    return { content: text, toolCalls: [], finishReason: 'stop', usage: {}, latencyMs: ms };
-  };
-
-  const p = queue.then(run, run);
-  queue = p.catch(() => {});
-  return p;
+function chat({ messages, maxTokens = 600, temperature = 0.55, timeoutMs = 120_000 }) {
+  if (!state.worker || state.chatModel !== true) return Promise.reject(new Error('lokal chat modeli yuklanmagan'));
+  const id = nextId++;
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pending.delete(id);
+      reject(new Error('lokal model javob bermadi (timeout)'));
+    }, timeoutMs);
+    pending.set(id, {
+      resolve: (r) => {
+        state.calls++;
+        state.totalMs += r.latencyMs;
+        resolve(r);
+      },
+      reject,
+      timer,
+    });
+    state.worker.send({ type: 'chat', id, messages, maxTokens, temperature });
+  });
 }
 
 function status() {
@@ -303,7 +356,7 @@ function status() {
     gpu: state.gpu,
     loading: state.loading,
     error: state.error,
-    chat: { ...c.chat, ...fileStatus('chat'), loaded: !!state.chatModel },
+    chat: { ...c.chat, ...fileStatus('chat'), loaded: state.chatModel === true, workerPid: state.worker ? state.worker.pid : null, crashedAt: state.crashedAt || null },
     embed: { ...c.embed, ...fileStatus('embed'), loaded: !!state.embedModel },
     vectors: vectors.stats(),
     calls: state.calls,

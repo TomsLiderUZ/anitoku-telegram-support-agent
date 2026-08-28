@@ -268,10 +268,13 @@ async function respond({ chatId, text, chatTitle = null, chatType = 'private', u
   // anyone else — the prompt rule alone did not hold.
   if (!isFounder) {
     const before = reply;
+    // "Toms aka" is the founder's address alone — a group member who happened
+    // to write next was greeted as Toms aka, which is both wrong and leaks
+    // who the account answers to.
     reply = reply
-      .replace(/\b(hurmatli\s+)?(asoschi|rahbar(iyat)?|boss|shef)\s*[,!]\s*/gi, '')
-      .replace(/,\s*(hurmatli\s+)?(asoschi|rahbar)\b\s*!?/gi, '')
-      .replace(/\b(labbay|xizmatingizdaman)\s*,?\s*(hurmatli\s+)?(asoschi|rahbar)\b/gi, '$1');
+      .replace(/\b(hurmatli\s+)?(asoschi|rahbar(iyat)?|boss|shef|toms\s+aka|toms)\s*[,!]\s*/gi, '')
+      .replace(/,\s*(hurmatli\s+)?(asoschi|rahbar|toms\s+aka|toms)\b\s*!?/gi, '')
+      .replace(/\b(labbay|xizmatingizdaman)\s*,?\s*(hurmatli\s+)?(asoschi|rahbar|toms\s+aka)\b/gi, '$1');
     if (reply !== before) meta.flags.push('honorific_stripped');
   }
   const clean = guardrails.sanitizeOutgoing(reply);

@@ -1145,10 +1145,115 @@ $('memAdd').addEventListener('click', async () => {
   loaders.memory();
 });
 
-// ── botlar ──────────────────────────────────────────────────────────────────
+// ── loyihalar ───────────────────────────────────────────────────────────────
+let prjSel = null;
+const PRJ_KIND = { node: 'Node.js', 'telegram-bot': 'Telegram bot', python: 'Python', static: 'Statik sayt', other: 'Boshqa' };
+
+loaders.projects = async () => {
+  const d = await api('/projects');
+  const list = d.projects || [];
+  $('prjTable').innerHTML = list.length
+    ? list
+        .map((p) => {
+          const st = p.alive ? ['ishlayapti', 'ok'] : p.status === 'crashed' ? ['yiqilgan', 'err'] : p.run_cmd ? ["to'xtagan", ''] : ['fayllar', 'info'];
+          return `<tr>
+            <td><b>${esc(p.name || p.slug)}</b><div class="hint mono">${esc(p.slug)}</div></td>
+            <td>${esc(PRJ_KIND[p.kind] || p.kind)}</td>
+            <td><span class="pill ${st[1]}">${st[0]}</span>${p.last_error ? `<div class="hint">${esc(p.last_error)}</div>` : ''}</td>
+            <td class="mono">${esc(p.run_cmd || '—')}</td>
+            <td class="num">${p.files || 0}</td>
+            <td><div class="row">
+              <button class="btn ghost sm" data-psel="${esc(p.slug)}">Ochish</button>
+              ${p.alive ? `<button class="btn ghost sm" data-pstop="${esc(p.slug)}">To'xtat</button>` : p.run_cmd ? `<button class="btn ok sm" data-pstart="${esc(p.slug)}">Ishga tushir</button>` : ''}
+              <button class="btn danger sm" data-pdel="${esc(p.slug)}">×</button>
+            </div></td></tr>`;
+        })
+        .join('')
+    : '<tr><td colspan="6" class="empty">Hali loyiha yo\'q. Telegramda yoki "Buyruq berish" da: "anitoku uchun API loyiha yarat va kod yoz"</td></tr>';
+  const bind = (attr, fn) => $('prjTable').querySelectorAll(`[${attr}]`).forEach((b) => b.addEventListener('click', () => fn(b.getAttribute(attr))));
+  bind('data-pstop', async (s) => { await api(`/projects/${s}/stop`, { method: 'POST' }); loaders.projects(); });
+  bind('data-pstart', async (s) => { try { await api(`/projects/${s}/start`, { method: 'POST' }); } catch (e) { toast(e.message, 'err'); } loaders.projects(); });
+  bind('data-pdel', async (s) => { if (!confirm(`"${s}" loyihasi fayllari bilan o'chirilsinmi?`)) return; await api(`/projects/${s}`, { method: 'DELETE' }); if (prjSel === s) { prjSel = null; $('prjDetail').hidden = true; } loaders.projects(); });
+  bind('data-psel', async (s) => { prjSel = s; $('prjDetail').hidden = false; $('prjDetailTitle').textContent = s; showPrjFiles(); });
+
+  await renderBots(d.bots || []);
+  renderServers(d.servers || [], d.publicKey);
+};
+
+async function showPrjFiles() {
+  if (!prjSel) return;
+  const r = await api(`/projects/${prjSel}/files`);
+  $('prjDetailBody').textContent = r.files.length ? r.files.map((f) => `${f.path}${f.size !== undefined ? '  (' + f.size + ' B)' : ''}`).join('\n') : '(fayl yo\'q)';
+}
+async function showPrjLogs() {
+  if (!prjSel) return;
+  const r = await api(`/projects/${prjSel}/logs?lines=200`);
+  $('prjDetailBody').textContent = r.logs || '(log bo\'sh)';
+}
+$('prjShowFiles').addEventListener('click', showPrjFiles);
+$('prjShowLogs').addEventListener('click', showPrjLogs);
+$('prjRestart').addEventListener('click', async () => { if (!prjSel) return; try { await api(`/projects/${prjSel}/restart`, { method: 'POST' }); toast('Qayta ishga tushirildi'); } catch (e) { toast(e.message, 'err'); } loaders.projects(); });
+$('prjRunCmd').addEventListener('click', async () => {
+  const command = $('prjCmd').value.trim();
+  if (!prjSel || !command) return;
+  $('prjDetailBody').textContent = '$ ' + command + '\n…';
+  try {
+    const r = await api(`/projects/${prjSel}/command`, { method: 'POST', body: { command } });
+    $('prjDetailBody').textContent = `$ ${command}\n${r.output || ''}\n[exit ${r.code}${r.timedOut ? ', timeout' : ''} · ${r.ms} ms]`;
+  } catch (e) { toast(e.message, 'err'); }
+});
+$('prjRunTask').addEventListener('click', async () => {
+  const task = $('prjTask').value.trim();
+  if (!prjSel || !task) return toast('Vazifa yozing', 'warn');
+  const btn = $('prjRunTask');
+  btn.disabled = true; btn.textContent = 'Ishlamoqda…';
+  $('prjDetailBody').textContent = 'Kod vazifasi bajarilmoqda — bu bir necha daqiqa olishi mumkin…';
+  try {
+    const r = await api(`/projects/${prjSel}/task`, { method: 'POST', body: { task } });
+    $('prjDetailBody').textContent = `${r.ok ? '✅' : '⚠️'} ${r.summary}\n\nO'zgargan fayllar: ${r.changed.join(', ') || '—'}\nBuyruqlar: ${r.commands.join(' ; ') || '—'}\nBosqichlar: ${r.rounds}`;
+    toast(r.ok ? 'Vazifa bajarildi' : 'Vazifa to\'liq bajarilmadi', r.ok ? 'ok' : 'warn');
+  } catch (e) { $('prjDetailBody').textContent = 'Xato: ' + e.message; toast(e.message, 'err'); }
+  btn.disabled = false; btn.textContent = 'Kod vazifasini boshlash';
+  loaders.projects();
+});
+$('prjNewBtn').addEventListener('click', () => { $('prjNewCard').hidden = !$('prjNewCard').hidden; });
+$('prjCreate').addEventListener('click', async () => {
+  const name = $('prjName').value.trim();
+  if (!name) return toast('Nom kiriting', 'warn');
+  try {
+    const p = await api('/projects', { method: 'POST', body: { name, kind: $('prjKind').value, runCmd: $('prjRun').value.trim() || null, spec: $('prjSpec').value.trim() || null } });
+    toast(`"${p.slug}" yaratildi`);
+    $('prjNewCard').hidden = true; $('prjName').value = ''; $('prjSpec').value = '';
+    loaders.projects();
+  } catch (e) { toast(e.message, 'err'); }
+});
+$('prjRefresh').addEventListener('click', () => loaders.projects());
+
+function renderServers(list, pubKey) {
+  $('srvPubKey').textContent = pubKey || '(kalit yaratilmadi — ssh-keygen topilmadi)';
+  $('srvTable').innerHTML = list.length
+    ? list.map((s) => `<tr><td><b>${esc(s.name)}</b>${s.note ? `<div class="hint">${esc(s.note)}</div>` : ''}</td><td class="mono">${esc(s.user)}@${esc(s.host)}:${s.port}</td>
+        <td>${s.last_ok ? fmtTime(s.last_ok) : '—'}${s.last_error ? `<div class="hint">${esc(String(s.last_error).slice(0, 80))}</div>` : ''}</td>
+        <td><div class="row"><button class="btn ghost sm" data-stest="${esc(s.name)}">Tekshirish</button><button class="btn danger sm" data-sdel="${esc(s.name)}">×</button></div></td></tr>`).join('')
+    : '<tr><td colspan="4" class="empty">Server qo\'shilmagan</td></tr>';
+  $('srvTable').querySelectorAll('[data-stest]').forEach((b) => b.addEventListener('click', async () => {
+    $('srvOut').hidden = false; $('srvOut').textContent = 'Ulanmoqda…';
+    try { const r = await api(`/servers/${b.dataset.stest}/run`, { method: 'POST', body: { command: 'hostname && uptime && df -h / | tail -1' } }); $('srvOut').textContent = (r.ok ? '✅ ' : '❌ ') + r.output; } catch (e) { $('srvOut').textContent = e.message; }
+    loaders.projects();
+  }));
+  $('srvTable').querySelectorAll('[data-sdel]').forEach((b) => b.addEventListener('click', async () => { if (!confirm('Server o\'chirilsinmi?')) return; await api(`/servers/${b.dataset.sdel}`, { method: 'DELETE' }); loaders.projects(); }));
+}
+$('srvAdd').addEventListener('click', async () => {
+  try {
+    await api('/servers', { method: 'POST', body: { name: $('srvName').value.trim(), host: $('srvHost').value.trim(), user: $('srvUser').value.trim() || 'root', port: Number($('srvPort').value) || 22 } });
+    toast('Server saqlandi'); loaders.projects();
+  } catch (e) { toast(e.message, 'err'); }
+});
+
+// ── botlar (loyihalar sahifasi ichida) ──────────────────────────────────────
 let botSel = null;
-loaders.bots = async () => {
-  const list = await api('/bots');
+loaders.bots = () => loaders.projects();
+async function renderBots(list) {
   $('botsTable').innerHTML = list.length
     ? list
         .map((b) => {
@@ -1168,15 +1273,14 @@ loaders.bots = async () => {
         .join('')
     : '<tr><td colspan="6" class="empty">Hali bot yo\'q. Buyruq bering: "anime bot yasab, kod yozib run qil"</td></tr>';
   const bind = (attr, fn) => $('botsTable').querySelectorAll(`[${attr}]`).forEach((b) => b.addEventListener('click', () => fn(b.getAttribute(attr))));
-  bind('data-bstop', async (u) => { await api(`/bots/${u}/stop`, { method: 'POST' }); loaders.bots(); });
-  bind('data-bstart', async (u) => { try { await api(`/bots/${u}/start`, { method: 'POST' }); } catch (e) { toast(e.message, 'err'); } loaders.bots(); });
-  bind('data-bdel', async (u) => { if (!confirm(`@${u} kodi va jarayoni o'chirilsinmi? (BotFather'dagi bot qoladi)`)) return; await api(`/bots/${u}`, { method: 'DELETE' }); loaders.bots(); });
+  bind('data-bstop', async (u) => { await api(`/bots/${u}/stop`, { method: 'POST' }); loaders.projects(); });
+  bind('data-bstart', async (u) => { try { await api(`/bots/${u}/start`, { method: 'POST' }); } catch (e) { toast(e.message, 'err'); } loaders.projects(); });
+  bind('data-bdel', async (u) => { if (!confirm(`@${u} kodi va jarayoni o'chirilsinmi? (BotFather'dagi bot qoladi)`)) return; await api(`/bots/${u}`, { method: 'DELETE' }); loaders.projects(); });
   bind('data-bsel', async (u) => { botSel = u; $('botDetail').hidden = false; $('botDetailTitle').textContent = '@' + u; showBotLogs(); });
-};
+}
 async function showBotLogs() { if (!botSel) return; const r = await api(`/bots/${botSel}/logs?lines=150`); $('botDetailBody').textContent = r.logs || '(log bo\'sh)'; }
 $('botShowLogs').addEventListener('click', showBotLogs);
 $('botShowCode').addEventListener('click', async () => { if (!botSel) return; const r = await api(`/bots/${botSel}/code`); $('botDetailBody').textContent = r.code || '(kod yo\'q)'; });
-$('botsRefresh').addEventListener('click', () => loaders.bots());
 
 // ── lokal model ─────────────────────────────────────────────────────────────
 const gb = (b) => (b / 1073741824).toFixed(2) + ' GB';

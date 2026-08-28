@@ -8,488 +8,351 @@ const contacts = require('./contacts');
 const tasks = require('./tasks');
 const botfather = require('./botfather');
 const managedBots = require('./managedBots');
+const telegramOps = require('./telegramOps');
+const watches = require('./watches');
+const projects = require('./projects');
+const coder = require('./coder');
+const servers = require('./servers');
 const { parseWhen, fmtTashkent } = require('./timeparse');
 const ingest = require('../knowledge/ingest');
 
 const log = createLogger('assistant:tools');
 
+const fn = (name, description, properties = {}, required = []) => ({
+  type: 'function',
+  function: { name, description, parameters: { type: 'object', properties, required } },
+});
+const S = (description) => ({ type: 'string', description });
+const I = (description) => ({ type: 'integer', description });
+const B = (description) => ({ type: 'boolean', description });
+
 /**
  * What the assistant can DO for the founder. Every tool acts on the real
- * account, so this executor is only ever constructed for a verified founder
- * message — never for a customer.
+ * account or this machine, so this executor is only ever constructed for a
+ * verified founder message — never for a customer.
  */
 const definitions = [
-  {
-    type: 'function',
-    function: {
-      name: 'send_message',
-      description:
-        "Telegramda kimgadir xabar yuborish. `to` — ism, @username, telefon, guruh nomi yoki chat ID boʻlishi mumkin. Asoschi 'X ga yoz', 'X ga ayt', 'X ga xabar ber' desa shu vositani ishlat. Matnni asoschi aytgan maʼnoda, lekin tabiiy va toʻliq jumla qilib yoz.",
-      parameters: {
-        type: 'object',
-        properties: {
-          to: { type: 'string', description: 'Qabul qiluvchi: ism / @username / telefon / guruh nomi / ID' },
-          text: { type: 'string', description: 'Yuboriladigan xabar matni' },
-        },
-        required: ['to', 'text'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'schedule_message',
-      description:
-        "Kelajakdagi vaqtga xabar rejalashtirish. Asoschi 'soat 15 da X ga yoz', 'ertaga ertalab X ga eslat', '2 soatdan keyin X ga ayt' desa ishlat. `when` — asoschi aytgan vaqt ifodasi, oʻzgartirmasdan.",
-      parameters: {
-        type: 'object',
-        properties: {
-          when: { type: 'string', description: "Vaqt ifodasi: 'soat 15:00 da', 'ertaga 9 da', '30 daqiqadan keyin'" },
-          to: { type: 'string', description: 'Qabul qiluvchi' },
-          text: { type: 'string', description: 'Xabar matni' },
-        },
-        required: ['when', 'to', 'text'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'schedule_task',
-      description:
-        "Kelajakda bajariladigan HAR QANDAY koʻrsatmani rejalashtirish (xabar emas, ish): 'ertaga treningni qayta ishga tushir', 'soat 18 da guruhni tekshirib menga hisobot ber'. Belgilangan vaqtda yordamchi koʻrsatmani oʻzi bajaradi.",
-      parameters: {
-        type: 'object',
-        properties: {
-          when: { type: 'string' },
-          instruction: { type: 'string', description: 'Bajarilishi kerak boʻlgan koʻrsatma, toʻliq' },
-        },
-        required: ['when', 'instruction'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'remember',
-      description: "Faktni doimiy xotiraga saqlash. Asoschi 'eslab qol', 'yodda tut' desa — MAJBURIY ishlat. Fakt hamma chatlarda va support javoblarida ishlatiladi.",
-      parameters: {
-        type: 'object',
-        properties: { fact: { type: 'string' }, tags: { type: 'string', description: 'vergul bilan, ixtiyoriy' } },
-        required: ['fact'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'forget',
-      description: "Xotiradan faktni oʻchirish. Asoschi 'unut', 'esdan chiqar' desa ishlat.",
-      parameters: { type: 'object', properties: { query: { type: 'string', description: 'Unutiladigan fakt yoki uning kalit soʻzi' } }, required: ['query'] },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'list_memory',
-      description: 'Xotiradagi barcha faktlarni koʻrsatish.',
-      parameters: { type: 'object', properties: {}, required: [] },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'add_knowledge',
-      description: "Mijozlarga javob berishda ishlatiladigan bilim bazasiga fakt qoʻshish. Asoschi 'bilim bazangga qoʻsh', 'mijozlarga shuni ayt' desa ishlat.",
-      parameters: { type: 'object', properties: { title: { type: 'string' }, content: { type: 'string' } }, required: ['content'] },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'find_contact',
-      description: 'Odam yoki guruhni ism/username/telefon boʻyicha topish va kimligini aniqlash.',
-      parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'read_chat',
-      description: "Biror chatning soʻnggi xabarlarini oʻqish. 'X bilan nima gaplashdik', 'guruhda nima boʻlyapti', 'X nima yozdi' kabi soʻrovlarda ishlat.",
-      parameters: { type: 'object', properties: { chat: { type: 'string' }, limit: { type: 'integer', description: 'nechta xabar, standart 30' } }, required: ['chat'] },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'forward_message',
-      description: 'Bir chatdagi xabarni boshqa chatga forward qilish.',
-      parameters: {
-        type: 'object',
-        properties: { from_chat: { type: 'string' }, message_id: { type: 'integer' }, to: { type: 'string' } },
-        required: ['from_chat', 'message_id', 'to'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'create_bot',
-      description:
-        "BotFather orqali yangi Telegram bot yaratish va tokenini olish. Asoschi 'bot yarat', 'bot ochib ber' desa ishlat. Username lotin harflari, kamida 5 belgi va 'bot' bilan tugashi shart — asoschi aytmasa oʻzing mos nom tanla.",
-      parameters: {
-        type: 'object',
-        properties: {
-          name: { type: 'string', description: "Botning koʻrinadigan nomi" },
-          username: { type: 'string', description: "@username, 'bot' bilan tugaydi" },
-          description: { type: 'string', description: 'Bot tavsifi (ixtiyoriy)' },
-          about: { type: 'string', description: 'Qisqa "about" matni (ixtiyoriy)' },
-        },
-        required: ['name', 'username'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'configure_bot',
-      description:
-        "FAQAT BotFather'dagi koʻrinish: botning nomi, tavsifi, about matni, menyudagi buyruqlar roʻyxati (koʻrsatma matni). Bu bot KODIGA va xatti-harakatiga TAʼSIR QILMAYDI — yangi buyruq ishlashi uchun build_and_run_bot kerak. Buyruq qoʻshish/tuzatish uchun BU VOSITANI ISHLATMA.",
-      parameters: {
-        type: 'object',
-        properties: {
-          username: { type: 'string' },
-          name: { type: 'string' },
-          description: { type: 'string' },
-          about: { type: 'string' },
-          commands: { type: 'string', description: "Har qatorda 'buyruq - tavsif'" },
-        },
-        required: ['username'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'build_and_run_bot',
-      description:
-        "Bot uchun KOD YOZIB (yoki mavjud kodni OʻZGARTIRIB), shu kompyuterda ISHGA TUSHIRISH. Quyidagilarning HAMMASI shu vosita: 'kod yozib run qil', 'ishlaydigan bot qil', 'buyruq qoʻsh', 'buyruqni tuzat', 'X ishlamayapti', 'Y funksiyasini oʻzgartir'. Bot avval BotFather'da yaratilgan boʻlishi kerak (create_bot). Token bazada boʻlmasa oʻzi oladi. Spec'ni Toms bermasa — oʻzing mantiqiy funksiyalar toʻplamini yoz. Mavjud botga oʻzgartirish kiritayotganda `fix` maydonida nima kerakligini yoz — mavjud buyruqlar avtomatik saqlanadi va natijada `commands` roʻyxati qaytadi: hisobotda AYNAN shu roʻyxatni ayt, taxmin qilma. Kod chatga YOZILMAYDI.",
-      parameters: {
-        type: 'object',
-        properties: {
-          username: { type: 'string', description: '@username' },
-          spec: { type: 'string', description: 'Bot nima qilishi kerak — buyruqlar va xatti-harakat, 3-8 jumla. Tuzatishda avvalgi spec saqlanadi, boʻsh qoldirsa boʻladi' },
-          name: { type: 'string' },
-          fix: { type: 'string', description: "Mavjud botni TUZATISH uchun: nima ishlamayapti (masalan '/search doim topilmadi deydi'). Berilsa kod qayta yozilmaydi, patch qilinadi" },
-        },
-        required: ['username'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: { name: 'my_bots', description: "Agent oʻzi yozgan va boshqarayotgan botlar: holati (ishlayapti/toʻxtagan), tokeni, spec'i.", parameters: { type: 'object', properties: {}, required: [] } },
-  },
-  {
-    type: 'function',
-    function: { name: 'stop_bot', description: 'Boshqariladigan botni toʻxtatish.', parameters: { type: 'object', properties: { username: { type: 'string' } }, required: ['username'] } },
-  },
-  {
-    type: 'function',
-    function: { name: 'start_bot', description: 'Toʻxtatilgan boshqariladigan botni qayta ishga tushirish.', parameters: { type: 'object', properties: { username: { type: 'string' } }, required: ['username'] } },
-  },
-  {
-    type: 'function',
-    function: { name: 'bot_logs', description: 'Boshqariladigan botning soʻnggi log qatorlari (xatolarni koʻrish uchun).', parameters: { type: 'object', properties: { username: { type: 'string' }, lines: { type: 'integer' } }, required: ['username'] } },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'get_bot_token',
-      description: "Botning tokenini olish — avval bazadan, boʻlmasa BotFather /token orqali. Toms token soʻrasa BER: u egasi, bu uning maʼlumoti.",
-      parameters: { type: 'object', properties: { username: { type: 'string' } }, required: ['username'] },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'press_button',
-      description:
-        "Botning soʻnggi xabaridagi tugmani bosish (inline yoki klaviatura tugmasi). Bot menyu/tugma koʻrsatsa va Toms tanlashni aytsa yoki oʻzing kerakli qadamni koʻrsang — bos. talk_to_bot / read_bot natijasidagi `buttons` roʻyxatidan matnni ol.",
-      parameters: {
-        type: 'object',
-        properties: { bot: { type: 'string', description: '@username' }, button: { type: 'string', description: 'Tugma matni (qisman ham boʻladi)' }, wait_seconds: { type: 'integer' } },
-        required: ['bot', 'button'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'read_bot',
-      description: 'Bot bilan soʻnggi yozishmani va hozir koʻrsatilayotgan tugmalarni oʻqish.',
-      parameters: { type: 'object', properties: { bot: { type: 'string' }, limit: { type: 'integer' } }, required: ['bot'] },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'delete_bot',
-      description: "Oʻzimizga tegishli botni BotFather orqali butunlay oʻchirish. Toms 'botni oʻchir' desa ishlat.",
-      parameters: { type: 'object', properties: { username: { type: 'string' } }, required: ['username'] },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'list_my_bots',
-      description: 'Shu akkauntga tegishli barcha botlar roʻyxati (BotFather /mybots).',
-      parameters: { type: 'object', properties: {}, required: [] },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'talk_to_bot',
-      description:
-        "Boshqa botga xabar yuborib, javobini olish. Asoschi 'X botdan Y ni soʻra', 'X botni ishlatib Y qil' desa ishlat. Bot bir necha qadam talab qilsa, vositani ketma-ket chaqir.",
-      parameters: {
-        type: 'object',
-        properties: { bot: { type: 'string', description: '@username' }, text: { type: 'string' }, wait_seconds: { type: 'integer', description: 'javobni kutish, standart 15' } },
-        required: ['bot', 'text'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'list_tasks',
-      description: 'Rejalashtirilgan va bajarilgan vazifalar roʻyxati.',
-      parameters: { type: 'object', properties: { status: { type: 'string', description: 'pending | done | failed | cancelled | (boʻsh = hammasi)' } }, required: [] },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'cancel_task',
-      description: 'Rejalashtirilgan vazifani bekor qilish.',
-      parameters: { type: 'object', properties: { id: { type: 'integer' } }, required: ['id'] },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'search_knowledge',
-      description: 'Bilim bazasidan qidirish (mijozlarga beriladigan maʼlumot).',
-      parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'agent_status',
-      description: 'Agentning hozirgi holati: Telegram, kalitlar, bilim, vazifalar, bugungi javoblar.',
-      parameters: { type: 'object', properties: {}, required: [] },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'run_training',
-      description: "Oʻz-oʻzini trening jarayonini ishga tushirish (chatlarni qayta oʻqish, koʻnikmalarni yangilash).",
-      parameters: { type: 'object', properties: {}, required: [] },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'set_setting',
-      description: "Agent sozlamasini oʻzgartirish. Ruxsat etilgan: reply_in_groups, reply_to_private, typing_simulation, keep_online, quiet_hours, min_delay_ms, max_delay_ms, max_replies_per_chat_hour, temperature, primary_provider.",
-      parameters: { type: 'object', properties: { key: { type: 'string' }, value: { type: 'string' } }, required: ['key', 'value'] },
-    },
-  },
+  // ── messaging ──────────────────────────────────────────────────────────
+  fn('send_message', "Telegramda kimgadir xabar yuborish. `to` — ism, @username, telefon, guruh nomi yoki chat ID. 'menga' = Tomsning shaxsiy chati. Matnni Toms aytgan maʼnoda tabiiy va toʻliq jumla qilib yoz. Savol yuborib javobini kutish kerak boʻlsa (\"soʻrab koʻr, javobini menga yoz\") wait_reply=true qil — javob kelganda avtomatik Tomsning shaxsiy chatiga yetkaziladi.",
+    { to: S('Qabul qiluvchi'), text: S('Xabar matni'), wait_reply: B("Javob kelganda Tomsga shaxsiy chatda xabar berish"), reply_note: S("Kuzatuv izohi, masalan 'yoshi'") }, ['to', 'text']),
+  fn('send_private', "Tomsning SHAXSIY chatiga xabar yozish. Token, parol, kalit, havola, hisobot — guruhda soʻralgan boʻlsa ham maxfiy narsa FAQAT shu vosita orqali beriladi.", { text: S('Matn') }, ['text']),
+  fn('delete_message', "Xabarni oʻchirish (ikkala tomondan). message_ids berilmasa — shu chatdagi oʻzimning oxirgi xabarim oʻchadi. 'eski xabarni oʻchir', 'noto‘g‘ri yubording, oʻchir' desa ishlat.", { chat: S('Chat / odam'), message_ids: { type: 'array', items: { type: 'integer' } } }, ['chat']),
+  fn('schedule_message', "Kelajakdagi vaqtga xabar rejalashtirish. `when` — Toms aytgan vaqt ifodasi, oʻzgartirmasdan.", { when: S("'soat 15:00 da', 'ertaga 9 da', '30 daqiqadan keyin'"), to: S('Qabul qiluvchi'), text: S('Xabar') }, ['when', 'to', 'text']),
+  fn('schedule_task', "Kelajakda bajariladigan HAR QANDAY koʻrsatmani rejalashtirish. Belgilangan vaqtda yordamchi koʻrsatmani oʻzi bajaradi.", { when: S('vaqt'), instruction: S('Toʻliq koʻrsatma') }, ['when', 'instruction']),
+  fn('watch_reply', "Biror chatdan keladigan keyingi javobni kuzatib, kelganda Tomsning shaxsiy chatiga yetkazish. Savol allaqachon yuborilgan boʻlsa ishlat.", { chat: S('Kimning javobi kutilmoqda'), note: S('Nima haqida') }, ['chat']),
+  fn('list_watches', 'Kutilayotgan javoblar (kuzatuvlar) roʻyxati.', {}),
+  fn('forward_message', 'Bir chatdagi xabarni boshqa chatga forward qilish.', { from_chat: S(''), message_id: I(''), to: S('') }, ['from_chat', 'message_id', 'to']),
+  fn('read_chat', "Chatning soʻnggi xabarlarini oʻqish: 'X bilan nima gaplashdik', 'X javob berdimi', 'guruhda nima boʻlyapti'.", { chat: S(''), limit: I('standart 30') }, ['chat']),
+  fn('find_contact', 'Odam yoki guruhni ism/username/telefon boʻyicha topish.', { query: S('') }, ['query']),
+  fn('add_alias', "Odamga qoʻshimcha nom oʻrgatish: 'esingda tursin @ogabeey bu Ogʻabek'. Keyin shu nom bilan topiladi.", { user: S('@username yoki ID'), alias: S('nom') }, ['user', 'alias']),
+
+  // ── memory & knowledge ─────────────────────────────────────────────────
+  fn('remember', "Faktni doimiy xotiraga saqlash. 'eslab qol', 'yodda tut' desa MAJBURIY.", { fact: S(''), tags: S('vergul bilan, ixtiyoriy') }, ['fact']),
+  fn('forget', "Xotiradan faktni oʻchirish.", { query: S('') }, ['query']),
+  fn('list_memory', 'Xotiradagi barcha faktlar.', {}),
+  fn('add_knowledge', "Mijozlarga javob berishda ishlatiladigan bilim bazasiga fakt qoʻshish.", { title: S(''), content: S('') }, ['content']),
+  fn('search_knowledge', 'Bilim bazasidan qidirish.', { query: S('') }, ['query']),
+
+  // ── chats: membership, creation, moderation ───────────────────────────
+  fn('join_chat', "Kanal yoki guruhga aʼzo boʻlish: taklif havolasi (t.me/+…, t.me/joinchat/…) yoki @username. Bot 'majburiy obuna' soʻrasa — havolalarini shu bilan ochib aʼzo boʻl, keyin botdagi 'Tekshirish' tugmasini bos.", { link: S('havola yoki @username') }, ['link']),
+  fn('leave_chat', 'Guruh yoki kanaldan chiqish.', { chat: S('') }, ['chat']),
+  fn('create_chat', "Yangi KANAL yoki GURUH yaratish. Ommaviy boʻlsa username beriladi va t.me havolasi qaytadi; maxfiy boʻlsa taklif havolasi. Toms 'guruh yarat', 'kanal och' desa ishlat; keyin kerak boʻlsa promote_admin bilan uni admin qil.", { kind: { type: 'string', enum: ['group', 'channel'] }, title: S('nomi'), about: S('tavsif'), public: B('ommaviy (username bilan)'), username: S('ommaviy boʻlsa @username, ixtiyoriy') }, ['kind', 'title']),
+  fn('chat_info', 'Guruh/kanal/odam haqida maʼlumot: ID, username, aʼzolar soni, tavsif, mening huquqlarim, taklif havolasi.', { chat: S('') }, ['chat']),
+  fn('list_members', "Guruh/kanal aʼzolari roʻyxati (ism, @username, ID, roli). Ism boʻyicha qidirish mumkin.", { chat: S(''), query: S('ism boʻyicha filtr'), admins_only: B(''), limit: I('standart 200') }, ['chat']),
+  fn('promote_admin', "Odamni guruh/kanalda admin qilish (toʻliq huquqlar). 'menga admin ber' → user = Toms.", { chat: S(''), user: S(''), rank: S("lavozim nomi, masalan 'Rahbar'") }, ['chat', 'user']),
+  fn('demote_admin', 'Adminlikdan olish.', { chat: S(''), user: S('') }, ['chat', 'user']),
+  fn('ban_user', "Odamni guruh/kanaldan chiqarib, doimiy bloklash. 'blockla', 'ban qil'.", { chat: S(''), user: S('') }, ['chat', 'user']),
+  fn('kick_user', "Odamni guruhdan chiqarib yuborish (qayta kirishi mumkin). 'chiqarib yubor'.", { chat: S(''), user: S('') }, ['chat', 'user']),
+  fn('unban_user', 'Blokdan chiqarish.', { chat: S(''), user: S('') }, ['chat', 'user']),
+  fn('add_members', "Odamlarni guruh/kanalga qoʻshish.", { chat: S(''), users: { type: 'array', items: { type: 'string' } } }, ['chat', 'users']),
+  fn('invite_link', 'Guruh/kanal uchun taklif havolasi olish.', { chat: S('') }, ['chat']),
+  fn('edit_chat', 'Guruh/kanal nomi yoki tavsifini oʻzgartirish.', { chat: S(''), title: S(''), about: S('') }, ['chat']),
+  fn('pin_message', 'Xabarni qadash.', { chat: S(''), message_id: I('') }, ['chat', 'message_id']),
+  fn('my_chats', "Men aʼzo boʻlgan guruh va kanallar roʻyxati.", { kind: { type: 'string', enum: ['group', 'channel'] } }),
+
+  // ── bots via BotFather ─────────────────────────────────────────────────
+  fn('create_bot', "BotFather orqali yangi bot yaratish va tokenini olish. Username lotin, kamida 5 belgi, 'bot' bilan tugaydi. AVVAL list_my_bots bilan borlarini tekshir — xuddi shunday bot boʻlsa yangisini yaratma.", { name: S('Koʻrinadigan nomi'), username: S("@username, 'bot' bilan tugaydi"), description: S(''), about: S('') }, ['name', 'username']),
+  fn('configure_bot', "FAQAT BotFather'dagi koʻrinish: nom, tavsif, about, menyudagi buyruqlar roʻyxati. KODGA TAʼSIR QILMAYDI — buyruq ishlashi uchun code_task/build_and_run_bot kerak.", { username: S(''), name: S(''), description: S(''), about: S(''), commands: S("Har qatorda 'buyruq - tavsif'") }, ['username']),
+  fn('build_and_run_bot', "Bot uchun KOD YOZIB (yoki mavjudini OʻZGARTIRIB) shu kompyuterda ISHGA TUSHIRISH: 'kod yozib run qil', 'buyruq qoʻsh', 'tuzat', 'admin panel qoʻsh'. Bot BotFather'da bor boʻlishi kerak. Spec bermasa oʻzing mantiqiy funksiyalar tanla. Mavjud botga oʻzgartirish — `fix` maydonida. Natijadagi `commands` roʻyxatini hisobotda ayt. Kod chatga YOZILMAYDI.", { username: S('@username'), spec: S('Bot nima qilishi kerak, 3-8 jumla'), name: S(''), fix: S("Mavjud botni tuzatish/kengaytirish: nima kerak") }, ['username']),
+  fn('my_bots', "Agent oʻzi yozgan va boshqarayotgan botlar: holati, tokeni, spec'i.", {}),
+  fn('list_my_bots', 'Shu akkauntga tegishli barcha botlar (BotFather /mybots).', {}),
+  fn('get_bot_token', "Bot tokenini olish. Toms soʻrasa BER — u egasi. Guruhda boʻlsang natijani send_private bilan yubor.", { username: S('') }, ['username']),
+  fn('revoke_bot_token', "Bot tokenini BEKOR QILIB YANGISINI olish (/revoke). 'tokenni yangila' desa shu. Bir nechta bot boʻlsa har biri uchun alohida chaqir. Yangi token bazaga saqlanadi va bot avtomatik qayta ishga tushadi.", { username: S('') }, ['username']),
+  fn('delete_bot', "Botni BotFather orqali butunlay oʻchirish.", { username: S('') }, ['username']),
+  fn('stop_bot', 'Boshqariladigan botni toʻxtatish.', { username: S('') }, ['username']),
+  fn('start_bot', 'Toʻxtatilgan botni ishga tushirish.', { username: S('') }, ['username']),
+  fn('bot_logs', 'Botning soʻnggi log qatorlari.', { username: S(''), lines: I('') }, ['username']),
+  fn('talk_to_bot', "Boshqa botga xabar yuborib javobini olish. Bot koʻp qadamli boʻlsa ketma-ket chaqir; tugmalar chiqsa press_button bilan bos; obuna soʻrasa join_chat bilan aʼzo boʻl va 'Tekshirish'ni bos.", { bot: S('@username'), text: S(''), wait_seconds: I('standart 15') }, ['bot', 'text']),
+  fn('press_button', "Botning soʻnggi xabaridagi tugmani bosish (inline yoki klaviatura).", { bot: S('@username'), button: S('Tugma matni (qisman ham boʻladi)'), wait_seconds: I('') }, ['bot', 'button']),
+  fn('read_bot', 'Bot bilan soʻnggi yozishma va hozirgi tugmalar.', { bot: S(''), limit: I('') }, ['bot']),
+
+  // ── projects, code, terminal, servers ─────────────────────────────────
+  fn('create_project', "Yangi dastur/loyiha yaratish (bot, API, sayt, skript — har qanday). Papka ochiladi; keyin code_task bilan kod yoziladi. Telegram bot boʻlsa kind='telegram-bot' va env'ga BOT_TOKEN oʻzi tushadi (username bering).", { name: S('nomi'), kind: { type: 'string', enum: ['node', 'telegram-bot', 'python', 'static', 'other'] }, spec: S('nima qilishi kerak'), run_cmd: S("doimiy ishga tushirish buyrugʻi, masalan 'node index.js' (ixtiyoriy)"), bot_username: S('telegram-bot uchun @username') }, ['name']),
+  fn('code_task', "LOYIHA ICHIDA KOD YOZISH / OʻZGARTIRISH / TUZATISH — Claude Code kabi: fayllarni oʻqiydi, yozadi, buyruq bajaradi, tekshiradi. 'shu loyihaga X qoʻsh', 'xatoni tuzat', 'admin panel qoʻsh', 'sayt yoz'. Natija — hisobot (kod chatga yozilmaydi). Ishlayotgan loyiha avtomatik qayta ishga tushadi.", { project: S('loyiha nomi yoki slug'), task: S('vazifa, toʻliq va aniq') }, ['project', 'task']),
+  fn('list_projects', 'Barcha loyihalar va holati.', {}),
+  fn('project_files', 'Loyiha fayllari roʻyxati.', { project: S('') }, ['project']),
+  fn('read_project_file', 'Loyiha faylini oʻqish.', { project: S(''), path: S('') }, ['project', 'path']),
+  fn('write_project_file', 'Loyiha fayliga yozish (kichik fayllar uchun; katta ish — code_task).', { project: S(''), path: S(''), content: S('') }, ['project', 'path', 'content']),
+  fn('run_command', "Shu kompyuterda TERMINAL buyrugʻi bajarish (npm install, node script.js, dir/ls, git …). project berilsa oʻsha papkada. Natija (stdout+stderr) qaytadi.", { command: S(''), project: S('ixtiyoriy'), timeout_seconds: I('standart 120') }, ['command']),
+  fn('start_project', 'Loyihani doimiy jarayon sifatida ishga tushirish (run_cmd kerak).', { project: S('') }, ['project']),
+  fn('stop_project', 'Loyihani toʻxtatish.', { project: S('') }, ['project']),
+  fn('restart_project', 'Loyihani qayta ishga tushirish.', { project: S('') }, ['project']),
+  fn('project_logs', 'Loyiha jarayonining soʻnggi logi.', { project: S(''), lines: I('') }, ['project']),
+  fn('set_project_env', "Loyiha muhit oʻzgaruvchisini oʻrnatish (token, kalit). Qiymat shifrlanib saqlanadi.", { project: S(''), key: S(''), value: S('') }, ['project', 'key', 'value']),
+  fn('delete_project', 'Loyihani butunlay oʻchirish (fayllar bilan).', { project: S('') }, ['project']),
+  fn('list_servers', 'Ulangan serverlar roʻyxati.', {}),
+  fn('add_server', "SSH server qoʻshish. Kalit bilan ulanadi: ssh_public_key ni serverning ~/.ssh/authorized_keys ga qoʻshish kerak.", { name: S(''), host: S('IP yoki domen'), user: S('standart root'), port: I('standart 22') }, ['name', 'host']),
+  fn('ssh_public_key', "Agentning ochiq SSH kaliti — serverga qoʻshish uchun.", {}),
+  fn('ssh_run', "Serverda buyruq bajarish (SSH). 'serverda X qil', 'serverni tekshir', 'pm2 restart'.", { server: S('nomi yoki host'), command: S(''), timeout_seconds: I('') }, ['server', 'command']),
+  fn('upload_to_server', 'Loyihani serverga yuklash (scp).', { server: S(''), project: S(''), remote_path: S("masalan /var/www/app") }, ['server', 'project', 'remote_path']),
+
+  // ── agent itself ───────────────────────────────────────────────────────
+  fn('list_tasks', 'Rejalashtirilgan va bajarilgan vazifalar.', { status: S('pending | done | failed | cancelled | boʻsh') }),
+  fn('cancel_task', 'Vazifani bekor qilish.', { id: I('') }, ['id']),
+  fn('agent_status', 'Agent holati: Telegram, kalitlar, bilim, vazifalar, javoblar.', {}),
+  fn('run_training', "Oʻz-oʻzini trening jarayonini boshlash.", {}),
+  fn('set_setting', "Agent sozlamasi. Ruxsat etilgan: reply_in_groups, reply_to_private, typing_simulation, keep_online, quiet_hours, min_delay_ms, max_delay_ms, max_replies_per_chat_hour, temperature, primary_provider, founder_private_replies ('1' = Tomsga barcha javoblar shaxsiy chatga).", { key: S(''), value: S('') }, ['key', 'value']),
 ];
 
 const SETTABLE = new Set([
   'reply_in_groups', 'reply_to_private', 'typing_simulation', 'keep_online', 'quiet_hours',
-  'min_delay_ms', 'max_delay_ms', 'max_replies_per_chat_hour', 'temperature', 'primary_provider',
+  'min_delay_ms', 'max_delay_ms', 'max_replies_per_chat_hour', 'temperature', 'primary_provider', 'founder_private_replies',
 ]);
 
 /**
  * Is the founder merely asking the assistant ABOUT someone, rather than
- * telling it to contact them?
- *
- * This used to be an allow-list of send verbs, which blocked every natural
- * phrasing it had not anticipated ("Mirvohiddan so'ra", "taklifnoma jo'nat").
- * A block-list of read-only questions is the right shape: everything else is
- * the founder's call, and the assistant composes what to say itself.
+ * telling it to contact them? Block-list of read-only questions: everything
+ * else is the founder's call.
  */
 const isReadOnlyQuestion = (text) => {
   const t = String(text || '').trim();
   const readOnly =
-    /(\bkim\b\s*\??$|\bkim\s*(u|bu|ekan|edi)\b|kimligi|nima\s+(gaplash|dedi|yozdi|deyapti|boʻlyapti|bo['‘’ʻ]?lyapti)|bormi\s*\??$|ko['‘’ʻ]?rsat\b|ro['‘’ʻ]?yxat|qaysi\s*\??$|nechta|qachon\s+(yozgan|kelgan)|кто\s+(это|он|она)|что\s+(сказал|написал)|who\s+is|what\s+did)/i.test(t);
+    /(\bkim\b\s*\??$|\bkim\s*(u|bu|ekan|edi)\b|kimligi|nima\s+(gaplash|dedi|yozdi|deyapti|boʻlyapti|bo['‘’ʻ]?lyapti)|bormi\s*\??$|ko['‘’ʻ]?rsat\b|ro['‘’ʻ]?yxat|qaysi\s*\??$|nechta|qachon\s+(yozgan|kelgan)|(yozgan|aytgan|bergan)mi\s*\??|кто\s+(это|он|она)|что\s+(сказал|написал)|who\s+is|what\s+did)/i.test(t);
   const sendVerb =
-    /(\byoz\b|yozib|yubor|jo['‘’ʻ]?nat|\bayt\b|aytib|so['‘’ʻ]?ra\b|so['‘’ʻ]?rab|so['‘’ʻ]?rang|xabar|eslat|taklif|chaqir|bildir|tabrikla|javob\s*ber|ogohlantir|напиши|отправь|скажи|спроси|передай|пригласи|\bsend\b|\bwrite\b|\btell\b|\bask\b|\binvite\b|\bremind\b)/i.test(t);
+    /(\byoz\b|yozib|yubor|jo['‘’ʻ]?nat|\bayt\b|aytib|so['‘’ʻ]?ra\b|so['‘’ʻ]?rab|so['‘’ʻ]?rang|xabar|eslat|taklif|chaqir|bildir|tabrikla|javob\s*ber|ogohlantir|reklama|напиши|отправь|скажи|спроси|передай|пригласи|\bsend\b|\bwrite\b|\btell\b|\bask\b|\binvite\b|\bremind\b)/i.test(t);
   return readOnly && !sendVerb;
 };
 
+const SELF_REF = /^(me|men|menga|o['‘’ʻ]?zim(ga)?|toms|toms\s*aka|rahbar|мне|себе|my\s*private|shaxsiy|shaxsiy\s*chat(im)?(ga)?|lichka(m)?(ga)?)$/i;
+
+/** Tools whose results are secrets — in a group they go to the founder's DM verbatim. */
+const SECRET_TOOLS = new Set(['get_bot_token', 'revoke_bot_token', 'my_bots', 'create_bot', 'ssh_public_key', 'invite_link', 'list_members', 'create_chat', 'chat_info']);
+
+function formatSecret(name, r) {
+  if (!r || r.ok === false) return null;
+  switch (name) {
+    case 'get_bot_token':
+      return `${r.username}: ${r.token}`;
+    case 'revoke_bot_token':
+      return `${r.username} — yangi token: ${r.newToken}`;
+    case 'create_bot':
+      return `@${r.username} yaratildi\nToken: ${r.token}\n${r.link}`;
+    case 'my_bots':
+      return (r.bots || []).map((b) => `${b.username}: ${b.token || '(token yoʻq)'} — ${b.status}`).join('\n');
+    case 'ssh_public_key':
+      return r.publicKey;
+    case 'invite_link':
+      return r.link;
+    case 'create_chat':
+      return r.chat ? `${r.chat.title}: ${r.chat.link || r.chat.id}` : null;
+    case 'chat_info':
+      return r.inviteLink ? `${r.title}: ${r.inviteLink}` : null;
+    case 'list_members':
+      return (r.members || []).slice(0, 200).map((m) => `${m.name || '-'} ${m.username ? '@' + m.username : ''} (${m.id}) ${m.role !== 'member' ? m.role : ''}`.trim()).join('\n');
+    default:
+      return null;
+  }
+}
+
 function createExecutor(ctx) {
   const used = [];
+  const secrets = []; // { tool, text } — delivered privately when the command came from a group
+  const founderDm = ctx.founderDm;
 
-  async function sendTo(to, text) {
-    const r = await contacts.resolve(to);
-    const sent = await tg.client.sendMessage(r.entity, { message: String(text), linkPreview: false });
-    const chatId = String(r.entity.id);
+  async function sendTo(to, text, { wait = false, note = null } = {}) {
+    let target;
+    let name;
+    if (SELF_REF.test(String(to || '').trim()) && founderDm) {
+      target = await tg.resolveEntity(founderDm);
+      name = 'Toms (shaxsiy chat)';
+    } else {
+      const r = await contacts.resolve(to);
+      target = r.entity;
+      name = contacts.displayName(r.contact) || to;
+    }
+    const sent = await tg.client.sendMessage(target, { message: String(text), linkPreview: false });
+    const chatId = String(target.id);
     if (sent) ingest.saveMessage(chatId, sent, { isAgent: true });
-    log.info('xabar yuborildi', { to: contacts.displayName(r.contact) || to, chars: String(text).length });
-    return { ok: true, sentTo: contacts.displayName(r.contact) || to, chatId, messageId: Number(sent.id) };
+    log.info('xabar yuborildi', { to: name, chars: String(text).length });
+    const out = { ok: true, sentTo: name, chatId, messageId: Number(sent.id) };
+    if (wait && founderDm && chatId !== String(founderDm)) {
+      out.watchId = watches.create({ chatId, chatName: name, sinceMsg: Number(sent.id), note, notifyChat: founderDm });
+      out.note = 'Javob kelganda Tomsning shaxsiy chatiga yetkaziladi';
+    }
+    return out;
   }
+
+  const projectOf = (ref) => {
+    const p = projects.find(ref);
+    if (!p) throw new Error(`Loyiha topilmadi: "${ref}". list_projects bilan tekshiring`);
+    return p;
+  };
 
   async function execute(name, args) {
     used.push(name);
-    log.debug('tool', { name, args });
+    log.debug('tool', { name, args: JSON.stringify(args).slice(0, 300) });
+    const result = await run(name, args);
+    if (SECRET_TOOLS.has(name)) {
+      const text = formatSecret(name, result);
+      if (text) secrets.push({ tool: name, text });
+    }
+    return result;
+  }
 
+  async function run(name, args) {
     switch (name) {
+      // ── messaging ──────────────────────────────────────────────────────
       case 'send_message': {
-        // Sending is irreversible and visible to a real person. It happens only
-        // when the founder's own words asked for it — a model that decides to
-        // "helpfully" message someone after a "who is X?" question is blocked here.
-        if (isReadOnlyQuestion(ctx.text)) {
+        if (isReadOnlyQuestion(ctx.text) && !SELF_REF.test(String(args.to || ''))) {
           log.warn('send_message blocked: founder asked a question, not to send', { to: args.to });
           return { ok: false, error: "Bu savol edi, buyruq emas — hech kimga xabar yuborilmadi. Faqat maʼlumot ber." };
         }
-        return sendTo(args.to, args.text);
+        const wantsWatch = !!args.wait_reply || /(javob(i|ini)?\s*(kelsa|kelganda|kelishi\s*bilan|bo['‘’ʻ]?lsa)|javobini\s*(menga|ayt|yoz)|so['‘’ʻ]?rab\s*(ko['‘’ʻ]?r|ol|ber))/i.test(ctx.text || '');
+        return sendTo(args.to, args.text, { wait: wantsWatch, note: args.reply_note || null });
       }
-
-      case 'press_button': {
-        const r = await botfather.pressButton(args.bot, args.button, { waitMs: Math.min(60, Number(args.wait_seconds) || 15) * 1000 });
-        return r;
+      case 'send_private': {
+        if (!founderDm) return { ok: false, error: 'Tomsning shaxsiy chati aniqlanmadi' };
+        return sendTo('me', args.text);
       }
-
-      case 'read_bot':
-        return botfather.readBot(args.bot, Math.min(20, Number(args.limit) || 5));
-
-      case 'delete_bot':
-        return botfather.deleteBot(args.username);
-
-      case 'list_my_bots':
-        return botfather.listMyBots();
-
+      case 'delete_message':
+        return telegramOps.deleteMessages(args.chat, args.message_ids || null);
+      case 'watch_reply': {
+        const r = await contacts.resolve(args.chat);
+        const last = await tg.client.getMessages(r.entity, { limit: 1 });
+        const id = watches.create({ chatId: String(r.entity.id), chatName: contacts.displayName(r.contact), sinceMsg: last[0] ? Number(last[0].id) : 0, note: args.note || null, notifyChat: founderDm });
+        return { ok: true, watchId: id, watching: contacts.displayName(r.contact) };
+      }
+      case 'list_watches':
+        return { watches: watches.list({ status: 'open' }).map((w) => ({ id: w.id, who: w.chat_name || w.chat_id, note: w.note, since: w.created_at })) };
       case 'schedule_message': {
         const when = parseWhen(args.when);
         if (!when) return { ok: false, error: `Vaqtni tushunmadim: "${args.when}". Masalan: "soat 15:00 da", "ertaga 9 da", "30 daqiqadan keyin"` };
-        const id = tasks.create({
-          kind: 'send_message',
-          title: `${args.to} ga xabar`,
-          payload: { to: args.to, text: args.text },
-          runAt: when.at.getTime(),
-          originChat: ctx.chatId,
-          originMsg: ctx.msgId,
-        });
+        const id = tasks.create({ kind: 'send_message', title: `${args.to} ga xabar`, payload: { to: SELF_REF.test(args.to) ? founderDm : args.to, text: args.text }, runAt: when.at.getTime(), originChat: ctx.chatId, originMsg: ctx.msgId });
         return { ok: true, taskId: id, runAt: fmtTashkent(when.at), message: `Rejalashtirildi: ${fmtTashkent(when.at)} da ${args.to} ga yuboriladi.` };
       }
-
       case 'schedule_task': {
         const when = parseWhen(args.when);
         if (!when) return { ok: false, error: `Vaqtni tushunmadim: "${args.when}"` };
-        const id = tasks.create({
-          kind: 'assistant_run',
-          title: String(args.instruction).slice(0, 80),
-          payload: { instruction: args.instruction, chatId: ctx.chatId },
-          runAt: when.at.getTime(),
-          originChat: ctx.chatId,
-          originMsg: ctx.msgId,
-        });
+        const id = tasks.create({ kind: 'assistant_run', title: String(args.instruction).slice(0, 80), payload: { instruction: args.instruction, chatId: founderDm || ctx.chatId }, runAt: when.at.getTime(), originChat: ctx.chatId, originMsg: ctx.msgId });
         return { ok: true, taskId: id, runAt: fmtTashkent(when.at) };
       }
-
-      case 'remember':
-        return memoryFacts.remember({ fact: args.fact, tags: args.tags || null, sourceChat: ctx.chatId, sourceMsg: ctx.msgId });
-
-      case 'forget':
-        return { ok: true, removed: memoryFacts.forget(args.query) };
-
-      case 'list_memory':
-        return { facts: memoryFacts.list({ limit: 100 }).map((f) => ({ id: f.id, fact: f.fact, at: f.created_at })) };
-
-      case 'add_knowledge': {
-        const id = store.upsert({ source: 'founder', title: args.title || null, content: args.content, tags: 'founder', weight: 2.5 });
-        return { ok: !!id, id };
+      case 'forward_message': {
+        const from = await contacts.resolve(args.from_chat);
+        const to = SELF_REF.test(args.to) ? { entity: await tg.resolveEntity(founderDm), contact: null } : await contacts.resolve(args.to);
+        await tg.client.forwardMessages(to.entity, { messages: [Number(args.message_id)], fromPeer: from.entity });
+        return { ok: true, forwardedTo: contacts.displayName(to.contact) || 'Toms' };
       }
-
+      case 'read_chat': {
+        const r = await contacts.resolve(args.chat);
+        const msgs = await tg.client.getMessages(r.entity, { limit: Math.min(80, Number(args.limit) || 30) });
+        return {
+          chat: contacts.displayName(r.contact) || args.chat,
+          messages: msgs.reverse().filter((m) => m.message).map((m) => ({ id: Number(m.id), from: m.out ? 'men' : (m.sender && (m.sender.firstName || m.sender.username)) || 'nomaʼlum', at: new Date(Number(m.date) * 1000).toISOString().slice(0, 16), text: String(m.message).slice(0, 400) })),
+        };
+      }
       case 'find_contact': {
         try {
           const r = await contacts.resolve(args.query);
           const c = r.contact || {};
           const shape = (x) => ({ id: x.tg_id, name: contacts.displayName(x), username: x.username || null, kind: x.kind });
-          return {
-            found: true,
-            id: String(r.entity.id),
-            name: contacts.displayName(c),
-            username: c.username || r.entity.username || null,
-            kind: c.kind,
-            phone: c.phone || null,
-            confidence: r.confidence,
-            alternatives: (r.alternatives || []).map(shape),
-          };
+          return { found: true, id: String(r.entity.id), name: contacts.displayName(c) || r.entity.firstName || null, username: c.username || r.entity.username || null, kind: c.kind, phone: c.phone || null, confidence: r.confidence, alternatives: (r.alternatives || []).map(shape) };
         } catch (err) {
           const near = contacts.searchCache(args.query, 5).map((c) => ({ id: c.tg_id, name: contacts.displayName(c), username: c.username }));
           return { found: false, error: err.message, suggestions: near };
         }
       }
-
-      case 'read_chat': {
-        const r = await contacts.resolve(args.chat);
-        const limit = Math.min(80, Number(args.limit) || 30);
-        const msgs = await tg.client.getMessages(r.entity, { limit });
-        return {
-          chat: contacts.displayName(r.contact) || args.chat,
-          messages: msgs
-            .reverse()
-            .filter((m) => m.message)
-            .map((m) => ({ id: Number(m.id), from: m.out ? 'men' : (m.sender && (m.sender.firstName || m.sender.username)) || 'nomaʼlum', at: new Date(Number(m.date) * 1000).toISOString().slice(0, 16), text: String(m.message).slice(0, 400) })),
-        };
+      case 'add_alias': {
+        const r = await contacts.resolve(args.user);
+        contacts.addAlias(r.entity.id, args.alias);
+        memoryFacts.remember({ fact: `${args.alias} — bu ${r.entity.username ? '@' + r.entity.username : contacts.displayName(r.contact)} (ID ${r.entity.id})`, sourceChat: ctx.chatId, sourceMsg: ctx.msgId });
+        return { ok: true, user: contacts.displayName(r.contact), alias: args.alias };
       }
 
-      case 'forward_message': {
-        const from = await contacts.resolve(args.from_chat);
-        const to = await contacts.resolve(args.to);
-        await tg.client.forwardMessages(to.entity, { messages: [Number(args.message_id)], fromPeer: from.entity });
-        return { ok: true, forwardedTo: contacts.displayName(to.contact) };
+      // ── memory ─────────────────────────────────────────────────────────
+      case 'remember':
+        return memoryFacts.remember({ fact: args.fact, tags: args.tags || null, sourceChat: ctx.chatId, sourceMsg: ctx.msgId });
+      case 'forget':
+        return { ok: true, removed: memoryFacts.forget(args.query) };
+      case 'list_memory':
+        return { facts: memoryFacts.list({ limit: 100 }).map((f) => ({ id: f.id, fact: f.fact, at: f.created_at })) };
+      case 'add_knowledge': {
+        const id = store.upsert({ source: 'founder', title: args.title || null, content: args.content, tags: 'founder', weight: 2.5 });
+        return { ok: !!id, id };
       }
+      case 'search_knowledge':
+        return { results: store.search(args.query, 5).map((d) => ({ title: d.title, content: String(d.content).slice(0, 500) })) };
 
+      // ── chats ──────────────────────────────────────────────────────────
+      case 'join_chat':
+        return telegramOps.joinChat(args.link);
+      case 'leave_chat':
+        return telegramOps.leaveChat(args.chat);
+      case 'create_chat':
+        try {
+          return await telegramOps.createChat({ kind: args.kind, title: args.title, about: args.about || '', isPublic: !!args.public, username: args.username || null });
+        } catch (err) {
+          return { ok: false, error: err.message, chat: err.chat || null };
+        }
+      case 'chat_info':
+        return telegramOps.chatInfo(args.chat);
+      case 'list_members':
+        return telegramOps.listMembers(args.chat, { query: args.query || '', admins: !!args.admins_only, limit: Number(args.limit) || 200 });
+      case 'promote_admin':
+        return telegramOps.promoteAdmin(args.chat, SELF_REF.test(args.user) ? founderDm : args.user, { rank: args.rank || 'admin' });
+      case 'demote_admin':
+        return telegramOps.demoteAdmin(args.chat, args.user);
+      case 'ban_user':
+        return telegramOps.removeUser(args.chat, args.user, { ban: true });
+      case 'kick_user':
+        return telegramOps.removeUser(args.chat, args.user, { ban: false });
+      case 'unban_user':
+        return telegramOps.unbanUser(args.chat, args.user);
+      case 'add_members':
+        return telegramOps.addMembers(args.chat, (args.users || []).map((u) => (SELF_REF.test(u) ? founderDm : u)));
+      case 'invite_link':
+        return { ok: true, link: await telegramOps.inviteLink(args.chat) };
+      case 'edit_chat':
+        return telegramOps.editChat(args.chat, { title: args.title || null, about: args.about ?? null });
+      case 'pin_message':
+        return telegramOps.pinMessage(args.chat, args.message_id);
+      case 'my_chats':
+        return { chats: await telegramOps.myChats({ kind: args.kind || null }) };
+
+      // ── bots ───────────────────────────────────────────────────────────
       case 'create_bot': {
         const r = await botfather.createBot({ name: args.name, username: args.username, description: args.description || null, about: args.about || null });
         if (r.ok && r.token) managedBots.saveToken(r.username, r.token, r.name);
         return r;
       }
-
+      case 'configure_bot':
+        return botfather.configureBot({ username: args.username, name: args.name || null, description: args.description || null, about: args.about || null, commands: args.commands || null });
       case 'build_and_run_bot': {
         const u = String(args.username || '').replace(/^@/, '');
         if (!managedBots.getToken(u)) {
           const t = await botfather.getToken(u);
           managedBots.saveToken(u, t.token, args.name || null);
         }
-        const r = await managedBots.deploy({ username: u, name: args.name || null, spec: args.spec || null, hint: args.fix || null });
-        // Smoke test through Telegram so the report is about a bot that actually answers.
+        const founderIds = String(settings.get('founder_ids', '')).split(/[,\s]+/).filter(Boolean);
+        const hint = args.fix ? `${args.fix}\n(Rahbar Telegram ID: ${founderIds.join(', ')}, username @${settings.get('founder_username', 'itz_toms')} — admin sifatida shu ID ishlatilsin)` : null;
+        const r = await managedBots.deploy({ username: u, name: args.name || null, spec: args.spec || null, hint });
         await new Promise((res) => setTimeout(res, 4000));
         const probe = await botfather.talk('@' + u, '/start', { waitMs: 12_000 }).catch((e) => ({ text: '', error: e.message }));
         return { ...r, smokeTest: probe.text ? { ok: true, reply: probe.text.slice(0, 300), buttons: (probe.buttons || []).map((b) => b.text) } : { ok: false, note: 'bot 12 s ichida /start ga javob bermadi — bot_logs bilan tekshir' } };
       }
-
       case 'my_bots':
         return { bots: managedBots.list().map((b) => ({ username: '@' + b.username, name: b.name, status: b.alive ? 'running' : b.status, token: b.token, spec: b.spec, restarts: b.restarts, lastError: b.last_error })) };
-
-      case 'stop_bot':
-        return managedBots.stop(args.username);
-
-      case 'start_bot':
-        return managedBots.start(args.username);
-
-      case 'bot_logs':
-        return { logs: managedBots.logs(args.username, Math.min(200, Number(args.lines) || 60)) || '(log boʻsh)' };
-
+      case 'list_my_bots':
+        return botfather.listMyBots();
       case 'get_bot_token': {
         const u = String(args.username || '').replace(/^@/, '');
         const cached = managedBots.getToken(u);
@@ -498,30 +361,120 @@ function createExecutor(ctx) {
         managedBots.saveToken(u, t.token);
         return { ...t, source: 'BotFather' };
       }
-
-      case 'configure_bot':
-        return botfather.configureBot({ username: args.username, name: args.name || null, description: args.description || null, about: args.about || null, commands: args.commands || null });
-
+      case 'revoke_bot_token': {
+        const u = String(args.username || '').replace(/^@/, '');
+        const r = await botfather.revokeToken(u);
+        const rec = managedBots.record(u);
+        managedBots.saveToken(u, r.token, rec ? rec.name : null);
+        let restarted = false;
+        if (rec && rec.alive) {
+          managedBots.stop(u);
+          try {
+            managedBots.start(u);
+            restarted = true;
+          } catch (err) {
+            log.warn('bot yangi token bilan qayta ishga tushmadi', { username: u, error: err.message });
+          }
+        }
+        return { ok: true, username: '@' + u, newToken: r.token, restarted };
+      }
+      case 'delete_bot': {
+        const r = await botfather.deleteBot(args.username);
+        if (r.ok) managedBots.remove(args.username);
+        return r;
+      }
+      case 'stop_bot':
+        return managedBots.stop(args.username);
+      case 'start_bot':
+        return managedBots.start(args.username);
+      case 'bot_logs':
+        return { logs: managedBots.logs(args.username, Math.min(200, Number(args.lines) || 60)) || '(log boʻsh)' };
       case 'talk_to_bot': {
         const r = await botfather.talk(args.bot, args.text, { waitMs: Math.min(60, Number(args.wait_seconds) || 15) * 1000 });
-        return { ok: true, replies: r.replies, text: r.text || '(bot javob bermadi)', buttons: r.buttons.map((b) => b.text) };
+        return { ok: true, replies: r.replies, text: r.text || '(bot javob bermadi)', buttons: r.buttons.map((b) => b.text), links: r.buttons.filter((b) => b.url).map((b) => ({ text: b.text, url: b.url })) };
       }
+      case 'press_button':
+        return botfather.pressButton(args.bot, args.button, { waitMs: Math.min(60, Number(args.wait_seconds) || 15) * 1000 });
+      case 'read_bot':
+        return botfather.readBot(args.bot, Math.min(20, Number(args.limit) || 5));
 
-      case 'list_tasks':
+      // ── projects ───────────────────────────────────────────────────────
+      case 'create_project': {
+        const kind = args.kind || 'node';
+        const env = {};
+        if (kind === 'telegram-bot' && args.bot_username) {
+          const u = String(args.bot_username).replace(/^@/, '');
+          let tok = managedBots.getToken(u);
+          if (!tok) {
+            const t = await botfather.getToken(u);
+            tok = t.token;
+            managedBots.saveToken(u, tok);
+          }
+          env.BOT_TOKEN = tok;
+          env.ADMIN_IDS = String(settings.get('founder_ids', ''));
+        }
+        const p = projects.create({ name: args.name, kind, spec: args.spec || null, runCmd: args.run_cmd || (kind === 'node' || kind === 'telegram-bot' ? 'node index.js' : null), env: Object.keys(env).length ? env : null });
+        return { ok: true, project: { slug: p.slug, name: p.name, kind: p.kind, dir: p.dir, run_cmd: p.run_cmd, envKeys: p.envKeys } };
+      }
+      case 'code_task': {
+        const p = projectOf(args.project);
+        const wasRunning = p.alive;
+        const founderIds = String(settings.get('founder_ids', '')).split(/[,\s]+/).filter(Boolean);
+        const r = await coder.runTask({ project: p, task: args.task, extraContext: `Rahbar (egasi): @${settings.get('founder_username', 'itz_toms')}, Telegram ID ${founderIds.join(', ')}.` });
+        let restarted = null;
+        if (wasRunning || (!p.alive && p.run_cmd && r.ok && p.kind !== 'static')) {
+          try {
+            await projects.restart(p.slug);
+            restarted = true;
+          } catch (err) {
+            restarted = err.message;
+          }
+        }
+        return { ...r, restarted, logsTail: restarted === true ? await new Promise((res) => setTimeout(() => res(projects.logs(p.slug, 15)), 3000)) : undefined };
+      }
+      case 'list_projects':
         return {
-          tasks: tasks.list({ status: args.status || null, limit: 40 }).map((t) => ({
-            id: t.id, kind: t.kind, title: t.title, status: t.status, runAt: fmtTashkent(t.run_at), error: t.error || undefined,
-          })),
+          projects: projects.list().map((p) => ({ slug: p.slug, name: p.name, kind: p.kind, status: p.alive ? 'running' : p.status, run_cmd: p.run_cmd, files: p.files, lastError: p.last_error })),
+          bots: managedBots.list().map((b) => ({ username: '@' + b.username, status: b.alive ? 'running' : b.status })),
         };
+      case 'project_files':
+        return { files: projects.listFiles(projectOf(args.project).slug) };
+      case 'read_project_file':
+        return { content: projects.readFile(projectOf(args.project).slug, args.path) };
+      case 'write_project_file':
+        return projects.writeFile(projectOf(args.project).slug, args.path, args.content);
+      case 'run_command':
+        return projects.runCommand(args.command, { slug: args.project ? projectOf(args.project).slug : null, timeoutMs: Math.min(600, Number(args.timeout_seconds) || 120) * 1000 });
+      case 'start_project':
+        return projects.start(projectOf(args.project).slug);
+      case 'stop_project':
+        return projects.stop(projectOf(args.project).slug);
+      case 'restart_project':
+        return projects.restart(projectOf(args.project).slug);
+      case 'project_logs':
+        return { logs: projects.logs(projectOf(args.project).slug, Math.min(300, Number(args.lines) || 80)) || '(log boʻsh)' };
+      case 'set_project_env':
+        return { ok: true, keys: projects.setEnv(projectOf(args.project).slug, { [String(args.key)]: String(args.value) }) };
+      case 'delete_project':
+        return projects.remove(projectOf(args.project).slug);
 
+      // ── servers ────────────────────────────────────────────────────────
+      case 'list_servers':
+        return { servers: servers.list() };
+      case 'add_server':
+        return { ok: true, server: servers.add({ name: args.name, host: args.host, user: args.user || 'root', port: Number(args.port) || 22 }), publicKey: servers.publicKey() };
+      case 'ssh_public_key':
+        return { publicKey: servers.publicKey(), note: "Serverda: echo '<kalit>' >> ~/.ssh/authorized_keys" };
+      case 'ssh_run':
+        return servers.run(args.server, args.command, { timeoutMs: Math.min(600, Number(args.timeout_seconds) || 120) * 1000 });
+      case 'upload_to_server':
+        return servers.upload(args.server, projectOf(args.project).dir, args.remote_path);
+
+      // ── agent ──────────────────────────────────────────────────────────
+      case 'list_tasks':
+        return { tasks: tasks.list({ status: args.status || null, limit: 40 }).map((t) => ({ id: t.id, kind: t.kind, title: t.title, status: t.status, runAt: fmtTashkent(t.run_at), error: t.error || undefined })) };
       case 'cancel_task':
         return { ok: tasks.cancel(args.id) };
-
-      case 'search_knowledge': {
-        const docs = store.search(args.query, 5);
-        return { results: docs.map((d) => ({ title: d.title, content: String(d.content).slice(0, 500) })) };
-      }
-
       case 'agent_status': {
         const keyPool = require('../ai/keyPool');
         const runtime = require('./runtime');
@@ -533,30 +486,29 @@ function createExecutor(ctx) {
           knowledge: store.stats().documents,
           memoryFacts: memoryFacts.list({ limit: 1000 }).length,
           pendingTasks: tasks.list({ status: 'pending' }).length,
+          openWatches: watches.list({ status: 'open' }).length,
+          projects: projects.list().length,
           replies24h: snap.replies24h,
           paused: snap.paused,
         };
       }
-
       case 'run_training': {
         const selfTrain = require('../training/selfTrain');
         if (selfTrain.state.running) return { ok: false, error: 'trening allaqachon ishlamoqda' };
         selfTrain.run().catch(() => {});
         return { ok: true, message: 'Trening boshlandi, bir necha daqiqa davom etadi.' };
       }
-
       case 'set_setting': {
         if (!SETTABLE.has(args.key)) return { ok: false, error: `"${args.key}" ni bu yerdan oʻzgartirib boʻlmaydi` };
         settings.set(args.key, String(args.value));
         return { ok: true, key: args.key, value: String(args.value) };
       }
-
       default:
         return { error: `nomaʼlum vosita: ${name}` };
     }
   }
 
-  return { execute, used };
+  return { execute, used, secrets };
 }
 
-module.exports = { definitions, createExecutor, isReadOnlyQuestion };
+module.exports = { definitions, createExecutor, isReadOnlyQuestion, SELF_REF };

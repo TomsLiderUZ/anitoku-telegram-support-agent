@@ -25,6 +25,10 @@ class AIError extends Error {
  */
 function classify(status, bodyText = '') {
   const b = String(bodyText).toLowerCase();
+  // OpenRouter answers 403 for a model that is gated ("only available on
+  // agentic harnesses") — that is the model's problem, not the key's. Three
+  // healthy keys were retired over it before this check existed.
+  if (status === 403 && /only available|not available|no endpoints|this model|gated|moderat/.test(b)) return 'client';
   if (status === 401 || status === 403) return 'invalid';
   if (status === 402) return 'quota';
   if (status === 429) {
@@ -202,8 +206,21 @@ async function chat({
   purpose = 'chat',
   maxAttempts = 10,
   timeoutMs = 90_000,
+  preferred = null,
+  preferredOnly = false,
 }) {
-  const plan = buildPlan({ provider, model });
+  // `preferred`: an explicit [{provider, model}] ladder tried first — the
+  // assistant and coder need tool-capable models in a specific order, not
+  // "whatever provider comes next". The generic plan follows as a safety net
+  // unless `preferredOnly`: for an agent that acts on the real account, a
+  // weak model that narrates "done" is worse than no answer.
+  let plan = buildPlan({ provider, model });
+  if (Array.isArray(preferred) && preferred.length) {
+    const health = keyPool.health();
+    const head = preferred.filter((s) => s && health[s.provider] && health[s.provider].total > 0);
+    const seen = new Set(head.map((s) => `${s.provider}/${s.model}`));
+    plan = preferredOnly ? head : [...head, ...plan.filter((s) => !seen.has(`${s.provider}/${s.model}`))];
+  }
   const temp = temperature ?? settings.float('temperature', 0.55);
   const mt = maxTokens ?? settings.int('max_tokens', 700);
 

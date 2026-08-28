@@ -34,9 +34,8 @@ const MODEL_CHAINS = {
     'minimax/minimax-m3:free',
     'z-ai/glm-5.2:free',
     'google/gemma-4-31b-it:free',
-    'thinkingmachines/inkling:free',
   ],
-  gemini: ['gemini-3.7-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-pro'],
+  gemini: ['gemini-3.7-flash', 'gemini-3.1-flash-lite'],
   cerebras: ['llama-3.3-70b', 'llama3.1-8b', 'qwen-3-32b'],
   // Measured on Uzbek support questions: medium gives the best spelling and
   // phrasing at ~2.8s; small is a fast, still-correct fallback. `large` was
@@ -192,6 +191,8 @@ const DEFAULT_SETTINGS = {
   max_replies_per_chat_hour: '25',
   max_replies_global_hour: '400',
   history_window: '14',
+  assistant_history_window: '40',   // founder chats: the assistant keeps far more turns than support does
+  founder_private_replies: '0',     // '1' = every assistant reply goes to the founder's private chat, even from groups
   rag_top_k: '6',
   skill_top_k: '3',
   temperature: '0.55',

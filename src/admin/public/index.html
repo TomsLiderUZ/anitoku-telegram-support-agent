@@ -28,7 +28,7 @@
     <div class="nav-item" data-page="assistant"><span class="ico">◎</span> Buyruq berish</div>
     <div class="nav-item" data-page="tasks"><span class="ico">☰</span> Vazifalar <span class="badge" id="taskBadge" hidden>0</span></div>
     <div class="nav-item" data-page="memory"><span class="ico">✎</span> Xotira</div>
-    <div class="nav-item" data-page="bots"><span class="ico">🤖</span> Botlar</div>
+    <div class="nav-item" data-page="projects"><span class="ico">⌘</span> Loyihalar</div>
 
     <div class="nav-group">Bilim</div>
     <div class="nav-item" data-page="training"><span class="ico">↻</span> O'qitish</div>
@@ -182,16 +182,56 @@
       </div>
     </section>
 
-    <!-- ═══ Botlar ═══ -->
-    <section class="page" id="page-bots">
+    <!-- ═══ Loyihalar ═══ -->
+    <section class="page" id="page-projects">
       <div class="page-head">
         <div>
-          <div class="page-title">Botlar</div>
-          <div class="page-desc">Agent o'zi kod yozib ishga tushirgan Telegram botlar. "Bot yasab run qil" buyrug'i shu yerga tushadi</div>
+          <div class="page-title">Loyihalar</div>
+          <div class="page-desc">Agent yaratgan va boshqarayotgan dasturlar: botlar, saytlar, skriptlar, serverlar. Kod vazifasini shu yerdan ham berish mumkin</div>
         </div>
-        <button class="btn ghost sm" id="botsRefresh">Yangilash</button>
+        <div class="row">
+          <button class="btn ghost sm" id="prjNewBtn">Yangi loyiha</button>
+          <button class="btn ghost sm" id="prjRefresh">Yangilash</button>
+        </div>
       </div>
+
+      <div class="card" id="prjNewCard" hidden>
+        <div class="card-title">Yangi loyiha</div>
+        <div class="grid c2">
+          <label class="field"><span>Nomi</span><input id="prjName" placeholder="anitoku-api"></label>
+          <label class="field"><span>Turi</span><select id="prjKind"><option value="node">Node.js dastur</option><option value="telegram-bot">Telegram bot</option><option value="python">Python</option><option value="static">Statik sayt</option><option value="other">Boshqa</option></select></label>
+        </div>
+        <label class="field"><span>Ishga tushirish buyrug'i (ixtiyoriy)</span><input id="prjRun" placeholder="node index.js"></label>
+        <label class="field"><span>Vazifa / tavsif</span><textarea id="prjSpec" placeholder="Nima qilishi kerak — keyin 'Kod vazifasi' orqali yozdiriladi"></textarea></label>
+        <div class="row end"><button class="btn" id="prjCreate">Yaratish</button></div>
+      </div>
+
       <div class="card">
+        <div class="card-title">Dasturlar</div>
+        <div class="table-wrap">
+          <table><thead><tr><th>Loyiha</th><th>Turi</th><th>Holat</th><th>Buyruq</th><th class="num">Fayl</th><th></th></tr></thead><tbody id="prjTable"></tbody></table>
+        </div>
+      </div>
+
+      <div class="card" id="prjDetail" hidden>
+        <div class="card-title"><span id="prjDetailTitle">—</span>
+          <span class="row">
+            <button class="btn ghost sm" id="prjShowFiles">Fayllar</button>
+            <button class="btn ghost sm" id="prjShowLogs">Log</button>
+            <button class="btn ghost sm" id="prjRestart">Qayta ishga tushir</button>
+          </span>
+        </div>
+        <label class="field"><span>Kod vazifasi (Claude Code kabi — o'qiydi, yozadi, tekshiradi)</span><textarea id="prjTask" placeholder="Admin panel qo'sh, admin — @itz_toms (ID 7198128169). /stats buyrug'i foydalanuvchilar sonini ko'rsatsin"></textarea></label>
+        <div class="row end">
+          <input id="prjCmd" placeholder="Terminal: npm install / node --check index.js" style="flex:1">
+          <button class="btn ghost sm" id="prjRunCmd">Bajarish</button>
+          <button class="btn" id="prjRunTask">Kod vazifasini boshlash</button>
+        </div>
+        <pre class="block" id="prjDetailBody" style="max-height:520px;margin-top:10px">—</pre>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Telegram botlar (BotFather orqali yaratilganlar)</div>
         <div class="table-wrap">
           <table><thead><tr><th>Bot</th><th>Holat</th><th>Vazifa</th><th>Token</th><th class="num">Qayta</th><th></th></tr></thead><tbody id="botsTable"></tbody></table>
         </div>
@@ -199,6 +239,23 @@
       <div class="card" id="botDetail" hidden>
         <div class="card-title"><span id="botDetailTitle">—</span><span class="row"><button class="btn ghost sm" id="botShowCode">Kod</button><button class="btn ghost sm" id="botShowLogs">Log</button></span></div>
         <pre class="block" id="botDetailBody" style="max-height:520px">—</pre>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Serverlar (SSH)</div>
+        <div class="hint">Agent kalit bilan ulanadi. Quyidagi ochiq kalitni serverda <code>~/.ssh/authorized_keys</code> ga qo'shing, keyin "Tekshirish" bosing.</div>
+        <pre class="block" id="srvPubKey" style="margin:8px 0">—</pre>
+        <div class="grid c2">
+          <label class="field"><span>Nomi</span><input id="srvName" placeholder="anitoku"></label>
+          <label class="field"><span>Host</span><input id="srvHost" placeholder="206.189.157.53"></label>
+          <label class="field"><span>Foydalanuvchi</span><input id="srvUser" placeholder="root" value="root"></label>
+          <label class="field"><span>Port</span><input id="srvPort" placeholder="22" value="22"></label>
+        </div>
+        <div class="row end"><button class="btn ghost sm" id="srvAdd">Qo'shish</button></div>
+        <div class="table-wrap" style="margin-top:10px">
+          <table><thead><tr><th>Nomi</th><th>Manzil</th><th>Oxirgi ulanish</th><th></th></tr></thead><tbody id="srvTable"></tbody></table>
+        </div>
+        <pre class="block" id="srvOut" hidden style="margin-top:8px">—</pre>
       </div>
     </section>
 

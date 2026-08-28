@@ -79,6 +79,9 @@ function score(c, ref) {
     if (f === q) best = Math.max(best, 100);
     else if (f.startsWith(q)) best = Math.max(best, 80);
     else if (f.includes(q)) best = Math.max(best, 60);
+    // "Ogabey" for OGABEEY, "Marufa" for Ma'rufa: one or two letters off is
+    // still the same person when the name is long enough to be distinctive.
+    else if (q.length >= 5 && f.length >= 5 && levenshtein(q, f.replace(/\s+/g, '')) <= (q.length >= 8 ? 2 : 1)) best = Math.max(best, 65);
     else {
       // Token overlap for multi-word names.
       const ft = new Set(f.split(' '));
@@ -89,6 +92,40 @@ function score(c, ref) {
     }
   }
   return best;
+}
+
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (Math.abs(m - n) > 2) return 99;
+  let prev = Array.from({ length: n + 1 }, (_, i) => i);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[n];
+}
+
+/**
+ * "@ogabeey bu Og'abek" — the founder teaches names in memory facts. Before
+ * giving up on a name, look for a remembered fact that pairs it with a handle.
+ */
+function handleFromMemory(ref) {
+  try {
+    const memoryFacts = require('./memoryFacts');
+    const q = normalize(ref);
+    if (!q) return null;
+    for (const f of memoryFacts.list({ limit: 500 })) {
+      const text = String(f.fact);
+      const handles = text.match(/@[a-zA-Z][\w]{3,}/g);
+      if (!handles) continue;
+      const rest = normalize(text.replace(/@[a-zA-Z][\w]{3,}/g, ' '));
+      if (rest.split(' ').some((w) => w && (w === q || (q.length >= 4 && levenshtein(w, q) <= 1)))) return handles[0];
+    }
+  } catch {
+    /* memory is optional here */
+  }
+  return null;
 }
 
 function searchCache(ref, limit = 5) {
@@ -175,6 +212,19 @@ async function resolve(ref) {
     await refreshFromDialogs(300);
     hits = searchCache(raw);
   }
+  if (!hits.length || hits[0].score < 60) {
+    const taught = handleFromMemory(raw);
+    if (taught) {
+      try {
+        const entity = await tg.resolveEntity(taught);
+        upsert(entity);
+        addAlias(entity.id, raw);
+        return { entity, contact: cachedById(entity.id), confidence: 90, viaMemory: taught };
+      } catch {
+        /* the remembered handle no longer resolves — fall through */
+      }
+    }
+  }
   if (!hits.length) throw new Error(`"${raw}" nomli odam yoki guruh topilmadi`);
 
   // A plain first name means a person. When a channel called "@marufa" and a
@@ -208,4 +258,4 @@ function addAlias(tgId, alias) {
   return true;
 }
 
-module.exports = { resolve, upsert, refreshFromDialogs, searchCache, displayName, addAlias, cachedById };
+module.exports = { resolve, upsert, refreshFromDialogs, searchCache, displayName, addAlias, cachedById, levenshtein };

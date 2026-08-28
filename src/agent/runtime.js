@@ -8,6 +8,7 @@ const guardrails = require('./guardrails');
 const memory = require('./memory');
 const brain = require('./brain');
 const assistant = require('./assistant');
+const watches = require('./watches');
 
 const log = createLogger('runtime');
 
@@ -86,6 +87,9 @@ class Runtime extends EventEmitter {
 
     const text = (msg.message || '').trim();
     if (!msg.out) memory.noteUserMessage(chatId, Number(msg.date) || Math.floor(Date.now() / 1000));
+
+    // Someone the founder is waiting on has answered → report privately.
+    if (!msg.out && text) await this.reportWatchedReply(chatId, msg, text, userName);
 
     // A reply to an escalation notification is an answer for a waiting user,
     // not a support request — handle it and stop.
@@ -363,6 +367,7 @@ class Runtime extends EventEmitter {
           chatType: meta.chatType,
           chatTitle: meta.chatTitle,
           msgId: meta.msgId,
+          senderId: meta.senderId,
         })
       : await brain.respond({
           chatId,
@@ -395,6 +400,23 @@ class Runtime extends EventEmitter {
       const typingMs = typing ? Math.min(6000, result.text.length * 22) : 0;
       const delay = Math.max(0, min + Math.random() * Math.max(0, max - min) + typingMs - (result.meta.latencyMs || 0));
       if (delay > 0) await sleep(delay);
+    }
+
+    // Secrets and "write to my private chat" answers go to the founder's DM;
+    // the group only sees a one-line pointer (result.text).
+    if (result.privateText && result.privateTo) {
+      try {
+        const dm = await tg.sendMessage(result.privateTo, result.privateText);
+        if (dm) ingest.saveMessage(String(result.privateTo), dm, { isAgent: true });
+        log.info('javob shaxsiy chatga yuborildi', { from: chatId, to: result.privateTo });
+      } catch (err) {
+        log.warn('shaxsiy chatga yuborib boʻlmadi', { error: err.message });
+        result.text = `Toms aka, shaxsiy chatingizga yozolmadim (${err.message}). Avval menga shaxsiy xabar yozing.`;
+      }
+      if (!result.text) {
+        if (typing) tg.setTyping(chatId, false).catch(() => {});
+        return;
+      }
     }
 
     try {
@@ -532,6 +554,32 @@ class Runtime extends EventEmitter {
       await tg.sendMessage(chatId, `⚠️ Javobni yetkazib boʻlmadi: ${err.message}`, { silent: true }).catch(() => {});
     }
     return true;
+  }
+
+  /**
+   * A reply arrived in a chat the founder asked to be told about
+   * ("ask Og'abek his age, write me when he answers"). Forward it to the
+   * founder's private chat and close the watch.
+   */
+  async reportWatchedReply(chatId, msg, text, userName) {
+    let hits;
+    try {
+      hits = watches.consume(chatId, Number(msg.id), text);
+    } catch (err) {
+      log.debug('watch check failed', { error: err.message });
+      return;
+    }
+    for (const w of hits) {
+      const who = w.chat_name || userName || chatId;
+      const body = `📩 ${who} javob berdi${w.note ? ` (${w.note})` : ''}:\n«${text.slice(0, 1500)}»`;
+      try {
+        await tg.sendMessage(w.notify_chat, body);
+        recordEvent('watch', 'Watched reply forwarded', { watch: w.id, chatId });
+        log.info('kuzatilgan javob rahbarga yetkazildi', { watch: w.id, from: who });
+      } catch (err) {
+        log.warn('kuzatilgan javobni yetkazib boʻlmadi', { error: err.message });
+      }
+    }
   }
 
   /** Manual send from the admin panel — bypasses the AI. */

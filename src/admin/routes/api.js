@@ -22,6 +22,10 @@ const tasks = require('../../agent/tasks');
 const memoryFacts = require('../../agent/memoryFacts');
 const contacts = require('../../agent/contacts');
 const managedBots = require('../../agent/managedBots');
+const projects = require('../../agent/projects');
+const coder = require('../../agent/coder');
+const servers = require('../../agent/servers');
+const watches = require('../../agent/watches');
 const auth = require('../auth');
 
 const log = createLogger('admin:api');
@@ -534,8 +538,94 @@ router.post(
     if (!text) return res.status(400).json({ error: "Koʻrsatma boʻsh" });
     const assistant = require('../../agent/assistant');
     const founderId = String(settings.get('founder_ids', '')).split(/[,\s]+/).filter(Boolean)[0] || 'panel';
-    const out = await assistant.handle({ chatId: founderId, text, chatType: 'private', chatTitle: 'Admin panel', msgId: null });
+    // `chatType: 'group'` simulates a founder command issued in a group — used
+    // to verify that secrets are routed to the private chat, not echoed back.
+    const simulateGroup = req.body && req.body.chatType === 'group';
+    const out = await assistant.handle({
+      chatId: simulateGroup ? 'panel-group' : founderId,
+      text,
+      chatType: simulateGroup ? 'group' : 'private',
+      chatTitle: simulateGroup ? 'Sinov guruhi' : 'Admin panel',
+      msgId: null,
+      senderId: founderId,
+    });
     res.json(out);
+  })
+);
+
+// ── projects, servers, watches ─────────────────────────────────────────────
+router.get('/projects', (req, res) => res.json({ projects: projects.list(), bots: managedBots.list(), servers: servers.list(), publicKey: servers.publicKey() }));
+router.post(
+  '/projects',
+  wrap(async (req, res) => {
+    const { name, kind, spec, runCmd } = req.body || {};
+    res.json(projects.create({ name, kind: kind || 'node', spec: spec || null, runCmd: runCmd || null }));
+  })
+);
+router.get('/projects/:slug/files', (req, res) => res.json({ files: projects.listFiles(req.params.slug) }));
+router.get('/projects/:slug/file', (req, res) => {
+  try {
+    res.json({ content: projects.readFile(req.params.slug, String(req.query.path || '')) });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+router.post('/projects/:slug/file', (req, res) => {
+  try {
+    res.json(projects.writeFile(req.params.slug, String(req.body.path || ''), String(req.body.content ?? '')));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+router.get('/projects/:slug/logs', (req, res) => res.json({ logs: projects.logs(req.params.slug, Number(req.query.lines) || 150) }));
+router.post('/projects/:slug/start', wrap(async (req, res) => res.json(projects.start(req.params.slug))));
+router.post('/projects/:slug/stop', (req, res) => res.json(projects.stop(req.params.slug)));
+router.post('/projects/:slug/restart', wrap(async (req, res) => res.json(await projects.restart(req.params.slug))));
+router.post('/projects/:slug/settings', (req, res) => res.json(projects.update(req.params.slug, { runCmd: req.body.runCmd ?? null, name: req.body.name ?? null, spec: req.body.spec ?? null })));
+router.post('/projects/:slug/env', (req, res) => res.json({ keys: projects.setEnv(req.params.slug, { [String(req.body.key)]: req.body.value === '' ? null : String(req.body.value) }) }));
+router.delete('/projects/:slug', (req, res) => res.json(projects.remove(req.params.slug)));
+router.post(
+  '/projects/:slug/command',
+  wrap(async (req, res) => res.json(await projects.runCommand(String(req.body.command || ''), { slug: req.params.slug, timeoutMs: 180_000 })))
+);
+router.post(
+  '/projects/:slug/task',
+  wrap(async (req, res) => {
+    const task = String((req.body && req.body.task) || '').trim();
+    if (!task) return res.status(400).json({ error: 'Vazifa boʻsh' });
+    const p = projects.record(req.params.slug);
+    if (!p) return res.status(404).json({ error: 'Loyiha topilmadi' });
+    const wasRunning = p.alive;
+    const r = await coder.runTask({ project: p, task });
+    if (wasRunning) await projects.restart(p.slug).catch(() => {});
+    res.json(r);
+  })
+);
+
+router.get('/servers', (req, res) => res.json({ servers: servers.list(), publicKey: servers.publicKey() }));
+router.post('/servers', (req, res) => {
+  try {
+    res.json(servers.add({ name: req.body.name, host: req.body.host, user: req.body.user || 'root', port: Number(req.body.port) || 22, keyPath: req.body.keyPath || null, note: req.body.note || null }));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+router.delete('/servers/:name', (req, res) => res.json({ ok: servers.remove(req.params.name) }));
+router.post('/servers/:name/run', wrap(async (req, res) => res.json(await servers.run(req.params.name, String(req.body.command || 'uptime'), { timeoutMs: 180_000 }))));
+
+router.get('/watches', (req, res) => res.json(watches.list({ status: req.query.status || null, limit: 100 })));
+router.post('/watches/:id/cancel', (req, res) => res.json({ ok: watches.cancel(Number(req.params.id)) }));
+
+/** Call one assistant tool directly — for verifying a capability without the model in between. */
+router.post(
+  '/assistant/tool',
+  wrap(async (req, res) => {
+    const { name, args } = req.body || {};
+    const assistantTools = require('../../agent/assistantTools');
+    if (!assistantTools.definitions.some((d) => d.function.name === name)) return res.status(400).json({ error: 'nomaʼlum vosita' });
+    const founderId = String(settings.get('founder_ids', '')).split(/[,\s]+/).filter(Boolean)[0] || 'panel';
+    const ex = assistantTools.createExecutor({ chatId: founderId, msgId: null, text: String((req.body && req.body.text) || ''), founderDm: founderId, chatType: 'private' });
+    res.json({ result: await ex.execute(name, args || {}) });
   })
 );
 

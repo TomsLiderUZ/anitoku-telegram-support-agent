@@ -482,7 +482,8 @@ class TelegramService extends EventEmitter {
         id: String(d.id),
         title: d.title || d.name || 'Unknown',
         username: (d.entity && d.entity.username) || null,
-        type: d.isUser ? 'private' : d.isChannel ? 'channel' : 'group',
+        // A supergroup is a Channel in MTProto terms; isGroup is what people mean.
+        type: d.isUser ? 'private' : d.isGroup ? 'group' : 'channel',
         unread: d.unreadCount || 0,
         isUser: !!d.isUser,
       });

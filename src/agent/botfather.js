@@ -119,6 +119,26 @@ async function readBot(botRef, limit = 5) {
 
 const TOKEN_RE = /\b(\d{8,11}:[A-Za-z0-9_-]{30,})\b/;
 
+/**
+ * BotFather answers "Choose a bot" with one button per bot. Typing the
+ * username works too — unless the bot is not on the list, which yields
+ * "Invalid bot selected" and no hint why. Prefer the button, and when the bot
+ * is missing say so with the real list, so the assistant can report honestly
+ * instead of retrying.
+ */
+async function chooseBot(uname, reply, { waitMs = 15_000 } = {}) {
+  const want = '@' + String(uname).replace(/^@/, '').toLowerCase();
+  const listed = reply.buttons.map((b) => b.text).filter((t) => /^@\w+bot$/i.test(t));
+  if (listed.length && !listed.some((t) => t.toLowerCase() === want)) {
+    // Buttons may be paginated; if there is a "next" button the bot could still be there.
+    const hasMore = reply.buttons.some((b) => /»|next|>>/i.test(b.text));
+    if (!hasMore) throw new Error(`${want} bu akkauntda yoʻq. BotFather roʻyxati: ${listed.join(', ')}`);
+  }
+  const hit = reply.buttons.find((b) => b.text.toLowerCase() === want);
+  if (hit) return pressButton(BOTFATHER, hit.text, { waitMs });
+  return talk(BOTFATHER, want, { waitMs });
+}
+
 async function createBot({ name, username, description = null, about = null, commands = null }) {
   const uname = String(username || '').replace(/^@/, '');
   if (!/^[a-zA-Z][\w]{3,30}bot$/i.test(uname)) {
@@ -151,7 +171,7 @@ async function deleteBot(username) {
   const uname = '@' + String(username || '').replace(/^@/, '');
   const s1 = await talk(BOTFATHER, '/deletebot');
   if (!/choose|bot/i.test(s1.text)) throw new Error(`BotFather: ${s1.text.slice(0, 160)}`);
-  const s2 = await talk(BOTFATHER, uname);
+  const s2 = await chooseBot(uname, s1);
   if (/invalid|not found|no such|don'?t own/i.test(s2.text)) throw new Error(`Bot topilmadi yoki sizniki emas: ${s2.text.slice(0, 160)}`);
   if (!/sure|delete|yes/i.test(s2.text)) throw new Error(`Kutilmagan javob: ${s2.text.slice(0, 160)}`);
   const s3 = await talk(BOTFATHER, 'Yes, I am totally sure.', { waitMs: 15_000 });
@@ -163,7 +183,8 @@ async function deleteBot(username) {
 async function setBotField(username, command, value) {
   const s1 = await talk(BOTFATHER, command);
   if (!/choose|bot/i.test(s1.text)) return { command, ok: false, reply: s1.text.slice(0, 120) };
-  await talk(BOTFATHER, '@' + String(username).replace(/^@/, ''));
+  const s2 = await chooseBot(username, s1);
+  if (/invalid bot/i.test(s2.text)) return { command, ok: false, reply: s2.text.slice(0, 120) };
   const s3 = await talk(BOTFATHER, value, { waitMs: 12_000 });
   return { command, ok: /success|updated|done/i.test(s3.text), reply: s3.text.slice(0, 160) };
 }
@@ -202,10 +223,25 @@ async function getToken(username) {
   const uname = '@' + String(username || '').replace(/^@/, '');
   const s1 = await talk(BOTFATHER, '/token');
   let reply = s1;
-  if (/choose|bot/i.test(s1.text) && !TOKEN_RE.test(s1.text)) reply = await talk(BOTFATHER, uname, { waitMs: 12_000 });
+  if (/choose|bot/i.test(s1.text) && !TOKEN_RE.test(s1.text)) reply = await chooseBot(uname, s1, { waitMs: 12_000 });
   const m = reply.text.match(TOKEN_RE);
   if (!m) throw new Error(`Token olinmadi: ${reply.text.slice(0, 160)}`);
   return { ok: true, username: uname, token: m[1] };
 }
 
-module.exports = { talk, pressButton, readBot, buttonsOf, createBot, deleteBot, configureBot, setBotField, listMyBots, getToken };
+/** Revoke the current token and get a fresh one (/revoke → choose bot). */
+async function revokeToken(username) {
+  const uname = '@' + String(username || '').replace(/^@/, '');
+  const s1 = await talk(BOTFATHER, '/revoke');
+  let reply = s1;
+  if (!TOKEN_RE.test(s1.text)) {
+    if (!/choose|bot/i.test(s1.text)) throw new Error(`BotFather: ${s1.text.slice(0, 160)}`);
+    reply = await chooseBot(uname, s1);
+  }
+  const m = reply.text.match(TOKEN_RE);
+  if (!m) throw new Error(`Yangi token olinmadi: ${reply.text.slice(0, 160)}`);
+  log.info('bot tokeni yangilandi', { username: uname });
+  return { ok: true, username: uname, token: m[1], revoked: true };
+}
+
+module.exports = { talk, pressButton, readBot, buttonsOf, createBot, deleteBot, configureBot, setBotField, listMyBots, getToken, revokeToken };

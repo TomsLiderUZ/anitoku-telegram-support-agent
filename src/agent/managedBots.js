@@ -141,7 +141,10 @@ async function deploy({ username, name = null, token = null, spec, hint = null }
   // Specs accumulate: "add /top" must not erase "/search and /random" from
   // last week. Only an explicit rebuild (hint says so) starts from scratch.
   const oldSpec = (prev && prev.spec) || '';
-  const fresh = /\b(boshidan|noldan|from scratch|qaytadan yoz|hammasini o['‘’ʻ]?zgartir)\b/i.test(String(hint || ''));
+  // A new `spec` without a `hint` is a definition: "make this bot a Mafia
+  // game" replaces "anime search bot" outright, old commands and all. A
+  // `hint` is a patch on top of whatever the bot already is.
+  const fresh = (!!spec && !hint) || /\b(boshidan|noldan|from scratch|qaytadan yoz|hammasini o['‘’ʻ]?zgartir|olib tashla)\b/i.test(String(hint || ''));
   const effectiveSpec = fresh || !oldSpec ? String(spec || oldSpec) : spec && !oldSpec.includes(String(spec)) ? `${oldSpec}\nQo'shimcha: ${spec}` : oldSpec;
   db.prepare('UPDATE managed_bots SET spec = ?, updated_at = datetime(\'now\') WHERE username = ?').run(effectiveSpec, u);
   spec = effectiveSpec;
