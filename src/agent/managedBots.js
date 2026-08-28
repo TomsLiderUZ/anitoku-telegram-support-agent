@@ -89,7 +89,9 @@ async function generateCode({ username, name, spec, previousError = null, previo
       content:
         `Bot: @${username} (${name || username}).\nVazifa: ${spec}\n\n${CODE_RULES}` +
         (previousError
-          ? `\n\nOldingi urinish xato berdi:\n${previousError}\n\nOldingi kod:\n${String(previousCode).slice(0, 6000)}\n\nXatoni tuzatib, TO'LIQ kodni qaytadan yoz.`
+          ? `\n\nOldingi urinish xato berdi:\n${previousError}\n\nOldingi kod:\n${String(previousCode).slice(0, 7000)}\n\n` +
+            `Xatoni tuzatib, TO'LIQ kodni qaytadan yoz. MUHIM: oldingi koddagi BARCHA buyruqlar va funksiyalar (spec'dagilar ham) saqlanib qolishi SHART — ` +
+            `faqat nosoz joyni tuzat, hech narsani olib tashlama. /help matnida barcha buyruqlar ro'yxati bo'lsin.`
           : ''),
     },
   ];
