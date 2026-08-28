@@ -252,7 +252,10 @@ async function respond({ chatId, text, chatTitle = null, chatType = 'private', u
     const before = reply;
     // Any combination of the three template sentences, in any order, at the
     // very start — the model emits them alone or together.
-    const PREAMBLE = /^\s*(?:(?:assalomu\s+alaykum|va\s+alaykum\s+assalom|salom)[^.!?\n]{0,30}[.!?]?|xush\s+kelibsiz[^.!?\n]{0,10}[.!?]?|(?:sizga\s+)?qanday\s+yordam\s+bera\s+olaman\s*\??)\s*[🙂😊🤝✨🙏]*\s*/iu;
+    // Only the template words themselves plus an optional ", Name" and
+    // punctuation — never a free-form run of characters, which would eat the
+    // start of the real answer when the model omits punctuation.
+    const PREAMBLE = /^\s*(?:(?:assalomu\s+alaykum|va\s+alaykum\s+assalom|salom)(?:,\s*[\p{L}'‘’]+)?[!.,]*|xush\s+kelibsiz[!.,]*|(?:sizga\s+)?qanday\s+yordam\s+bera\s+olaman\s*[?!.]*)\s*[🙂😊🤝✨🙏]*\s*/iu;
     let guard = 0;
     while (PREAMBLE.test(reply) && guard++ < 4) reply = reply.replace(PREAMBLE, '');
     reply = reply.replace(/^\s*[🙂😊🤝✨🙏]+\s*/u, '').trim();
