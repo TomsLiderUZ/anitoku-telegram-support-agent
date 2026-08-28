@@ -250,10 +250,12 @@ async function respond({ chatId, text, chatTitle = null, chatType = 'private', u
   const userGreeted = /^\s*(salom|assalom|assalomu|hi|hello|hey|привет|здравствуй|qalesan|qalaysiz|yaxshimisiz)\b/i.test(text);
   if (!userGreeted) {
     const before = reply;
-    reply = reply
-      .replace(/^\s*(assalomu\s+alaykum|va\s+alaykum\s+assalom|salom)[^.!?\n]*[.!?]?\s*(xush\s+kelibsiz[^.!?\n]*[.!?]?\s*)?(sizga\s+)?(qanday\s+yordam\s+bera\s+olaman\??\s*)?/i, '')
-      .replace(/^\s*[🙂😊🤝✨🙏]+\s*/u, '')
-      .trim();
+    // Any combination of the three template sentences, in any order, at the
+    // very start — the model emits them alone or together.
+    const PREAMBLE = /^\s*(?:(?:assalomu\s+alaykum|va\s+alaykum\s+assalom|salom)[^.!?\n]{0,30}[.!?]?|xush\s+kelibsiz[^.!?\n]{0,10}[.!?]?|(?:sizga\s+)?qanday\s+yordam\s+bera\s+olaman\s*\??)\s*[🙂😊🤝✨🙏]*\s*/iu;
+    let guard = 0;
+    while (PREAMBLE.test(reply) && guard++ < 4) reply = reply.replace(PREAMBLE, '');
+    reply = reply.replace(/^\s*[🙂😊🤝✨🙏]+\s*/u, '').trim();
     if (!reply) reply = before; // never blank a reply over a cosmetic trim
     else if (reply !== before) meta.flags.push('greeting_preamble_trimmed');
     if (/^[a-z]/.test(reply)) reply = reply[0].toUpperCase() + reply.slice(1);
