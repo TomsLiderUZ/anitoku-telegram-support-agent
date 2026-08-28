@@ -242,8 +242,25 @@ async function respond({ chatId, text, chatTitle = null, chatType = 'private', u
     return { ok: false, error: 'empty completion', silent: true, meta };
   }
 
-  // 5. Outgoing guardrails. Honorifics reserved for the founder are stripped
-  // from anything said to anyone else — the prompt rule alone did not hold.
+  // 5. Outgoing guardrails.
+  //
+  // The local model glues the greeting template onto answers to plain
+  // questions no matter how the rule is phrased. When the user did not greet,
+  // that preamble is cut here — the answer that follows it is fine.
+  const userGreeted = /^\s*(salom|assalom|assalomu|hi|hello|hey|привет|здравствуй|qalesan|qalaysiz|yaxshimisiz)\b/i.test(text);
+  if (!userGreeted) {
+    const before = reply;
+    reply = reply
+      .replace(/^\s*(assalomu\s+alaykum|va\s+alaykum\s+assalom|salom)[^.!?\n]*[.!?]?\s*(xush\s+kelibsiz[^.!?\n]*[.!?]?\s*)?(sizga\s+)?(qanday\s+yordam\s+bera\s+olaman\??\s*)?/i, '')
+      .replace(/^\s*[🙂😊🤝✨🙏]+\s*/u, '')
+      .trim();
+    if (!reply) reply = before; // never blank a reply over a cosmetic trim
+    else if (reply !== before) meta.flags.push('greeting_preamble_trimmed');
+    if (/^[a-z]/.test(reply)) reply = reply[0].toUpperCase() + reply.slice(1);
+  }
+
+  // Honorifics reserved for the founder are stripped from anything said to
+  // anyone else — the prompt rule alone did not hold.
   if (!isFounder) {
     const before = reply;
     reply = reply

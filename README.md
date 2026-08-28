@@ -103,6 +103,11 @@ Apparat: RTX 3060 12 GB → Gemma 3 12B Q4_K_M (6.8 GB) + bge-m3 (0.6 GB) VRAM'g
 Ma'lum cheklov: CUDA prebuilt binari CUDA 13.3 drayveri bilan mos kelmadi; **Vulkan** ishlatiladi
 (RTX 3060 da yetarli). Panel → **Lokal model** bo'limida holat, yuklash/bo'shatish, qayta indekslash.
 
+O'lchangan tezlik (RTX 3060, Vulkan, Gemma 3 12B Q4): birinchi javob ~7 s, keyingilari **4–5 s**
+— shaxsiyat va qoidalar prompt boshida turgani uchun KV-kesh prefiksi qayta hisoblanmaydi.
+Cloud (Groq) ~1–2 s; tezlik muhim bo'lsa `local_purposes` ni bo'sh qoldirib cloud'ga qaytish mumkin.
+Semantik indeks: 268 hujjat ~11 s.
+
 ---
 
 ## Support xavfsizligi
