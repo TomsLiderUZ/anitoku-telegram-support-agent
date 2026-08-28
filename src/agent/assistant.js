@@ -12,6 +12,13 @@ const log = createLogger('assistant');
 
 const MAX_ROUNDS = 6;
 const ASSISTANT_PROVIDER = 'groq';
+// Pinned: gpt-oss-120b calls tools cleanly. The smaller Groq models and the
+// free OpenRouter ones wander (six tool calls for one change) or emit raw
+// <tool_call> markup as prose. Mistral remains the fallback via the plan.
+const ASSISTANT_MODEL = 'openai/gpt-oss-120b';
+
+/** Tool-call syntax that leaked into the answer instead of being executed. */
+const looksLikeToolMarkup = (s) => /<tool_call>|<function=|<parameter=|\{"name"\s*:\s*"[a-z_]+"\s*,\s*"arguments"/i.test(String(s || ''));
 
 /** Reply text that asserts something was sent/scheduled/saved. */
 const claimsAction = (s) =>
@@ -129,6 +136,7 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
         tools: round < MAX_ROUNDS ? assistantTools.definitions : null,
         toolChoice: forcedTools ? 'required' : 'auto',
         provider: ASSISTANT_PROVIDER,
+        model: ASSISTANT_MODEL,
         purpose: 'assistant',
         maxTokens: 900,
         temperature: 0.2,
@@ -181,6 +189,12 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
     }
   }
 
+  if (looksLikeToolMarkup(reply)) {
+    // Never send tool syntax to a human. Summarise what actually ran instead.
+    log.warn('tool markup leaked into reply — replaced', { chatId, model: meta.model });
+    meta.markupLeak = true;
+    reply = meta.toolsUsed.length ? `Bajarildi ✅ (${[...new Set(meta.toolsUsed)].join(', ')})` : '';
+  }
   if (!reply || !reply.trim()) {
     reply = meta.toolsUsed.length ? 'Bajarildi ✅' : "Tushunmadim — nima qilishim kerak?";
   }
