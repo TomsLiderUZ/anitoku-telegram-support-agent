@@ -149,7 +149,9 @@ const TG_STATUS_LABEL = {
   disconnected: 'ulanmagan',
 };
 
+let lastTgInfo = null;
 function renderTelegram(info) {
+  lastTgInfo = info;
   const pill = $('tgPill');
   const map = { connected: 'ok', awaiting_qr: 'info', awaiting_code: 'warn', awaiting_password: 'warn', connecting: 'info', error: 'err', disconnected: '' };
   pill.className = 'pill ' + (map[info.status] || '');
@@ -211,10 +213,17 @@ function paintQr(state) {
   }
 }
 
+// API ID is numeric and API Hash is 32 hex chars. Anything else in the field
+// is browser autofill (Chrome likes to drop the admin username into API ID) —
+// send null so the server keeps its stored, valid credentials instead of
+// overwriting them with garbage.
+const cleanApiId = (v) => (/^\d{5,}$/.test(String(v).trim()) ? String(v).trim() : null);
+const cleanApiHash = (v) => (/^[a-f0-9]{32}$/i.test(String(v).trim()) ? String(v).trim() : null);
+
 $('tgQrBtn').addEventListener('click', async () => {
   const btn = $('tgQrBtn');
-  const apiId = $('tgApiId').value.trim();
-  const apiHash = $('tgApiHash').value.trim();
+  const apiId = cleanApiId($('tgApiId').value);
+  const apiHash = cleanApiHash($('tgApiHash').value);
 
   btn.disabled = true;
   btn.textContent = 'Olinmoqda…';
@@ -222,7 +231,7 @@ $('tgQrBtn').addEventListener('click', async () => {
   $('tgQrBox').innerHTML = '<div class="qr-empty">QR kod tayyorlanmoqda…</div>';
 
   try {
-    const state = await api('/telegram/qr', { method: 'POST', body: { apiId: apiId || null, apiHash: apiHash || null } });
+    const state = await api('/telegram/qr', { method: 'POST', body: { apiId, apiHash } });
     paintQr(state);
     renderTelegram(state.info);
     if (state.url) {
@@ -264,14 +273,13 @@ $('tgForm').addEventListener('submit', async (e) => {
   btn.disabled = true;
   btn.textContent = 'Ulanmoqda…';
   try {
+    const apiId = cleanApiId($('tgApiId').value);
+    const apiHash = cleanApiHash($('tgApiHash').value);
+    const phone = $('tgPhone').value.trim();
+    if (!phone) throw new Error('Telefon raqamni kiriting');
     const out = await api('/telegram/connect', {
       method: 'POST',
-      body: {
-        apiId: $('tgApiId').value.trim(),
-        apiHash: $('tgApiHash').value.trim(),
-        phone: $('tgPhone').value.trim(),
-        forceSms: $('tgForceSms').checked,
-      },
+      body: { apiId, apiHash, phone, forceSms: $('tgForceSms').checked },
     });
     renderTelegram(out.info);
     toast(out.status === 'awaiting_code' ? 'Kod yuborildi — Telegramni tekshiring' : `Holat: ${out.status}`, 'ok');
@@ -320,13 +328,19 @@ $('tgLogout').addEventListener('click', async () => {
 });
 
 async function loadDialogs() {
+  // Chats only exist once the account is connected. Before that, show a hint
+  // instead of a red error — the panel opens on this page during re-login.
+  if (!lastTgInfo || !lastTgInfo.connected) {
+    $('tgDialogs').innerHTML = '<tr><td colspan="3" class="empty">Avval Telegramga ulaning</td></tr>';
+    return;
+  }
   try {
     const list = await api('/telegram/dialogs?limit=150');
     $('tgDialogs').innerHTML = list.length
       ? list.map((d) => `<tr><td>${esc(d.title)}</td><td><span class="pill">${esc(d.type)}</span></td><td class="mono">${esc(d.id)}</td></tr>`).join('')
       : '<tr><td colspan="3" class="empty">Chat topilmadi</td></tr>';
   } catch (err) {
-    toast(err.message, 'err');
+    $('tgDialogs').innerHTML = `<tr><td colspan="3" class="empty">${esc(err.message)}</td></tr>`;
   }
 }
 $('tgLoadDialogs').addEventListener('click', loadDialogs);

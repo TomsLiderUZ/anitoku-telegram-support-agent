@@ -104,11 +104,17 @@ router.post(
   '/telegram/connect',
   wrap(async (req, res) => {
     const { apiId, apiHash, phone, forceSms } = req.body || {};
-    if (!apiId || !apiHash || !phone) return res.status(400).json({ error: 'apiId, apiHash va phone majburiy' });
+    // apiId/apiHash may be omitted when they are already stored — the panel
+    // sends null rather than risk overwriting good credentials with an
+    // autofilled value. Phone is always required to start the code flow.
+    const rec = tg.record();
+    const haveStored = rec && rec.api_id && rec.api_hash_enc;
+    if ((!apiId || !apiHash) && !haveStored) return res.status(400).json({ error: 'apiId va apiHash majburiy' });
+    if (!phone) return res.status(400).json({ error: 'Telefon raqam majburiy' });
     if (!/^\+?\d{7,15}$/.test(String(phone).replace(/\s/g, ''))) return res.status(400).json({ error: "Telefon raqam formati noto'g'ri" });
     const out = await tg.login({
-      apiId: Number(apiId),
-      apiHash: String(apiHash).trim(),
+      apiId: apiId ? Number(apiId) : null,
+      apiHash: apiHash ? String(apiHash).trim() : null,
       phone: String(phone).replace(/\s/g, ''),
       forceSms: !!forceSms,
     });

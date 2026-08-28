@@ -418,8 +418,8 @@
               </ol>
               <p>api_id va api_hash ilovani tanitadi, akkauntni emas — QR usulida ham kerak. Ma'lumotlar shifrlanib saqlanadi.</p>
             </details>
-            <label class="field"><span>API ID</span><input type="text" id="tgApiId" inputmode="numeric" placeholder="1234567"></label>
-            <label class="field"><span>API Hash</span><input type="text" id="tgApiHash" placeholder="0123456789abcdef0123456789abcdef"></label>
+            <label class="field"><span>API ID</span><input type="text" id="tgApiId" name="tg-api-id" inputmode="numeric" autocomplete="off" autocorrect="off" spellcheck="false" data-1p-ignore data-lpignore="true" placeholder="1234567"></label>
+            <label class="field"><span>API Hash</span><input type="text" id="tgApiHash" name="tg-api-hash" autocomplete="off" autocorrect="off" spellcheck="false" data-1p-ignore data-lpignore="true" placeholder="0123456789abcdef0123456789abcdef"></label>
             <div class="tabs"><div class="tab active" data-tgtab="qr">QR kod bilan</div><div class="tab" data-tgtab="phone">Telefon raqam bilan</div></div>
             <div class="tgtab" id="tgtab-qr">
               <div class="hint" style="margin-bottom:12px">Telefoningizdagi Telegram: <b>Sozlamalar → Qurilmalar → Kompyuter qurilmasini ulash</b> — kamerani QR kodga tuting.</div>
@@ -429,7 +429,7 @@
             </div>
             <div class="tgtab" id="tgtab-phone" hidden>
               <form id="tgForm">
-                <label class="field"><span>Telefon raqam</span><input type="text" id="tgPhone" placeholder="+998901234567"><small>Xalqaro formatda</small></label>
+                <label class="field"><span>Telefon raqam</span><input type="text" id="tgPhone" name="tg-phone" autocomplete="off" autocorrect="off" spellcheck="false" data-1p-ignore data-lpignore="true" placeholder="+998901234567"><small>Xalqaro formatda</small></label>
                 <label class="switch"><input type="checkbox" id="tgForceSms"><span class="track"></span><span class="lbl">SMS orqali kod<small>Telegram ilovasiga kod kelmasa yoqing</small></span></label>
                 <button class="btn wide" type="submit" id="tgConnectBtn" style="margin-top:8px">Kod yuborish</button>
               </form>

@@ -87,8 +87,15 @@ class TelegramService extends EventEmitter {
   async login({ apiId, apiHash, phone, forceSms = false } = {}) {
     if (this.connecting) return { status: this.status, message: 'already in progress' };
 
-    if (apiId && apiHash && phone) {
-      this.saveRecord({ api_id: Number(apiId), api_hash_enc: encrypt(apiHash), phone: String(phone).trim(), session_enc: '', status: 'connecting' });
+    // Only overwrite stored credentials with a genuinely valid api_id. A
+    // browser once autofilled the admin username into the API ID field and
+    // Number("anitoku") = NaN silently broke the saved account. Phone updates
+    // on its own so the founder can re-login without retyping api_id/hash.
+    const validApiId = /^\d{5,}$/.test(String(apiId || ''));
+    if (validApiId && apiHash) {
+      this.saveRecord({ api_id: Number(apiId), api_hash_enc: encrypt(String(apiHash).trim()), phone: phone ? String(phone).trim() : (this.record() || {}).phone, session_enc: '', status: 'connecting' });
+    } else if (phone) {
+      this.saveRecord({ phone: String(phone).trim(), session_enc: '', status: 'connecting' });
     }
     const creds = this.credentials();
     if (!creds) throw new Error('api_id, api_hash va telefon raqam kiritilishi shart');
@@ -213,7 +220,8 @@ class TelegramService extends EventEmitter {
   async loginQr({ apiId, apiHash } = {}) {
     if (this.connecting) return { status: this.status, message: 'already in progress' };
 
-    if (apiId && apiHash) {
+    // Never let a non-numeric api_id (browser autofill) overwrite good creds.
+    if (/^\d{5,}$/.test(String(apiId || '')) && apiHash) {
       this.saveRecord({
         api_id: Number(apiId),
         api_hash_enc: encrypt(String(apiHash).trim()),
