@@ -183,6 +183,7 @@ const DEFAULT_SETTINGS = {
   typing_simulation: '1',
   keep_online: '1',
   local_model_enabled: '1',      // use the local GGUF model when its files are present
+  local_profile: 'auto',         // auto | gpu | cpu-small
   local_context_size: '8192',
   local_purposes: 'reply,reply:retry,memory:summary', // which call types the local model may serve
   catchup_enabled: '1',          // answer messages that arrived while the agent was down

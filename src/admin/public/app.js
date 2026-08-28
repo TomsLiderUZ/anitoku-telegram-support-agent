@@ -1151,6 +1151,12 @@ const gb = (b) => (b / 1073741824).toFixed(2) + ' GB';
 loaders.local = async () => {
   const s = await api('/local');
   $('localDir').textContent = s.modelsDir;
+  const sel = $('localProfile');
+  if (sel) {
+    const stored = (await api('/settings')).values.local_profile || 'auto';
+    sel.value = stored;
+    sel.options[0].textContent = `Profil: avtomatik (${s.profile}, ${s.ramGb} GB RAM)`;
+  }
   const v = s.vectors || {};
   $('localStats').innerHTML = `
     <div class="stat ${s.chat.loaded ? 'ok' : ''}"><div class="stat-label">Chat modeli</div><div class="stat-value" style="font-size:18px">${s.chat.loaded ? 'Yuklangan' : s.chat.present ? 'Tayyor' : s.chat.downloading ? 'Yuklanmoqda' : "Yo'q"}</div><div class="stat-sub">${esc(s.chat.label)}</div></div>
@@ -1166,6 +1172,30 @@ loaders.local = async () => {
     : "Embedding modeli yuklanmagan — qidiruv faqat kalit so'zlar bo'yicha ishlaydi.";
   if (s.error) toast('Lokal model xatosi: ' + s.error, 'err', 6000);
 };
+$('localProfile').addEventListener('change', async (e) => {
+  try {
+    await api('/local/profile', { method: 'POST', body: { profile: e.target.value } });
+    toast('Profil o\'zgartirildi — kerakli model faylini yuklab oling', 'ok', 5000);
+  } catch (err) {
+    toast(err.message, 'err');
+  }
+  loaders.local();
+});
+for (const [id, kind] of [['localDlChat', 'chat'], ['localDlEmbed', 'embed']]) {
+  $(id).addEventListener('click', async (e) => {
+    e.target.disabled = true;
+    try {
+      const r = await api(`/local/download/${kind}`, { method: 'POST' });
+      toast(r.already ? 'Fayl allaqachon bor' : r.inProgress ? 'Yuklab olish davom etmoqda' : 'Yuklab olish boshlandi — holat shu sahifada yangilanadi', 'ok', 5000);
+    } catch (err) {
+      toast(err.message, 'err');
+    } finally {
+      e.target.disabled = false;
+      loaders.local();
+    }
+  });
+}
+
 $('localLoad').addEventListener('click', async (e) => { e.target.disabled = true; e.target.textContent = 'Yuklanmoqda…'; try { await api('/local/load', { method: 'POST' }); toast('Yuklandi', 'ok'); } catch (err) { toast(err.message, 'err'); } finally { e.target.disabled = false; e.target.textContent = 'Yuklash'; loaders.local(); } });
 $('localUnload').addEventListener('click', async () => { await api('/local/unload', { method: 'POST' }); toast("Bo'shatildi", 'ok'); loaders.local(); });
 $('localReindex').addEventListener('click', async (e) => { e.target.disabled = true; try { const r = await api('/local/reindex', { method: 'POST' }); toast(`${r.embedded} hujjat indekslandi`, 'ok'); } catch (err) { toast(err.message, 'err'); } finally { e.target.disabled = false; loaders.local(); } });

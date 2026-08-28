@@ -4,19 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
-  <title>ANITOKU Support Agent</title>
+  <title>ANITOKU Agent — Boshqaruv</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
 <div class="app">
 
-  <!-- ── sidebar ─────────────────────────────────────────────────────────── -->
   <aside class="sidebar">
     <div class="logo">
       <div class="logo-mark">A</div>
       <div>
         <div class="logo-text">ANITOKU</div>
-        <div style="font-size:10px;color:var(--txt-mute);letter-spacing:1.1px">SUPPORT AGENT</div>
+        <div class="logo-sub">Agent boshqaruvi</div>
       </div>
     </div>
 
@@ -48,14 +47,13 @@
     <div class="nav-item" id="logoutBtn"><span class="ico">⏻</span> Chiqish</div>
   </aside>
 
-  <!-- ── main ────────────────────────────────────────────────────────────── -->
   <main class="main">
 
-    <!-- Dashboard -->
+    <!-- ═══ Boshqaruv ═══ -->
     <section class="page active" id="page-dashboard">
       <div class="page-head">
         <div>
-          <div class="page-title">Boshqaruv paneli</div>
+          <div class="page-title">Boshqaruv</div>
           <div class="page-desc">Agent holati va joriy ko'rsatkichlar</div>
         </div>
         <div class="row">
@@ -63,459 +61,76 @@
           <button class="btn ghost sm" id="togglePause">Pauza</button>
         </div>
       </div>
-
       <div class="grid c4" id="statGrid"></div>
-
       <div class="grid c2" style="margin-top:16px">
-        <div class="card">
-          <div class="card-title">Tizim holati</div>
-          <div id="healthBox"></div>
-        </div>
-        <div class="card">
-          <div class="card-title">AI ishlatilishi (24 soat)</div>
-          <div id="aiUsageBox"></div>
-        </div>
+        <div class="card"><div class="card-title">Tizim holati</div><div id="healthBox"></div></div>
+        <div class="card"><div class="card-title">AI ishlatilishi (24 soat)</div><div id="aiUsageBox"></div></div>
       </div>
-
       <div class="card">
-        <div class="card-title">Jonli jurnal <span class="pill info" id="liveDot"><span class="dot pulse"></span> live</span></div>
+        <div class="card-title">Jonli jurnal <span class="pill info" id="liveDot"><span class="dot pulse"></span> jonli</span></div>
         <div class="console" id="dashConsole"></div>
       </div>
     </section>
 
-    <!-- Telegram -->
-    <section class="page" id="page-telegram">
-      <div class="page-head">
-        <div>
-          <div class="page-title">Telegram akkaunt</div>
-          <div class="page-desc">Agent shu akkaunt nomidan xabarlarni o'qiydi va javob beradi</div>
-        </div>
-        <span id="tgPill" class="pill"><span class="dot"></span> …</span>
-      </div>
-
-      <div class="grid c2">
-        <div class="card">
-          <div class="card-title">Ulanish</div>
-          <div id="tgConnected" hidden>
-            <div class="row" style="margin-bottom:12px">
-              <span class="pill ok"><span class="dot"></span> Ulangan</span>
-              <span id="tgWho" class="mono" style="color:var(--txt-dim)"></span>
-            </div>
-            <div class="hint" id="tgDetails"></div>
-            <div class="sep"></div>
-            <div class="row">
-              <button class="btn ghost sm" id="tgRefreshDialogs">Chatlarni yuklash</button>
-              <button class="btn danger sm" id="tgLogout">Uzish</button>
-            </div>
-          </div>
-
-          <div id="tgSetup">
-            <details class="guide" id="tgGuide">
-              <summary>API ID va API Hash ni qayerdan olaman?</summary>
-              <ol>
-                <li><a href="https://my.telegram.org" target="_blank" rel="noopener">my.telegram.org</a> ga kiring</li>
-                <li>Telefon raqamingizni <b>+998…</b> formatida kiriting → Telegram ilovangizga kod keladi → kodni kiriting</li>
-                <li><b>API development tools</b> bo'limini oching</li>
-                <li>Formani to'ldiring: <i>App title</i> — <code>ANITOKU Support</code>, <i>Short name</i> — <code>anitoku</code>, <i>Platform</i> — <code>Other</code></li>
-                <li><b>Create application</b> → chiqqan <b>App api_id</b> va <b>App api_hash</b> ni shu yerga nusxalang</li>
-              </ol>
-              <p><b>Nega QR uchun ham kerak?</b> api_id/api_hash <i>ilovani</i> (ya'ni shu agentni) Telegram oldida tanitadi, akkauntni emas. Shuning uchun QR bo'lsin, telefon bo'lsin — ular baribir talab qilinadi. Bir marta olasiz, keyin doim ishlaydi.</p>
-              <p>Ma'lumotlar AES-256-GCM bilan shifrlanib saqlanadi va panelda hech qachon ochiq ko'rsatilmaydi.</p>
-            </details>
-
-            <label class="field"><span>API ID</span><input type="text" id="tgApiId" inputmode="numeric" placeholder="1234567"></label>
-            <label class="field"><span>API Hash</span><input type="text" id="tgApiHash" placeholder="0123456789abcdef0123456789abcdef"></label>
-
-            <div class="tabs">
-              <div class="tab active" data-tgtab="qr">QR kod bilan</div>
-              <div class="tab" data-tgtab="phone">Telefon raqam bilan</div>
-            </div>
-
-            <div class="tgtab" id="tgtab-qr">
-              <div class="hint" style="margin-bottom:12px">
-                Telefoningizdagi Telegram: <b>Sozlamalar → Qurilmalar → Kompyuter qurilmasini ulash</b> →
-                kamerani quyidagi QR kodga tuting.
-              </div>
-              <div class="qr-box" id="tgQrBox"><div class="qr-empty">QR kodni olish uchun tugmani bosing</div></div>
-              <div class="row" style="margin-top:10px">
-                <button class="btn" id="tgQrBtn">QR kodni olish</button>
-                <span class="hint" id="tgQrTimer"></span>
-              </div>
-              <div class="hint" style="margin-top:8px">QR har ~30 soniyada avtomatik yangilanadi. Skan qilgach 2FA parolingiz so'raladi.</div>
-            </div>
-
-            <div class="tgtab" id="tgtab-phone" hidden>
-              <form id="tgForm">
-                <label class="field"><span>Telefon raqam</span><input type="text" id="tgPhone" placeholder="+998901234567"><small>Xalqaro formatda, akkaunt ro'yxatdan o'tgan raqam</small></label>
-                <label class="switch"><input type="checkbox" id="tgForceSms"><span class="track"></span><span class="lbl">SMS orqali kod<small>Telegram ilovasiga kod kelmasa yoqing</small></span></label>
-                <button class="btn wide" type="submit" id="tgConnectBtn" style="margin-top:8px">Kod yuborish</button>
-              </form>
-            </div>
-          </div>
-
-          <div id="tgCodeBox" hidden>
-            <div class="sep"></div>
-            <label class="field"><span>Telegram kodi</span><input type="text" id="tgCode" inputmode="numeric" placeholder="12345"><small>Telegram ilovangizga kelgan 5 xonali kod</small></label>
-            <button class="btn wide" id="tgCodeBtn">Tasdiqlash</button>
-          </div>
-
-          <div id="tgPassBox" hidden>
-            <div class="sep"></div>
-            <label class="field"><span>2FA paroli</span><input type="password" id="tgPass" placeholder="Bulutli parol"><small>Akkauntda ikki bosqichli himoya yoqilgan</small></label>
-            <button class="btn wide" id="tgPassBtn">Kirish</button>
-          </div>
-
-          <div class="err-msg" id="tgErr"></div>
-        </div>
-
-        <div class="card">
-          <div class="card-title">Chatlar <button class="btn ghost sm" id="tgLoadDialogs">Yangilash</button></div>
-          <div class="hint" style="margin-bottom:10px">Bu ro'yxatdan eskalatsiya chat ID sini olishingiz mumkin.</div>
-          <div class="table-wrap" style="max-height:460px;overflow-y:auto">
-            <table><thead><tr><th>Nom</th><th>Tur</th><th>ID</th></tr></thead><tbody id="tgDialogs"><tr><td colspan="3" class="empty">Yuklanmagan</td></tr></tbody></table>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Keys -->
-    <section class="page" id="page-keys">
-      <div class="page-head">
-        <div>
-          <div class="page-title">AI provayderlar</div>
-          <div class="page-desc">Kalitlar navbatma-navbat ishlatiladi; biri tugasa keyingisiga o'tadi</div>
-        </div>
-        <div class="row">
-          <button class="btn ghost sm" id="keysRevive">Tiklash</button>
-          <button class="btn ghost sm" id="keysTestAll">Hammasini sinash</button>
-        </div>
-      </div>
-
-      <div class="grid c4" id="keyHealth"></div>
-      <div class="card" style="margin-top:16px"><div class="card-title">Provayderlar</div><div id="providerList" class="row"></div><div class="hint" style="margin-top:10px">Koʻproq provayder qoʻshsangiz, limit tugaganda agent avtomatik boshqasiga oʻtadi va sukut saqlamaydi.</div></div>
-
-      <div class="card" style="margin-top:16px">
-        <div class="card-title">Kalit qo'shish</div>
-        <div class="hint" style="margin-bottom:12px">
-          Bir nechta kalitni bir vaqtda joylashtiring — har biri yangi qatorda. Provayder prefiksdan avtomatik aniqlanadi
-          (<code>gsk_…</code> Groq, <code>sk-or-…</code> OpenRouter, <code>AIza…</code> Gemini, <code>csk-…</code> Cerebras). Mistral va Together kalitlarida prefiks yoʻq — ularni roʻyxatdan tanlang. Takrorlanuvchilar oʻtkazib yuboriladi.
-        </div>
-        <textarea id="keysInput" placeholder="sk-or-v1-…&#10;gsk_…&#10;yoki: 1: sk-or-v1-…"></textarea>
-        <div class="row" style="margin-top:10px">
-          <select id="keysProvider" style="width:auto"><option value="">Avtomatik aniqlash</option></select>
-          <input type="text" id="keysLabel" placeholder="Yorliq (ixtiyoriy)" style="width:auto;flex:1;min-width:150px">
-          <button class="btn" id="keysAdd">Qo'shish</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Token sarfi <button class="btn ghost sm" id="tokensRefresh">Yangilash</button></div>
-        <div class="grid c4" id="tokenTotals"></div>
-        <div class="grid c2" style="margin-top:14px">
-          <div>
-            <div class="hint" style="margin-bottom:8px">Provayder bo'yicha</div>
-            <div class="table-wrap"><table><thead><tr><th>Provayder</th><th class="num">Chaqiruv</th><th class="num">Kirish</th><th class="num">Chiqish</th><th class="num">Jami</th><th class="num">ms</th></tr></thead><tbody id="tokenByProvider"></tbody></table></div>
-          </div>
-          <div>
-            <div class="hint" style="margin-bottom:8px">Maqsad bo'yicha</div>
-            <div class="table-wrap"><table><thead><tr><th>Maqsad</th><th class="num">Chaqiruv</th><th class="num">Token</th></tr></thead><tbody id="tokenByPurpose"></tbody></table></div>
-          </div>
-        </div>
-        <div class="hint" style="margin-top:12px">Eng ko'p ishlatilgan kalitlar</div>
-        <div class="table-wrap" style="margin-top:6px"><table><thead><tr><th>Provayder</th><th>Kalit</th><th>Holat</th><th class="num">OK</th><th class="num">Xato</th><th class="num">Token</th></tr></thead><tbody id="tokenByKey"></tbody></table></div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Kalitlar ro'yxati</div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>#</th><th>Provayder</th><th>Kalit</th><th>Holat</th><th class="num">OK</th><th class="num">Xato</th><th class="num">Token</th><th>Amal</th></tr></thead>
-            <tbody id="keysTable"><tr><td colspan="8" class="empty">Yuklanmoqda…</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <!-- Training -->
-    <section class="page" id="page-training">
-      <div class="page-head">
-        <div>
-          <div class="page-title">O'qitish</div>
-          <div class="page-desc">Chatlarni o'qiydi, muloqot uslubini o'rganadi, shaxsiyat va ko'nikmalarni yangilaydi</div>
-        </div>
-        <button class="btn" id="trainRun">O'qitishni boshlash</button>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Jarayon</div>
-        <div class="steps" id="trainSteps"></div>
-        <div class="progress"><div class="bar" id="trainBar" style="width:0%"></div></div>
-        <div class="row"><span id="trainPhase" class="pill">bo'sh</span><span id="trainMsg" class="hint"></span></div>
-        <div class="hint" style="margin-top:12px">
-          Bosqichlar: asosiy faktlar → Telegram chat va kanalni o'qish → muloqot uslubini o'rganish → savol mavzularini guruhlash → shaxsiyatni yozish → ko'nikmalar → bilimlarni tozalash.
-        </div>
-      </div>
-
-      <div class="grid c2">
-        <div class="card">
-          <div class="card-title">Oxirgi natija</div>
-          <pre class="block" id="trainStats">—</pre>
-        </div>
-        <div class="card">
-          <div class="card-title">Tarix</div>
-          <div class="table-wrap">
-            <table><thead><tr><th>#</th><th>Holat</th><th>Boshlandi</th><th>Tugadi</th></tr></thead><tbody id="trainHistory"></tbody></table>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Knowledge -->
-    <section class="page" id="page-knowledge">
-      <div class="page-head">
-        <div>
-          <div class="page-title">Bilim bazasi</div>
-          <div class="page-desc">Mijozlarga javob berishda ishlatiladigan hujjatlar: kanal postlari, faktlar va savol-javoblar</div>
-        </div>
-        <div class="row">
-          <button class="btn ghost sm" id="kbSeed">Asosiy faktlarni tiklash</button>
-          <button class="btn ghost sm" id="kbIngest">Telegramdan o'qish</button>
-        </div>
-      </div>
-
-      <div class="grid c4" id="kbStats"></div>
-
-      <div class="card" style="margin-top:16px">
-        <div class="card-title">Qidiruvni sinash</div>
-        <div class="row">
-          <input type="text" id="kbSearchQ" placeholder="Masalan: ovoz aktyori bo'lmoqchiman" style="flex:1;min-width:220px">
-          <button class="btn" id="kbSearchBtn">Qidirish</button>
-        </div>
-        <pre class="block" id="kbSearchOut" hidden></pre>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Qo'lda fakt qo'shish</div>
-        <label class="field"><span>Sarlavha</span><input type="text" id="kbTitle" placeholder="Masalan: To'lov usullari"></label>
-        <label class="field"><span>Matn</span><textarea id="kbContent" placeholder="Aniq, qisqa fakt…"></textarea></label>
-        <div class="row">
-          <input type="text" id="kbTags" placeholder="teglar, vergul bilan" style="flex:1">
-          <button class="btn" id="kbAdd">Qo'shish</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">
-          Hujjatlar
-          <span class="row">
-            <input type="text" id="kbFilter" placeholder="Filtr…" style="width:170px">
-            <select id="kbSource" style="width:auto"><option value="">Barcha manba</option><option value="seed">seed</option><option value="channel">channel</option><option value="qa">qa</option><option value="learned">learned</option><option value="manual">manual</option></select>
-          </span>
-        </div>
-        <div class="table-wrap">
-          <table><thead><tr><th>#</th><th>Manba</th><th>Sarlavha / matn</th><th>Vazn</th><th>Amal</th></tr></thead><tbody id="kbTable"></tbody></table>
-        </div>
-      </div>
-    </section>
-
-    <!-- Skills -->
-    <section class="page" id="page-skills">
-      <div class="page-head">
-        <div>
-          <div class="page-title">Ko'nikmalar</div>
-          <div class="page-desc">Agent avtomatik yozgan va qo'lda qo'shilgan xatti-harakat qoidalari</div>
-        </div>
-        <button class="btn ghost sm" id="skillNew">Yangi ko'nikma</button>
-      </div>
-
-      <div class="card" id="skillEditor" hidden>
-        <div class="card-title">Ko'nikma tahriri</div>
-        <input type="hidden" id="skSlug">
-        <div class="grid c2">
-          <label class="field"><span>Nom</span><input type="text" id="skName"></label>
-          <label class="field"><span>Prioritet (kichik = muhimroq)</span><input type="number" id="skPriority" value="100"></label>
-        </div>
-        <label class="field"><span>Tavsif</span><input type="text" id="skDesc"></label>
-        <label class="field"><span>Trigger so'zlar (vergul bilan)</span><input type="text" id="skTriggers" placeholder="qachon, narx, tolov, price"></label>
-        <label class="field"><span>Ko'rsatma</span><textarea id="skInstructions" placeholder="Agent bu holatda nima qilishi kerak…"></textarea></label>
-        <label class="field"><span>Namunalar</span><textarea id="skExamples" placeholder="U: …&#10;S: …"></textarea></label>
-        <div class="row end"><button class="btn ghost" id="skCancel">Bekor</button><button class="btn" id="skSave">Saqlash</button></div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Trigger sinovi</div>
-        <div class="row">
-          <input type="text" id="skTestInput" placeholder="Foydalanuvchi xabarini yozing…" style="flex:1;min-width:220px">
-          <button class="btn ghost" id="skTestBtn">Qaysi ko'nikma ishlaydi?</button>
-        </div>
-        <div id="skTestOut" class="row" style="margin-top:10px"></div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Ro'yxat</div>
-        <div class="table-wrap">
-          <table><thead><tr><th>Nom</th><th>Triggerlar</th><th class="num">Pri</th><th>Manba</th><th>Holat</th><th>Amal</th></tr></thead><tbody id="skillsTable"></tbody></table>
-        </div>
-      </div>
-    </section>
-
-    <!-- Prompt -->
-    <section class="page" id="page-prompt">
-      <div class="page-head">
-        <div>
-          <div class="page-title">Shaxsiyat</div>
-          <div class="page-desc">Agentning o'zini tutishi: avtomatik yozilgan shaxsiyat va o'zgarmas qoidalar</div>
-        </div>
-        <div class="row">
-          <select id="promptVersions" style="width:auto"></select>
-          <button class="btn ghost sm" id="promptActivate">Faollashtirish</button>
-          <button class="btn sm" id="promptSave">Saqlash</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Shaxsiyat matni (tahrirlash mumkin)</div>
-        <textarea id="promptContent" style="min-height:320px"></textarea>
-      </div>
-
-      <div class="grid c2">
-        <div class="card">
-          <div class="card-title">O'zgarmas qoidalar (faqat o'qish uchun)</div>
-          <pre class="block" id="promptCore"></pre>
-        </div>
-        <div class="card">
-          <div class="card-title">Yakuniy ko'rsatma ko'rinishi</div>
-          <div class="row" style="margin-bottom:10px">
-            <input type="text" id="promptPreviewQ" placeholder="Test savoli" value="ANITOKU qachon ishga tushadi?" style="flex:1">
-            <button class="btn ghost sm" id="promptPreviewBtn">Ko'rish</button>
-          </div>
-          <pre class="block" id="promptPreview">—</pre>
-        </div>
-      </div>
-    </section>
-
-    <!-- Chats -->
+    <!-- ═══ Suhbatlar ═══ -->
     <section class="page" id="page-chats">
       <div class="page-head">
         <div>
           <div class="page-title">Suhbatlar</div>
           <div class="page-desc">Agent yuritayotgan yozishmalar; kerak bo'lsa o'zingiz javob yozishingiz mumkin</div>
         </div>
-        <div class="row"><button class="btn ghost sm" id="chatsPrune">Tark etilganlarni tozalash</button><button class="btn ghost sm" id="chatsRefresh">Yangilash</button></div>
+        <div class="row">
+          <button class="btn ghost sm" id="chatsPrune">Tark etilganlarni tozalash</button>
+          <button class="btn ghost sm" id="chatsRefresh">Yangilash</button>
+        </div>
       </div>
-
       <div class="chat-layout">
         <div class="card chat-list" id="chatList"></div>
         <div class="card">
           <div class="card-title">
             <span id="chatTitle">Chat tanlang</span>
             <span class="row" id="chatActions" hidden>
-              <select id="chatState" style="width:auto"><option value="auto">Avto javob</option><option value="human">Operator</option><option value="paused">Pauza</option></select>
+              <select id="chatState" style="width:auto"><option value="auto">Avtomatik javob</option><option value="human">Operator</option><option value="paused">To'xtatilgan</option></select>
             </span>
           </div>
           <div class="messages" id="chatMessages"><div class="empty">Chat tanlanmagan</div></div>
           <div class="sep"></div>
           <div class="row">
-            <input type="text" id="chatInput" placeholder="Qo'lda javob yozish…" style="flex:1" disabled>
+            <input type="text" id="chatInput" placeholder="O'zingiz javob yozish…" style="flex:1" disabled>
             <button class="btn" id="chatSend" disabled>Yuborish</button>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Escalations -->
+    <!-- ═══ Murojaatlar ═══ -->
     <section class="page" id="page-escalations">
       <div class="page-head">
         <div>
           <div class="page-title">Murojaatlar</div>
-          <div class="page-desc">Agent o'zi hal qila olmay rahbariyatga yetkazgan savollar</div>
+          <div class="page-desc">Agent o'zi hal qila olmay rahbariyatga yetkazgan savollar. Javobingizni agent foydalanuvchiga yetkazadi</div>
         </div>
         <select id="escFilter" style="width:auto"><option value="open">Ochiq</option><option value="resolved">Hal qilingan</option><option value="dismissed">Rad etilgan</option></select>
       </div>
       <div class="card">
         <div class="table-wrap">
-          <table><thead><tr><th>#</th><th>Chat</th><th>Savol</th><th>Sabab</th><th>Vaqt</th><th>Amal</th></tr></thead><tbody id="escTable"></tbody></table>
+          <table><thead><tr><th>#</th><th>Chat</th><th>Savol</th><th>Sabab</th><th>Vaqt</th><th>Javob</th></tr></thead><tbody id="escTable"></tbody></table>
         </div>
       </div>
     </section>
 
-    <!-- Test -->
-    <section class="page" id="page-test">
-      <div class="page-head">
-        <div>
-          <div class="page-title">Sinov konsoli</div>
-          <div class="page-desc">Mijoz rejimida javobni Telegramga yubormasdan sinab ko'rish</div>
-        </div>
-      </div>
-      <div class="card">
-        <label class="field"><span>Foydalanuvchi xabari</span><textarea id="testInput" placeholder="ANITOKU qachon ishga tushadi?"></textarea></label>
-        <div class="row">
-          <input type="text" id="testName" placeholder="Foydalanuvchi ismi (ixtiyoriy)" style="width:auto;flex:1">
-          <button class="btn" id="testRun">Javob generatsiya qilish</button>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-title">Javob</div>
-        <div id="testOut" class="messages" style="height:auto;min-height:70px"><div class="empty">Hali sinov o'tkazilmadi</div></div>
-        <div class="sep"></div>
-        <div class="card-title">Diagnostika</div>
-        <pre class="block" id="testMeta">—</pre>
-      </div>
-    </section>
-
-    <!-- Settings -->
-    <section class="page" id="page-settings">
-      <div class="page-head">
-        <div>
-          <div class="page-title">Sozlamalar</div>
-          <div class="page-desc">Xulq-atvor, cheklovlar va xavfsizlik</div>
-        </div>
-        <button class="btn" id="settingsSave">Saqlash</button>
-      </div>
-      <div class="grid c2" id="settingsGrid"></div>
-
-      <div class="card">
-        <div class="card-title">Admin paroli</div>
-        <div class="grid c3">
-          <label class="field"><span>Joriy parol</span><input type="password" id="pwCurrent" autocomplete="current-password"></label>
-          <label class="field"><span>Yangi parol</span><input type="password" id="pwNext" autocomplete="new-password"></label>
-          <label class="field"><span>&nbsp;</span><button class="btn wide" id="pwSave">O'zgartirish</button></label>
-        </div>
-        <div class="hint">Parol o'zgartirilgach barcha sessiyalar tugatiladi va qayta kirish talab qilinadi.</div>
-      </div>
-    </section>
-
-    <!-- Logs -->
-    <section class="page" id="page-logs">
-      <div class="page-head">
-        <div>
-          <div class="page-title">Jurnal</div>
-          <div class="page-desc">Jonli oqim va tizim hodisalari</div>
-        </div>
-        <div class="row">
-          <select id="logLevel" style="width:auto"><option value="">Barchasi</option><option value="debug">debug+</option><option value="info">info+</option><option value="warn">warn+</option><option value="error">error</option></select>
-          <button class="btn ghost sm" id="logClear">Tozalash</button>
-        </div>
-      </div>
-      <div class="card"><div class="console" id="logConsole" style="height:520px"></div></div>
-      <div class="card">
-        <div class="card-title">Tizim hodisalari</div>
-        <div class="table-wrap"><table><thead><tr><th>Vaqt</th><th>Tur</th><th>Xabar</th></tr></thead><tbody id="eventsTable"></tbody></table></div>
-      </div>
-    </section>
-
-    <!-- Yordamchi: buyruq berish -->
+    <!-- ═══ Buyruq berish ═══ -->
     <section class="page" id="page-assistant">
       <div class="page-head">
         <div>
           <div class="page-title">Buyruq berish</div>
-          <div class="page-desc">Telegramdagi kabi — yordamchi akkaunt nomidan bajaradi: xabar yuboradi, rejalashtiradi, eslab qoladi, bot yaratadi</div>
+          <div class="page-desc">Telegramda yozgandek — yordamchi akkaunt nomidan bajaradi: yozadi, so'raydi, rejalashtiradi, eslab qoladi, botlar bilan ishlaydi</div>
         </div>
       </div>
       <div class="card">
-        <label class="field"><span>Ko'rsatma</span><textarea id="asInput" placeholder="Masalan: Ma'rufaga ertaga soat 10 da 'ovoz namunangizni kutyapmiz' deb yoz&#10;Eslab qol: Marufa — ovoz aktrisasi&#10;UZ_OSUNG_TEAM guruhida oxirgi 10 ta xabar nima?"></textarea></label>
+        <label class="field"><span>Ko'rsatma</span><textarea id="asInput" placeholder="Mirvohiddan tg botlarni tuzatib bo'lganini so'ra&#10;Ma'rufaga ertaga soat 10 da taklifnoma yubor&#10;anime_helper_bot nomli bot yarat, tavsifini yoz&#10;@somebot ga /start yubor va menyudan 'Narxlar' ni bos"></textarea></label>
         <div class="row end"><button class="btn" id="asRun">Bajarish</button></div>
-        <div class="hint" style="margin-top:8px">Diqqat: bu haqiqiy akkaunt nomidan ishlaydi. "X ga yoz" desangiz — X haqiqatan xabar oladi.</div>
+        <div class="hint" style="margin-top:8px">Bu haqiqiy akkaunt nomidan ishlaydi: "X ga yoz" desangiz, X haqiqatan xabar oladi. Matnni yordamchi o'zi tuzadi.</div>
       </div>
       <div class="card">
         <div class="card-title">Natija</div>
@@ -526,12 +141,12 @@
       </div>
     </section>
 
-    <!-- Vazifalar -->
+    <!-- ═══ Vazifalar ═══ -->
     <section class="page" id="page-tasks">
       <div class="page-head">
         <div>
           <div class="page-title">Vazifalar</div>
-          <div class="page-desc">Rejalashtirilgan va bajarilgan ishlar — agent ularni fonda o'zi bajaradi</div>
+          <div class="page-desc">Rejalashtirilgan va bajarilgan ishlar — agent ularni fonda o'zi bajaradi, siz online bo'lmasangiz ham</div>
         </div>
         <div class="row">
           <select id="taskFilter" style="width:auto"><option value="">Barchasi</option><option value="pending">Navbatda</option><option value="done">Bajarilgan</option><option value="failed">Xato</option><option value="cancelled">Bekor qilingan</option></select>
@@ -545,12 +160,12 @@
       </div>
     </section>
 
-    <!-- Xotira -->
+    <!-- ═══ Xotira ═══ -->
     <section class="page" id="page-memory">
       <div class="page-head">
         <div>
           <div class="page-title">Xotira</div>
-          <div class="page-desc">Asoschi "eslab qol" degan faktlar. Barcha chatlarda va mijozlarga javob berishda ishlatiladi</div>
+          <div class="page-desc">"Eslab qol" deb aytilgan faktlar. Barcha chatlarda va mijozlarga javob berishda ishlatiladi</div>
         </div>
       </div>
       <div class="card">
@@ -566,14 +181,252 @@
       </div>
     </section>
 
-    <!-- Lokal model -->
+    <!-- ═══ O'qitish ═══ -->
+    <section class="page" id="page-training">
+      <div class="page-head">
+        <div>
+          <div class="page-title">O'qitish</div>
+          <div class="page-desc">Chatlarni o'qiydi, muloqot uslubini o'rganadi, shaxsiyat va ko'nikmalarni yangilaydi. Har 12 soatda avtomatik takrorlanadi</div>
+        </div>
+        <button class="btn" id="trainRun">O'qitishni boshlash</button>
+      </div>
+      <div class="card">
+        <div class="card-title">Jarayon</div>
+        <div class="steps" id="trainSteps"></div>
+        <div class="progress"><div class="bar" id="trainBar" style="width:0%"></div></div>
+        <div class="row"><span id="trainPhase" class="pill">bo'sh</span><span id="trainMsg" class="hint"></span></div>
+      </div>
+      <div class="grid c2">
+        <div class="card"><div class="card-title">Oxirgi natija</div><pre class="block" id="trainStats">—</pre></div>
+        <div class="card"><div class="card-title">Tarix</div><div class="table-wrap"><table><thead><tr><th>#</th><th>Holat</th><th>Boshlandi</th><th>Tugadi</th></tr></thead><tbody id="trainHistory"></tbody></table></div></div>
+      </div>
+    </section>
+
+    <!-- ═══ Bilim bazasi ═══ -->
+    <section class="page" id="page-knowledge">
+      <div class="page-head">
+        <div>
+          <div class="page-title">Bilim bazasi</div>
+          <div class="page-desc">Mijozlarga javob berishda ishlatiladigan hujjatlar: kanal postlari, faktlar va savol-javoblar</div>
+        </div>
+        <div class="row">
+          <button class="btn ghost sm" id="kbSeed">Asosiy faktlarni tiklash</button>
+          <button class="btn ghost sm" id="kbIngest">Telegramdan o'qish</button>
+        </div>
+      </div>
+      <div class="grid c4" id="kbStats"></div>
+      <div class="card" style="margin-top:16px">
+        <div class="card-title">Qidiruvni sinash</div>
+        <div class="row">
+          <input type="text" id="kbSearchQ" placeholder="Masalan: ovoz aktyori bo'lmoqchiman" style="flex:1;min-width:220px">
+          <button class="btn" id="kbSearchBtn">Qidirish</button>
+        </div>
+        <pre class="block" id="kbSearchOut" hidden></pre>
+      </div>
+      <div class="card">
+        <div class="card-title">Fakt qo'shish</div>
+        <label class="field"><span>Sarlavha</span><input type="text" id="kbTitle" placeholder="Masalan: To'lov usullari"></label>
+        <label class="field"><span>Matn</span><textarea id="kbContent" placeholder="Aniq, qisqa fakt…"></textarea></label>
+        <div class="row">
+          <input type="text" id="kbTags" placeholder="teglar, vergul bilan" style="flex:1">
+          <button class="btn" id="kbAdd">Qo'shish</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">
+          Hujjatlar
+          <span class="row">
+            <input type="text" id="kbFilter" placeholder="Filtr…" style="width:170px">
+            <select id="kbSource" style="width:auto"><option value="">Barcha manbalar</option><option value="seed">Asosiy</option><option value="channel">Kanal</option><option value="qa">Savol-javob</option><option value="learned">O'rganilgan</option><option value="founder">Rahbariyat</option><option value="manual">Qo'lda</option></select>
+          </span>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th>#</th><th>Manba</th><th>Sarlavha / matn</th><th>Vazn</th><th></th></tr></thead><tbody id="kbTable"></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- ═══ Ko'nikmalar ═══ -->
+    <section class="page" id="page-skills">
+      <div class="page-head">
+        <div>
+          <div class="page-title">Ko'nikmalar</div>
+          <div class="page-desc">Agent avtomatik yozgan va qo'lda qo'shilgan xatti-harakat qoidalari. Qo'lda yozilganlari o'qitishda o'zgarmaydi</div>
+        </div>
+        <button class="btn ghost sm" id="skillNew">Yangi ko'nikma</button>
+      </div>
+      <div class="card" id="skillEditor" hidden>
+        <div class="card-title">Ko'nikma</div>
+        <input type="hidden" id="skSlug">
+        <div class="grid c2">
+          <label class="field"><span>Nom</span><input type="text" id="skName"></label>
+          <label class="field"><span>Ustuvorlik (kichik = muhimroq)</span><input type="number" id="skPriority" value="100"></label>
+        </div>
+        <label class="field"><span>Tavsif</span><input type="text" id="skDesc"></label>
+        <label class="field"><span>Kalit so'zlar (vergul bilan)</span><input type="text" id="skTriggers" placeholder="qachon, narx, to'lov, price"></label>
+        <label class="field"><span>Ko'rsatma</span><textarea id="skInstructions" placeholder="Agent bu holatda nima qilishi kerak…"></textarea></label>
+        <label class="field"><span>Namunalar</span><textarea id="skExamples" placeholder="U: …&#10;S: …"></textarea></label>
+        <div class="row end"><button class="btn ghost" id="skCancel">Bekor</button><button class="btn" id="skSave">Saqlash</button></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Qaysi ko'nikma ishlaydi?</div>
+        <div class="row">
+          <input type="text" id="skTestInput" placeholder="Foydalanuvchi xabarini yozing…" style="flex:1;min-width:220px">
+          <button class="btn ghost" id="skTestBtn">Tekshirish</button>
+        </div>
+        <div id="skTestOut" class="row" style="margin-top:10px"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Ro'yxat</div>
+        <div class="table-wrap"><table><thead><tr><th>Nom</th><th>Kalit so'zlar</th><th class="num">Ustuvorlik</th><th>Manba</th><th>Holat</th><th></th></tr></thead><tbody id="skillsTable"></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- ═══ Shaxsiyat ═══ -->
+    <section class="page" id="page-prompt">
+      <div class="page-head">
+        <div>
+          <div class="page-title">Shaxsiyat</div>
+          <div class="page-desc">Agentning o'zini tutishi: avtomatik yozilgan shaxsiyat va o'zgarmas qoidalar</div>
+        </div>
+        <div class="row">
+          <select id="promptVersions" style="width:auto"></select>
+          <button class="btn ghost sm" id="promptActivate">Faollashtirish</button>
+          <button class="btn sm" id="promptSave">Saqlash</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Shaxsiyat matni (tahrirlash mumkin)</div>
+        <textarea id="promptContent" style="min-height:320px"></textarea>
+      </div>
+      <div class="grid c2">
+        <div class="card"><div class="card-title">O'zgarmas qoidalar (faqat o'qish uchun)</div><pre class="block" id="promptCore"></pre></div>
+        <div class="card">
+          <div class="card-title">Yakuniy ko'rsatma ko'rinishi</div>
+          <div class="row" style="margin-bottom:10px">
+            <input type="text" id="promptPreviewQ" placeholder="Sinov savoli" value="ANITOKU qachon ishga tushadi?" style="flex:1">
+            <button class="btn ghost sm" id="promptPreviewBtn">Ko'rish</button>
+          </div>
+          <pre class="block" id="promptPreview">—</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Telegram ═══ -->
+    <section class="page" id="page-telegram">
+      <div class="page-head">
+        <div>
+          <div class="page-title">Telegram akkaunt</div>
+          <div class="page-desc">Agent shu akkaunt nomidan xabarlarni o'qiydi va javob beradi</div>
+        </div>
+        <span id="tgPill" class="pill"><span class="dot"></span> …</span>
+      </div>
+      <div class="grid c2">
+        <div class="card">
+          <div class="card-title">Ulanish</div>
+          <div id="tgConnected" hidden>
+            <div class="row" style="margin-bottom:12px"><span class="pill ok"><span class="dot"></span> Ulangan</span><span id="tgWho" class="mono" style="color:var(--txt-2)"></span></div>
+            <div class="hint" id="tgDetails"></div>
+            <div class="sep"></div>
+            <div class="row"><button class="btn ghost sm" id="tgRefreshDialogs">Chatlarni yuklash</button><button class="btn danger sm" id="tgLogout">Uzish</button></div>
+          </div>
+          <div id="tgSetup">
+            <details class="guide" id="tgGuide">
+              <summary>API ID va API Hash ni qayerdan olaman?</summary>
+              <ol>
+                <li><a href="https://my.telegram.org" target="_blank" rel="noopener">my.telegram.org</a> ga kiring</li>
+                <li>Telefon raqamingizni <b>+998…</b> formatida kiriting; Telegram ilovangizga kod keladi</li>
+                <li><b>API development tools</b> bo'limini oching</li>
+                <li>Formani to'ldiring: <i>App title</i> — <code>ANITOKU Support</code>, <i>Short name</i> — <code>anitoku</code>, <i>Platform</i> — <code>Other</code></li>
+                <li><b>Create application</b> — chiqqan <b>App api_id</b> va <b>App api_hash</b> ni shu yerga nusxalang</li>
+              </ol>
+              <p>api_id va api_hash ilovani tanitadi, akkauntni emas — QR usulida ham kerak. Ma'lumotlar shifrlanib saqlanadi.</p>
+            </details>
+            <label class="field"><span>API ID</span><input type="text" id="tgApiId" inputmode="numeric" placeholder="1234567"></label>
+            <label class="field"><span>API Hash</span><input type="text" id="tgApiHash" placeholder="0123456789abcdef0123456789abcdef"></label>
+            <div class="tabs"><div class="tab active" data-tgtab="qr">QR kod bilan</div><div class="tab" data-tgtab="phone">Telefon raqam bilan</div></div>
+            <div class="tgtab" id="tgtab-qr">
+              <div class="hint" style="margin-bottom:12px">Telefoningizdagi Telegram: <b>Sozlamalar → Qurilmalar → Kompyuter qurilmasini ulash</b> — kamerani QR kodga tuting.</div>
+              <div class="qr-box" id="tgQrBox"><div class="qr-empty">QR kodni olish uchun tugmani bosing</div></div>
+              <div class="row" style="margin-top:10px"><button class="btn" id="tgQrBtn">QR kodni olish</button><span class="hint" id="tgQrTimer"></span></div>
+              <div class="hint" style="margin-top:8px">QR har ~30 soniyada yangilanadi. Skan qilgach 2FA parolingiz so'raladi.</div>
+            </div>
+            <div class="tgtab" id="tgtab-phone" hidden>
+              <form id="tgForm">
+                <label class="field"><span>Telefon raqam</span><input type="text" id="tgPhone" placeholder="+998901234567"><small>Xalqaro formatda</small></label>
+                <label class="switch"><input type="checkbox" id="tgForceSms"><span class="track"></span><span class="lbl">SMS orqali kod<small>Telegram ilovasiga kod kelmasa yoqing</small></span></label>
+                <button class="btn wide" type="submit" id="tgConnectBtn" style="margin-top:8px">Kod yuborish</button>
+              </form>
+            </div>
+          </div>
+          <div id="tgCodeBox" hidden>
+            <div class="sep"></div>
+            <label class="field"><span>Telegram kodi</span><input type="text" id="tgCode" inputmode="numeric" placeholder="12345"><small>Telegram ilovangizga kelgan 5 xonali kod</small></label>
+            <button class="btn wide" id="tgCodeBtn">Tasdiqlash</button>
+          </div>
+          <div id="tgPassBox" hidden>
+            <div class="sep"></div>
+            <label class="field"><span>2FA paroli</span><input type="password" id="tgPass" placeholder="Bulutli parol"></label>
+            <button class="btn wide" id="tgPassBtn">Kirish</button>
+          </div>
+          <div class="err-msg" id="tgErr"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Chatlar <button class="btn ghost sm" id="tgLoadDialogs">Yangilash</button></div>
+          <div class="hint" style="margin-bottom:10px">Bu ro'yxatdan chat ID sini olishingiz mumkin.</div>
+          <div class="table-wrap" style="max-height:460px;overflow-y:auto"><table><thead><tr><th>Nom</th><th>Tur</th><th>ID</th></tr></thead><tbody id="tgDialogs"><tr><td colspan="3" class="empty">Yuklanmagan</td></tr></tbody></table></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ AI provayderlar ═══ -->
+    <section class="page" id="page-keys">
+      <div class="page-head">
+        <div>
+          <div class="page-title">AI provayderlar</div>
+          <div class="page-desc">Kalitlar navbatma-navbat ishlatiladi; biri tugasa keyingisiga o'tadi</div>
+        </div>
+        <div class="row"><button class="btn ghost sm" id="keysRevive">Tiklash</button><button class="btn ghost sm" id="keysTestAll">Hammasini sinash</button></div>
+      </div>
+      <div class="grid c4" id="keyHealth"></div>
+      <div class="card" style="margin-top:16px">
+        <div class="card-title">Provayderlar</div>
+        <div id="providerList" class="row"></div>
+        <div class="hint" style="margin-top:10px">Ko'proq provayder — kamroq uzilish. Havolalardan kalit oling va pastga qo'shing.</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Kalit qo'shish</div>
+        <div class="hint" style="margin-bottom:12px">Har biri yangi qatorda. Prefiksdan avtomatik aniqlanadi (<code>gsk_</code> Groq, <code>sk-or-</code> OpenRouter, <code>AIza</code>/<code>AQ.</code> Gemini, <code>csk-</code> Cerebras, <code>hf_</code> Hugging Face). Mistral va Together kalitlarini ro'yxatdan tanlang.</div>
+        <textarea id="keysInput" placeholder="sk-or-v1-…&#10;gsk_…"></textarea>
+        <div class="row" style="margin-top:10px">
+          <select id="keysProvider" style="width:auto"><option value="">Avtomatik aniqlash</option></select>
+          <input type="text" id="keysLabel" placeholder="Yorliq (ixtiyoriy)" style="width:auto;flex:1;min-width:150px">
+          <button class="btn" id="keysAdd">Qo'shish</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Token sarfi <button class="btn ghost sm" id="tokensRefresh">Yangilash</button></div>
+        <div class="grid c4" id="tokenTotals"></div>
+        <div class="grid c2" style="margin-top:14px">
+          <div><div class="hint" style="margin-bottom:8px">Provayder bo'yicha</div><div class="table-wrap"><table><thead><tr><th>Provayder</th><th class="num">Chaqiruv</th><th class="num">Kirish</th><th class="num">Chiqish</th><th class="num">Jami</th><th class="num">ms</th></tr></thead><tbody id="tokenByProvider"></tbody></table></div></div>
+          <div><div class="hint" style="margin-bottom:8px">Maqsad bo'yicha</div><div class="table-wrap"><table><thead><tr><th>Maqsad</th><th class="num">Chaqiruv</th><th class="num">Token</th></tr></thead><tbody id="tokenByPurpose"></tbody></table></div></div>
+        </div>
+        <div class="hint" style="margin-top:12px">Eng ko'p ishlatilgan kalitlar</div>
+        <div class="table-wrap" style="margin-top:6px"><table><thead><tr><th>Provayder</th><th>Kalit</th><th>Holat</th><th class="num">OK</th><th class="num">Xato</th><th class="num">Token</th></tr></thead><tbody id="tokenByKey"></tbody></table></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Kalitlar</div>
+        <div class="table-wrap"><table><thead><tr><th>#</th><th>Provayder</th><th>Kalit</th><th>Holat</th><th class="num">OK</th><th class="num">Xato</th><th class="num">Token</th><th></th></tr></thead><tbody id="keysTable"><tr><td colspan="8" class="empty">Yuklanmoqda…</td></tr></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- ═══ Lokal model ═══ -->
     <section class="page" id="page-local">
       <div class="page-head">
         <div>
           <div class="page-title">Lokal model</div>
-          <div class="page-desc">Shu kompyuterda ishlaydigan modellar — cloud kalitlarga bog'liq emas</div>
+          <div class="page-desc">Shu kompyuterda ishlaydigan modellar. Fayl yo'q bo'lsa agent cloud provayderlar bilan ishlaydi</div>
         </div>
         <div class="row">
+          <select id="localProfile" style="width:auto"><option value="auto">Profil: avtomatik</option><option value="gpu">GPU (Gemma 3 12B)</option><option value="cpu-small">Kichik server (Gemma 3 1B)</option></select>
           <button class="btn ghost sm" id="localUnload">Bo'shatish</button>
           <button class="btn sm" id="localLoad">Yuklash</button>
         </div>
@@ -582,11 +435,79 @@
       <div class="card" style="margin-top:16px">
         <div class="card-title">Modellar</div>
         <div id="localModels"></div>
-        <div class="hint" style="margin-top:10px">Fayllar <code id="localDir"></code> katalogida. Yo'q bo'lsa, agent cloud provayderlar bilan ishlaydi.</div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn ghost sm" id="localDlChat">Chat modelini yuklab olish</button>
+          <button class="btn ghost sm" id="localDlEmbed">Embedding modelini yuklab olish</button>
+        </div>
+        <div class="hint" style="margin-top:10px">Fayllar <code id="localDir"></code> katalogida. Yuklab olish Hugging Face kalitidan foydalanadi (AI provayderlar bo'limi).</div>
       </div>
       <div class="card">
         <div class="card-title">Semantik indeks <button class="btn ghost sm" id="localReindex">Qayta indekslash</button></div>
         <div id="localVectors" class="hint"></div>
+      </div>
+    </section>
+
+    <!-- ═══ Sinov ═══ -->
+    <section class="page" id="page-test">
+      <div class="page-head">
+        <div>
+          <div class="page-title">Sinov</div>
+          <div class="page-desc">Mijoz rejimida javobni Telegramga yubormasdan ko'rish</div>
+        </div>
+      </div>
+      <div class="card">
+        <label class="field"><span>Foydalanuvchi xabari</span><textarea id="testInput" placeholder="ANITOKU qachon ishga tushadi?"></textarea></label>
+        <div class="row">
+          <input type="text" id="testName" placeholder="Foydalanuvchi ismi (ixtiyoriy)" style="width:auto;flex:1">
+          <button class="btn" id="testRun">Javobni ko'rish</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Javob</div>
+        <div id="testOut" class="messages" style="height:auto;min-height:70px"><div class="empty">Hali sinov o'tkazilmadi</div></div>
+        <div class="sep"></div>
+        <div class="card-title">Tafsilotlar</div>
+        <pre class="block" id="testMeta">—</pre>
+      </div>
+    </section>
+
+    <!-- ═══ Sozlamalar ═══ -->
+    <section class="page" id="page-settings">
+      <div class="page-head">
+        <div>
+          <div class="page-title">Sozlamalar</div>
+          <div class="page-desc">Xulq-atvor, cheklovlar va xavfsizlik. Agentni yoqish/o'chirish faqat Boshqaruv sahifasida</div>
+        </div>
+        <button class="btn" id="settingsSave">Saqlash</button>
+      </div>
+      <div class="grid c2" id="settingsGrid"></div>
+      <div class="card">
+        <div class="card-title">Admin paroli</div>
+        <div class="grid c3">
+          <label class="field"><span>Joriy parol</span><input type="password" id="pwCurrent" autocomplete="current-password"></label>
+          <label class="field"><span>Yangi parol</span><input type="password" id="pwNext" autocomplete="new-password"></label>
+          <label class="field"><span>&nbsp;</span><button class="btn wide" id="pwSave">O'zgartirish</button></label>
+        </div>
+        <div class="hint">Parol o'zgartirilgach barcha sessiyalar tugatiladi.</div>
+      </div>
+    </section>
+
+    <!-- ═══ Jurnal ═══ -->
+    <section class="page" id="page-logs">
+      <div class="page-head">
+        <div>
+          <div class="page-title">Jurnal</div>
+          <div class="page-desc">Jonli oqim va tizim hodisalari</div>
+        </div>
+        <div class="row">
+          <select id="logLevel" style="width:auto"><option value="">Barchasi</option><option value="debug">Batafsil</option><option value="info">Oddiy</option><option value="warn">Ogohlantirish</option><option value="error">Xato</option></select>
+          <button class="btn ghost sm" id="logClear">Tozalash</button>
+        </div>
+      </div>
+      <div class="card"><div class="console" id="logConsole" style="height:520px"></div></div>
+      <div class="card">
+        <div class="card-title">Tizim hodisalari</div>
+        <div class="table-wrap"><table><thead><tr><th>Vaqt</th><th>Tur</th><th>Xabar</th></tr></thead><tbody id="eventsTable"></tbody></table></div>
       </div>
     </section>
 

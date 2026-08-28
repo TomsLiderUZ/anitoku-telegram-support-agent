@@ -473,6 +473,14 @@ router.get('/escalations/pending', (req, res) => {
 router.get('/local', (req, res) => res.json(local.status()));
 router.post('/local/load', wrap(async (req, res) => res.json(await local.load())));
 router.post('/local/unload', wrap(async (req, res) => { await local.unload(); res.json(local.status()); }));
+router.post('/local/download/:kind', wrap(async (req, res) => res.json(await local.download(req.params.kind))));
+router.post('/local/profile', wrap(async (req, res) => {
+  const p = String((req.body && req.body.profile) || 'auto');
+  if (p !== 'auto' && !local.PROFILES[p]) return res.status(400).json({ error: 'nomaʼlum profil' });
+  settings.set('local_profile', p);
+  await local.unload();
+  res.json(local.status());
+}));
 
 /** Raw completion against the local model — for checking prompt adherence and speed. */
 router.post(

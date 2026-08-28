@@ -77,13 +77,13 @@ function createServer() {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
   });
 
+  // Never cache the panel's own assets: after a redesign the browser kept
+  // serving the old stylesheet for an hour and the change looked undone.
   app.use(
     express.static(path.join(__dirname, 'public'), {
       index: false,
-      maxAge: '1h',
-      setHeaders: (res, filePath) => {
-        if (filePath.endsWith('login.html')) res.setHeader('Cache-Control', 'no-store');
-      },
+      etag: true,
+      setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache, must-revalidate'),
     })
   );
 

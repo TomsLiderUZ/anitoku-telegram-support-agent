@@ -170,6 +170,43 @@ const definitions = [
   {
     type: 'function',
     function: {
+      name: 'press_button',
+      description:
+        "Botning soʻnggi xabaridagi tugmani bosish (inline yoki klaviatura tugmasi). Bot menyu/tugma koʻrsatsa va Toms tanlashni aytsa yoki oʻzing kerakli qadamni koʻrsang — bos. talk_to_bot / read_bot natijasidagi `buttons` roʻyxatidan matnni ol.",
+      parameters: {
+        type: 'object',
+        properties: { bot: { type: 'string', description: '@username' }, button: { type: 'string', description: 'Tugma matni (qisman ham boʻladi)' }, wait_seconds: { type: 'integer' } },
+        required: ['bot', 'button'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'read_bot',
+      description: 'Bot bilan soʻnggi yozishmani va hozir koʻrsatilayotgan tugmalarni oʻqish.',
+      parameters: { type: 'object', properties: { bot: { type: 'string' }, limit: { type: 'integer' } }, required: ['bot'] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_bot',
+      description: "Oʻzimizga tegishli botni BotFather orqali butunlay oʻchirish. Toms 'botni oʻchir' desa ishlat.",
+      parameters: { type: 'object', properties: { username: { type: 'string' } }, required: ['username'] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_my_bots',
+      description: 'Shu akkauntga tegishli barcha botlar roʻyxati (BotFather /mybots).',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'talk_to_bot',
       description:
         "Boshqa botga xabar yuborib, javobini olish. Asoschi 'X botdan Y ni soʻra', 'X botni ishlatib Y qil' desa ishlat. Bot bir necha qadam talab qilsa, vositani ketma-ket chaqir.",
@@ -235,11 +272,23 @@ const SETTABLE = new Set([
   'min_delay_ms', 'max_delay_ms', 'max_replies_per_chat_hour', 'temperature', 'primary_provider',
 ]);
 
-/** Does the founder's message contain an instruction to send/tell/write? */
-const founderAskedToSend = (text) =>
-  /(\byoz\b|yozib\s*(qo['‘’ʻ]?y|ber)|yubor|jo['‘’ʻ]?nat|\bayt\b|aytib\s*(qo['‘’ʻ]?y|ber)|xabar\s*(ber|qil|yubor)|eslat|deb\s*(yoz|ayt|yubor)|напиши|отправь|скажи|передай|\bsend\b|\bwrite\b|\btell\b|\bmessage\b)/i.test(
-    String(text || '')
-  );
+/**
+ * Is the founder merely asking the assistant ABOUT someone, rather than
+ * telling it to contact them?
+ *
+ * This used to be an allow-list of send verbs, which blocked every natural
+ * phrasing it had not anticipated ("Mirvohiddan so'ra", "taklifnoma jo'nat").
+ * A block-list of read-only questions is the right shape: everything else is
+ * the founder's call, and the assistant composes what to say itself.
+ */
+const isReadOnlyQuestion = (text) => {
+  const t = String(text || '').trim();
+  const readOnly =
+    /(\bkim\b\s*\??$|\bkim\s*(u|bu|ekan|edi)\b|kimligi|nima\s+(gaplash|dedi|yozdi|deyapti|boʻlyapti|bo['‘’ʻ]?lyapti)|bormi\s*\??$|ko['‘’ʻ]?rsat\b|ro['‘’ʻ]?yxat|qaysi\s*\??$|nechta|qachon\s+(yozgan|kelgan)|кто\s+(это|он|она)|что\s+(сказал|написал)|who\s+is|what\s+did)/i.test(t);
+  const sendVerb =
+    /(\byoz\b|yozib|yubor|jo['‘’ʻ]?nat|\bayt\b|aytib|so['‘’ʻ]?ra\b|so['‘’ʻ]?rab|so['‘’ʻ]?rang|xabar|eslat|taklif|chaqir|bildir|tabrikla|javob\s*ber|ogohlantir|напиши|отправь|скажи|спроси|передай|пригласи|\bsend\b|\bwrite\b|\btell\b|\bask\b|\binvite\b|\bremind\b)/i.test(t);
+  return readOnly && !sendVerb;
+};
 
 function createExecutor(ctx) {
   const used = [];
@@ -262,12 +311,26 @@ function createExecutor(ctx) {
         // Sending is irreversible and visible to a real person. It happens only
         // when the founder's own words asked for it — a model that decides to
         // "helpfully" message someone after a "who is X?" question is blocked here.
-        if (!founderAskedToSend(ctx.text)) {
-          log.warn('send_message blocked: founder did not ask to send', { to: args.to });
-          return { ok: false, error: "Asoschi xabar yuborishni soʻramadi — bu savol edi, buyruq emas. Xabar yuborilmadi." };
+        if (isReadOnlyQuestion(ctx.text)) {
+          log.warn('send_message blocked: founder asked a question, not to send', { to: args.to });
+          return { ok: false, error: "Bu savol edi, buyruq emas — hech kimga xabar yuborilmadi. Faqat maʼlumot ber." };
         }
         return sendTo(args.to, args.text);
       }
+
+      case 'press_button': {
+        const r = await botfather.pressButton(args.bot, args.button, { waitMs: Math.min(60, Number(args.wait_seconds) || 15) * 1000 });
+        return r;
+      }
+
+      case 'read_bot':
+        return botfather.readBot(args.bot, Math.min(20, Number(args.limit) || 5));
+
+      case 'delete_bot':
+        return botfather.deleteBot(args.username);
+
+      case 'list_my_bots':
+        return botfather.listMyBots();
 
       case 'schedule_message': {
         const when = parseWhen(args.when);
@@ -360,7 +423,7 @@ function createExecutor(ctx) {
 
       case 'talk_to_bot': {
         const r = await botfather.talk(args.bot, args.text, { waitMs: Math.min(60, Number(args.wait_seconds) || 15) * 1000 });
-        return { ok: true, replies: r.replies, text: r.text || '(bot javob bermadi)' };
+        return { ok: true, replies: r.replies, text: r.text || '(bot javob bermadi)', buttons: r.buttons.map((b) => b.text) };
       }
 
       case 'list_tasks':
@@ -415,4 +478,4 @@ function createExecutor(ctx) {
   return { execute, used };
 }
 
-module.exports = { definitions, createExecutor };
+module.exports = { definitions, createExecutor, isReadOnlyQuestion };

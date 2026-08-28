@@ -21,19 +21,46 @@ const log = createLogger('ai:local');
 
 const MODELS_DIR = path.join(config.dataDir, 'models');
 
-const CATALOG = {
-  chat: {
-    file: 'gemma-3-12b-it-Q4_K_M.gguf',
-    label: 'Gemma 3 12B (Q4_K_M)',
-    sizeGb: 6.8,
-    contextSize: 8192,
+/**
+ * Two hardware profiles.
+ *
+ *  gpu       — a desktop with a real GPU: Gemma 3 12B for chat.
+ *  cpu-small — a small VPS (2–4 GB RAM, no GPU): Gemma 3 1B (0.8 GB) for chat,
+ *              same bge-m3 for embeddings. Total footprint ≈ 2 GB. A 1B model
+ *              writes noticeably weaker Uzbek than the cloud providers, so on
+ *              this profile it is meant as an offline fallback, not the default
+ *              — `local_purposes` decides what it actually serves.
+ *
+ * Both profiles share the embedding model, so semantic search is identical
+ * on the server and on the desktop.
+ */
+const PROFILES = {
+  gpu: {
+    chat: { repo: 'bartowski/google_gemma-3-12b-it-GGUF', remote: 'google_gemma-3-12b-it-Q4_K_M.gguf', file: 'gemma-3-12b-it-Q4_K_M.gguf', label: 'Gemma 3 12B (Q4_K_M)', sizeGb: 6.8, contextSize: 8192, minRamGb: 10 },
   },
-  embed: {
-    file: 'bge-m3-Q8_0.gguf',
-    label: 'bge-m3 (Q8_0)',
-    sizeGb: 0.6,
+  'cpu-small': {
+    chat: { repo: 'bartowski/google_gemma-3-1b-it-GGUF', remote: 'google_gemma-3-1b-it-Q4_K_M.gguf', file: 'gemma-3-1b-it-Q4_K_M.gguf', label: 'Gemma 3 1B (Q4_K_M)', sizeGb: 0.8, contextSize: 4096, minRamGb: 2 },
   },
 };
+const EMBED = { repo: 'gpustack/bge-m3-GGUF', remote: 'bge-m3-Q8_0.gguf', file: 'bge-m3-Q8_0.gguf', label: 'bge-m3 (Q8_0)', sizeGb: 0.6 };
+
+/** Pick a profile from the setting, or from what the machine can actually run. */
+function profileName() {
+  const set = String(settings.get('local_profile', 'auto'));
+  if (PROFILES[set]) return set;
+  const os = require('node:os');
+  const ramGb = os.totalmem() / 1073741824;
+  return ramGb >= 12 ? 'gpu' : 'cpu-small';
+}
+
+/** Catalog for the active profile — the shape the rest of the module reads. */
+function catalog() {
+  return { chat: PROFILES[profileName()].chat, embed: EMBED };
+}
+
+// Kept as a property for callers that read `local.CATALOG.chat` — it always
+// reflects the active profile.
+const CATALOG = new Proxy({}, { get: (_, k) => catalog()[k] });
 
 const state = {
   llama: null,
@@ -49,14 +76,67 @@ const state = {
   totalMs: 0,
 };
 
-const filePath = (kind) => path.join(MODELS_DIR, CATALOG[kind].file);
+const filePath = (kind) => path.join(MODELS_DIR, catalog()[kind].file);
+
+const downloads = new Map(); // kind -> { bytes, total, startedAt, error }
 
 function fileStatus(kind) {
   const p = filePath(kind);
   const part = p + '.part';
+  const dl = downloads.get(kind);
   if (fs.existsSync(p)) return { present: true, bytes: fs.statSync(p).size, downloading: false };
-  if (fs.existsSync(part)) return { present: false, bytes: fs.statSync(part).size, downloading: true };
-  return { present: false, bytes: 0, downloading: false };
+  if (dl && !dl.error) return { present: false, bytes: dl.bytes, total: dl.total, downloading: true };
+  if (fs.existsSync(part)) return { present: false, bytes: fs.statSync(part).size, downloading: false, partial: true };
+  return { present: false, bytes: 0, downloading: false, error: dl && dl.error };
+}
+
+/**
+ * Fetch a model file from Hugging Face with a stored `hf_` key, resuming a
+ * partial file and reporting progress through `status()`. Runs in the
+ * background; the model watcher in index.js loads it when it lands.
+ */
+async function download(kind) {
+  const item = catalog()[kind];
+  if (!item) throw new Error(`nomaʼlum model turi: ${kind}`);
+  if (fileStatus(kind).present) return { ok: true, already: true };
+  if (downloads.get(kind) && !downloads.get(kind).error) return { ok: true, inProgress: true };
+
+  const keyPool = require('./keyPool');
+  const cred = keyPool.acquire('huggingface');
+  const headers = cred ? { Authorization: `Bearer ${cred.key}` } : {};
+
+  fs.mkdirSync(MODELS_DIR, { recursive: true });
+  const dest = filePath(kind);
+  const part = dest + '.part';
+  const have = fs.existsSync(part) ? fs.statSync(part).size : 0;
+  if (have) headers.Range = `bytes=${have}-`;
+
+  const state = { bytes: have, total: 0, startedAt: Date.now(), error: null };
+  downloads.set(kind, state);
+  log.info('model yuklab olinmoqda', { kind, file: item.file, resumeFrom: have });
+
+  (async () => {
+    try {
+      const res = await fetch(`https://huggingface.co/${item.repo}/resolve/main/${item.remote}`, { headers, redirect: 'follow' });
+      if (!res.ok && res.status !== 206) throw new Error(`HTTP ${res.status}`);
+      const len = Number(res.headers.get('content-length') || 0);
+      state.total = have + len;
+      const out = fs.createWriteStream(part, { flags: have ? 'a' : 'w' });
+      for await (const chunk of res.body) {
+        out.write(chunk);
+        state.bytes += chunk.length;
+      }
+      await new Promise((r) => out.end(r));
+      fs.renameSync(part, dest);
+      downloads.delete(kind);
+      log.info('model yuklandi', { kind, file: item.file, gb: (state.bytes / 1073741824).toFixed(2) });
+    } catch (err) {
+      state.error = err.message;
+      log.error('model yuklab olinmadi', { kind, error: err.message });
+    }
+  })();
+
+  return { ok: true, started: true, resumeFrom: have };
 }
 
 function available() {
@@ -213,13 +293,18 @@ async function chat({ messages, maxTokens = 600, temperature = 0.55 }) {
 }
 
 function status() {
+  const c = catalog();
+  const os = require('node:os');
   return {
     enabled: settings.bool('local_model_enabled', true),
+    profile: profileName(),
+    profiles: Object.keys(PROFILES),
+    ramGb: Math.round(os.totalmem() / 1073741824),
     gpu: state.gpu,
     loading: state.loading,
     error: state.error,
-    chat: { ...CATALOG.chat, ...fileStatus('chat'), loaded: !!state.chatModel },
-    embed: { ...CATALOG.embed, ...fileStatus('embed'), loaded: !!state.embedModel },
+    chat: { ...c.chat, ...fileStatus('chat'), loaded: !!state.chatModel },
+    embed: { ...c.embed, ...fileStatus('embed'), loaded: !!state.embedModel },
     vectors: vectors.stats(),
     calls: state.calls,
     avgMs: state.calls ? Math.round(state.totalMs / state.calls) : 0,
@@ -228,4 +313,4 @@ function status() {
   };
 }
 
-module.exports = { load, unload, chat, status, available, CATALOG, MODELS_DIR };
+module.exports = { load, unload, chat, status, available, download, profileName, CATALOG, PROFILES, MODELS_DIR };
