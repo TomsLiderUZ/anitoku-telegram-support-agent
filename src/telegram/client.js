@@ -244,8 +244,13 @@ class TelegramService extends EventEmitter {
     });
     this.client.setLogLevel('error');
 
+    // Phone login goes through client.start(), which connects for us; the QR
+    // flow does not, so signInUserWithQrCode threw "Cannot send requests while
+    // disconnected". Connect first, then start the QR exchange.
     this._loginPromise = this.client
-      .signInUserWithQrCode(
+      .connect()
+      .then(() =>
+        this.client.signInUserWithQrCode(
         { apiId: creds.apiId, apiHash: creds.apiHash },
         {
           qrCode: async (code) => {
@@ -261,6 +266,7 @@ class TelegramService extends EventEmitter {
           password: async () => this._awaitInput('password', 'awaiting_password'),
           onError: async (err) => this._onAuthError(err),
         }
+        )
       )
       .then(() => this._finalizeLogin('qr'))
       .catch((err) => {
