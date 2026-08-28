@@ -178,10 +178,11 @@ const definitions = [
         type: 'object',
         properties: {
           username: { type: 'string', description: '@username' },
-          spec: { type: 'string', description: 'Bot nima qilishi kerak — buyruqlar va xatti-harakat, 3-8 jumla' },
+          spec: { type: 'string', description: 'Bot nima qilishi kerak — buyruqlar va xatti-harakat, 3-8 jumla. Tuzatishda avvalgi spec saqlanadi, boʻsh qoldirsa boʻladi' },
           name: { type: 'string' },
+          fix: { type: 'string', description: "Mavjud botni TUZATISH uchun: nima ishlamayapti (masalan '/search doim topilmadi deydi'). Berilsa kod qayta yozilmaydi, patch qilinadi" },
         },
-        required: ['username', 'spec'],
+        required: ['username'],
       },
     },
   },
@@ -469,7 +470,7 @@ function createExecutor(ctx) {
           const t = await botfather.getToken(u);
           managedBots.saveToken(u, t.token, args.name || null);
         }
-        const r = await managedBots.deploy({ username: u, name: args.name || null, spec: args.spec });
+        const r = await managedBots.deploy({ username: u, name: args.name || null, spec: args.spec || null, hint: args.fix || null });
         // Smoke test through Telegram so the report is about a bot that actually answers.
         await new Promise((res) => setTimeout(res, 4000));
         const probe = await botfather.talk('@' + u, '/start', { waitMs: 12_000 }).catch((e) => ({ text: '', error: e.message }));

@@ -74,9 +74,11 @@ const CODE_RULES = `Talablar (qat'iy):
 - Telegram Bot API bilan long polling: getUpdates(offset, timeout=30) tsikli, xatoda 3s kutib davom etadi, hech qachon o'zi to'xtamaydi.
 - Token faqat process.env.BOT_TOKEN dan olinadi. Kodga token yozma.
 - Har xabarga javob beruvchi handler tuzilmasi: /start, /help va spec'dagi buyruqlar; nomalum matnga qisqa yordam.
-- Tashqi API kerak bo'lsa faqat ochiq, kalitsiz API (masalan https://api.jikan.moe/v4 anime uchun). Javoblarni try/catch bilan o'ra, xatoda foydalanuvchiga tushunarli xabar ber.
+- Barcha HTTP so'rovlar (Telegram ham, tashqi API ham) FAQAT global fetch bilan: const res = await fetch(url, { headers: { 'User-Agent': 'anitoku-bot/1.0', Accept: 'application/json' } }); if (!res.ok) throw new Error('HTTP ' + res.status); const json = await res.json(). https/http modullarini ishlatma.
+- Tashqi API kerak bo'lsa faqat ochiq, kalitsiz API. Anime uchun Jikan v4: qidiruv GET https://api.jikan.moe/v4/anime?q=<encodeURIComponent(nom)>&limit=5 → json.data[] (har birida title, score, episodes, synopsis, url, images.jpg.image_url); tasodifiy GET https://api.jikan.moe/v4/random/anime → json.data; top GET https://api.jikan.moe/v4/top/anime?limit=10 → json.data[]. Jikan ba'zan 429/504 qaytaradi — 1 marta 1.5 s kutib qayta urin, keyin foydalanuvchiga "API vaqtincha javob bermayapti, birozdan keyin urinib ko'ring" de.
+- Har catch blokida console.error('[xato]', buyruq_nomi, err.message) yoz — xatoni yutib yuborma. Foydalanuvchiga esa tushunarli xabar ber.
 - Matnlar o'zbek tilida (lotin). parse_mode ishlatma (oddiy matn), 4000 belgidan uzun xabarni bo'l.
-- console.log bilan har update ni bir qatorda logla.
+- console.log bilan har kelgan xabarni bir qatorda logla: chat id, matn.
 - Faqat kodni qaytar. Markdown, izoh matni, \`\`\` belgilari YO'Q.`;
 
 async function generateCode({ username, name, spec, previousError = null, previousCode = null }) {
@@ -108,20 +110,31 @@ function syntaxCheck(file) {
 
 // ── lifecycle ───────────────────────────────────────────────────────────────
 
-async function deploy({ username, name = null, token = null, spec }) {
+/**
+ * Write (or rewrite) and start a bot.
+ * `hint` turns this into a repair: the existing code and the complaint are
+ * handed to the model so it patches rather than starts from a blank page.
+ */
+async function deploy({ username, name = null, token = null, spec, hint = null }) {
   const u = clean(username);
   if (!u) throw new Error('username kerak');
   const tok = token || getToken(u);
   if (!tok) throw new Error(`@${u} uchun token yo'q — avval yarating yoki tokenini bering`);
   saveToken(u, tok, name);
-  db.prepare('UPDATE managed_bots SET spec = ?, updated_at = datetime(\'now\') WHERE username = ?').run(String(spec || ''), u);
+  const prev = record(u);
+  const effectiveSpec = String(spec || (prev && prev.spec) || '');
+  db.prepare('UPDATE managed_bots SET spec = ?, updated_at = datetime(\'now\') WHERE username = ?').run(effectiveSpec, u);
+  spec = effectiveSpec;
 
   const dir = dirOf(u);
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, 'bot.js');
 
-  let code = null;
-  let error = null;
+  // Stop the old process first: two pollers on one token fight over updates.
+  if (prev && prev.alive) stop(u);
+
+  let code = hint && fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
+  let error = hint ? `Rahbar shikoyati / kuzatilgan muammo: ${hint}\nSo'nggi log:\n${logs(u, 25)}` : null;
   for (let attempt = 0; attempt < 3; attempt++) {
     code = await generateCode({ username: u, name, spec, previousError: error, previousCode: code });
     if (!code || code.length < 300) {
