@@ -22,9 +22,20 @@ const COOLDOWN = {
 /** Hard ceiling so a bogus provider hint can never park a key for a day. */
 const MAX_COOLDOWN_MS = 60 * 60_000;
 
+/**
+ * Identify a provider from the key's prefix.
+ *
+ * `keyPrefix` may be a string or an array: Google issues both the classic
+ * `AIza…` keys and the newer `AQ.…` ones, and a key filed under the wrong
+ * provider fails every request while looking perfectly healthy in the panel.
+ */
 function detectProvider(key) {
   const k = String(key || '').trim();
-  for (const p of Object.values(PROVIDERS)) if (p.keyPrefix && k.startsWith(p.keyPrefix)) return p.id;
+  for (const p of Object.values(PROVIDERS)) {
+    if (!p.keyPrefix) continue;
+    const prefixes = Array.isArray(p.keyPrefix) ? p.keyPrefix : [p.keyPrefix];
+    if (prefixes.some((pre) => pre && k.startsWith(pre))) return p.id;
+  }
   return null;
 }
 

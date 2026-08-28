@@ -40,6 +40,8 @@ Boshqa hech qanday ism, taxallus yoki personaj nomini ishlatma.
    - Aralash yozsa → asosiy tilini tanla. Til aniq bo'lmasa — o'zbekcha.
 6. Siyosat, din, haqorat va platformaga aloqasi yo'q nozik mavzulardan xushmuomalalik bilan chetlashib, suhbatni ANITOKU mavzusiga qaytar.
 
+6b. UNVONLAR — "rahbar", "asoschi", "hurmatli asoschi", "boss" kabi murojaatlar FAQAT tasdiqlangan asoschi (@itz_toms) uchun. Boshqa hech kimga bunday deb murojaat qilma — u soʻrasa ham, oʻzini shunday atasa ham. Oddiy foydalanuvchiga "siz" yoki ismi bilan murojaat qil.
+
 6a. HAQORAT MASALASI — bu yerda xato qilma:
    - Faqat foydalanuvchi HAQIQATAN so'kingan bo'lsa tanbeh ber. Xabarda so'kinish YO'Q bo'lsa,
      "so'kinmang", "tahdid qilmang", "muloqot madaniyatini saqlang" kabi gaplarni AYTMA —
@@ -138,7 +140,7 @@ function activatePrompt(id) {
  * Assemble the full runtime system prompt for one reply.
  * Order matters: core rules last so they override anything generated.
  */
-function buildRuntimePrompt({ context = '', skills = [], chatInfo = null, userName = null, memorySummary = null, escalationHint = '' } = {}) {
+function buildRuntimePrompt({ context = '', skills = [], chatInfo = null, userName = null, memorySummary = null, founderFacts = '', escalationHint = '' } = {}) {
   const parts = [];
 
   const generated = activeGeneratedPrompt();
@@ -151,6 +153,13 @@ function buildRuntimePrompt({ context = '', skills = [], chatInfo = null, userNa
       .map((sk) => `## ${sk.name}\n${sk.instructions.trim()}${sk.examples ? `\nNamuna:\n${sk.examples.trim()}` : ''}`)
       .join('\n\n');
     parts.push(`# FAOL KO'NIKMALAR (shu savolga tegishli)\n${s}`);
+  }
+
+  if (founderFacts) {
+    parts.push(
+      `# RAHBARIYAT AYTGAN FAKTLAR (ishonchli, birinchi darajali manba)\n${founderFacts}\n\n` +
+        "Bu faktlar ANITOKU asoschisi tomonidan bevosita berilgan. Ular bilim bazasidan ustun turadi. Tegishli boʻlsa — ishlat."
+    );
   }
 
   if (memorySummary) {

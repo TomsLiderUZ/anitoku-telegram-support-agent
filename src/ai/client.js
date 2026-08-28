@@ -3,6 +3,7 @@ const { db, settings } = require('../core/db');
 const { createLogger } = require('../core/logger');
 const { PROVIDERS, MODEL_CHAINS } = require('../config/constants');
 const keyPool = require('./keyPool');
+const local = require('./local');
 
 const log = createLogger('ai');
 
@@ -208,6 +209,24 @@ async function chat({
 
   const errors = [];
   let attempts = 0;
+
+  // Local model first for the purposes it is allowed to serve (support replies
+  // by default). No tools, no JSON mode — those stay on the cloud. Any failure
+  // simply falls through to the provider plan below.
+  const localPurposes = String(settings.get('local_purposes', 'reply,reply:retry,memory:summary')).split(',').map((s) => s.trim());
+  if (!provider && !json && local.available() && localPurposes.includes(purpose)) {
+    const started = Date.now();
+    try {
+      const out = await local.chat({ messages, maxTokens: mt, temperature: temp });
+      recordCall({ provider: 'local', model: local.CATALOG.chat.file, purpose, ok: true, latencyMs: out.latencyMs });
+      log.debug('completion ok (local)', { purpose, ms: out.latencyMs });
+      return { ...out, provider: 'local', model: local.CATALOG.chat.label, keyId: null };
+    } catch (err) {
+      errors.push(`local: ${err.message.slice(0, 120)}`);
+      recordCall({ provider: 'local', model: local.CATALOG.chat.file, purpose, ok: false, latencyMs: Date.now() - started, error: err.message });
+      log.warn('lokal model xatosi — cloudga oʻtildi', { error: err.message });
+    }
+  }
 
   for (const step of plan) {
     const triedKeys = [];

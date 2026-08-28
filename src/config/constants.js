@@ -100,7 +100,8 @@ const PROVIDERS = {
     id: 'gemini',
     label: 'Google Gemini',
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-    keyPrefix: 'AIza',
+    // Google issues two key formats; both must auto-detect.
+    keyPrefix: ['AIza', 'AQ.'],
     supportsTools: true,
     signup: 'https://aistudio.google.com/apikey',
   },
@@ -181,6 +182,9 @@ const DEFAULT_SETTINGS = {
   debounce_ms: '2500',
   typing_simulation: '1',
   keep_online: '1',
+  local_model_enabled: '1',      // use the local GGUF model when its files are present
+  local_context_size: '8192',
+  local_purposes: 'reply,reply:retry,memory:summary', // which call types the local model may serve
   catchup_enabled: '1',          // answer messages that arrived while the agent was down
   catchup_max_age_hours: '12',
   catchup_max_chats: '15',              // show the account as online while the agent is live

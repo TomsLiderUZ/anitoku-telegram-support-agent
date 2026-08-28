@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "express": "^4.21.2",
-    "qrcode": "^1.5.4",
+    "node-llama-cpp": "^3.20.0",
     "qrcode": "^1.5.4",
     "telegram": "^2.26.22"
   }

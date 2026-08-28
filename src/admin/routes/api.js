@@ -7,6 +7,7 @@ const { DEFAULT_SETTINGS, PROVIDERS, MODEL_CHAINS, BRAND } = require('../../conf
 
 const keyPool = require('../../ai/keyPool');
 const ai = require('../../ai/client');
+const local = require('../../ai/local');
 const tg = require('../../telegram/client');
 const store = require('../../knowledge/store');
 const seed = require('../../knowledge/seed');
@@ -17,6 +18,9 @@ const skills = require('../../agent/skills');
 const memory = require('../../agent/memory');
 const brain = require('../../agent/brain');
 const runtime = require('../../agent/runtime');
+const tasks = require('../../agent/tasks');
+const memoryFacts = require('../../agent/memoryFacts');
+const contacts = require('../../agent/contacts');
 const auth = require('../auth');
 
 const log = createLogger('admin:api');
@@ -339,15 +343,15 @@ router.post('/prompts', (req, res) => {
 
 router.post('/prompts/:id/activate', (req, res) => res.json({ ok: promptBuilder.activatePrompt(Number(req.params.id)) }));
 
-router.get('/prompts/preview/runtime', (req, res) => {
+router.get('/prompts/preview/runtime', wrap(async (req, res) => {
   const text = String(req.query.q || 'ANITOKU qachon ishga tushadi?');
-  const { text: context } = store.buildContext(text, settings.int('rag_top_k', 6));
+  const { text: context } = await store.buildContext(text, settings.int('rag_top_k', 6));
   const matched = skills.selectFor(text, settings.int('skill_top_k', 3));
   res.json({
     prompt: promptBuilder.buildRuntimePrompt({ context, skills: matched, chatInfo: { type: 'private', title: 'Test' } }),
     skills: matched.map((s) => s.slug),
   });
-});
+}));
 
 // ── skills ──────────────────────────────────────────────────────────────────
 router.get('/skills', (req, res) => res.json(skills.list()));
@@ -464,6 +468,84 @@ router.get('/escalations/pending', (req, res) => {
       .all()
   );
 });
+
+// ── local model ─────────────────────────────────────────────────────────────
+router.get('/local', (req, res) => res.json(local.status()));
+router.post('/local/load', wrap(async (req, res) => res.json(await local.load())));
+router.post('/local/unload', wrap(async (req, res) => { await local.unload(); res.json(local.status()); }));
+
+/** Raw completion against the local model — for checking prompt adherence and speed. */
+router.post(
+  '/local/test',
+  wrap(async (req, res) => {
+    const { system, user, maxTokens } = req.body || {};
+    if (!user) return res.status(400).json({ error: 'user matni kerak' });
+    const messages = [];
+    if (system) messages.push({ role: 'system', content: String(system) });
+    messages.push({ role: 'user', content: String(user) });
+    const t = Date.now();
+    const out = await local.chat({ messages, maxTokens: Number(maxTokens) || 200, temperature: 0.3 });
+    res.json({ text: out.content, latencyMs: Date.now() - t, promptChars: messages.reduce((n, m) => n + m.content.length, 0) });
+  })
+);
+router.post(
+  '/local/reindex',
+  wrap(async (req, res) => {
+    const vectors = require('../../knowledge/vectors');
+    if (!vectors.ready()) return res.status(400).json({ error: 'Embedding modeli yuklanmagan' });
+    let total = 0;
+    for (let i = 0; i < 40; i++) {
+      const r = await vectors.backfill({ batch: 50 });
+      total += r.embedded || 0;
+      if (!r.remaining) break;
+    }
+    res.json({ embedded: total, ...vectors.stats() });
+  })
+);
+
+// ── assistant: tasks & memory ───────────────────────────────────────────────
+
+/**
+ * Run an instruction as the founder would from Telegram. Acts on the real
+ * account (can send messages), so it is the panel's way to test and to issue
+ * commands without opening Telegram.
+ */
+router.post(
+  '/assistant/run',
+  wrap(async (req, res) => {
+    const text = String((req.body && req.body.text) || '').trim();
+    if (!text) return res.status(400).json({ error: "Koʻrsatma boʻsh" });
+    const assistant = require('../../agent/assistant');
+    const founderId = String(settings.get('founder_ids', '')).split(/[,\s]+/).filter(Boolean)[0] || 'panel';
+    const out = await assistant.handle({ chatId: founderId, text, chatType: 'private', chatTitle: 'Admin panel', msgId: null });
+    res.json(out);
+  })
+);
+
+router.get('/tasks', (req, res) => res.json(tasks.list({ status: req.query.status || null, limit: Number(req.query.limit) || 100 })));
+router.post('/tasks/:id/cancel', (req, res) => res.json({ ok: tasks.cancel(Number(req.params.id)) }));
+router.post(
+  '/tasks/:id/run',
+  wrap(async (req, res) => {
+    db.prepare("UPDATE tasks SET status = 'pending', run_at = ? WHERE id = ?").run(Date.now(), Number(req.params.id));
+    await tasks.tick();
+    res.json({ ok: true, task: tasks.get(Number(req.params.id)) });
+  })
+);
+
+router.get('/memory', (req, res) => res.json(memoryFacts.list({ limit: 300, includeDisabled: req.query.all === '1' })));
+router.post('/memory', (req, res) => {
+  const { fact, tags } = req.body || {};
+  if (!fact || String(fact).trim().length < 4) return res.status(400).json({ error: 'Fakt juda qisqa' });
+  res.json(memoryFacts.remember({ fact, tags: tags || null, createdBy: req.session.admin.username }));
+});
+router.delete('/memory/:id', (req, res) => res.json({ ok: !!memoryFacts.remove(Number(req.params.id)) }));
+
+router.get('/contacts', (req, res) => res.json(contacts.searchCache(String(req.query.q || ''), 30)));
+router.post(
+  '/contacts/refresh',
+  wrap(async (req, res) => res.json({ refreshed: await contacts.refreshFromDialogs(400) }))
+);
 
 // ── settings ────────────────────────────────────────────────────────────────
 router.get('/settings', (req, res) => res.json({ values: settings.all(), defaults: DEFAULT_SETTINGS }));

@@ -7,6 +7,7 @@ const ingest = require('../knowledge/ingest');
 const guardrails = require('./guardrails');
 const memory = require('./memory');
 const brain = require('./brain');
+const assistant = require('./assistant');
 
 const log = createLogger('runtime');
 
@@ -88,12 +89,28 @@ class Runtime extends EventEmitter {
       /* optional */
     }
 
+    const senderId = msg.senderId ? String(msg.senderId) : null;
+    const isFounder = !msg.out && guardrails.isFounder(senderId, senderUsername);
+
+    // The founder is never filtered: not by topic relevance, not by mute, not
+    // by the kill switch. Their messages are instructions to the account, and
+    // "the agent ignored me" is the one failure mode that must not exist.
+    if (isFounder) {
+      if (!text) return;
+      this.enqueue({
+        chatId, text, chatTitle, chatType, userName, senderId, senderUsername,
+        msgId: Number(msg.id),
+        mode: 'assistant',
+      });
+      return;
+    }
+
     const verdict = guardrails.shouldRespond({
       chatType,
       isReplyToMe,
       isOutgoing: !!msg.out,
       text,
-      senderId: msg.senderId ? String(msg.senderId) : null,
+      senderId,
       chatId,
       selfUsername: (tg.me && tg.me.username) || null,
     });
@@ -124,8 +141,9 @@ class Runtime extends EventEmitter {
       chatType,
       userName,
       msgId: Number(msg.id),
-      senderId: msg.senderId ? String(msg.senderId) : null,
+      senderId,
       senderUsername,
+      mode: 'support',
     });
   }
 
@@ -192,20 +210,25 @@ class Runtime extends EventEmitter {
         /* metadata is optional */
       }
 
-      const verdict = guardrails.shouldRespond({
-        chatType: f.type,
-        isReplyToMe: false,
-        isOutgoing: false,
-        text: f.text,
-        senderId: f.type === 'private' ? f.chatId : null,
-        chatId: f.chatId,
-        selfUsername: (tg.me && tg.me.username) || null,
-      });
-      if (!verdict.ok) continue;
+      const senderId = f.type === 'private' ? f.chatId : null;
+      const founder = guardrails.isFounder(senderId, senderUsername);
 
-      const conv = memory.conversation(f.chatId);
-      if (conv.state !== 'auto') continue;
-      if (conv.last_agent_at && conv.last_agent_at >= f.date) continue; // already answered
+      if (!founder) {
+        const verdict = guardrails.shouldRespond({
+          chatType: f.type,
+          isReplyToMe: false,
+          isOutgoing: false,
+          text: f.text,
+          senderId,
+          chatId: f.chatId,
+          selfUsername: (tg.me && tg.me.username) || null,
+        });
+        if (!verdict.ok) continue;
+
+        const conv = memory.conversation(f.chatId);
+        if (conv.state !== 'auto') continue;
+        if (conv.last_agent_at && conv.last_agent_at >= f.date) continue; // already answered
+      }
 
       this.enqueue({
         chatId: f.chatId,
@@ -215,7 +238,8 @@ class Runtime extends EventEmitter {
         userName,
         senderUsername,
         msgId: f.msgId,
-        senderId: f.type === 'private' ? f.chatId : null,
+        senderId,
+        mode: founder ? 'assistant' : 'support',
       });
       queued++;
       // Space the backlog out so a restart does not look like a burst of spam.
@@ -298,28 +322,41 @@ class Runtime extends EventEmitter {
       return;
     }
 
-    const limit = memory.rateCheck(chatId);
-    if (!limit.ok) {
-      this.stats.skipped++;
-      log.warn('rate limited', { chatId, reason: limit.reason });
-      return;
+    const meta = entry.meta;
+    const assistantMode = meta.mode === 'assistant';
+
+    // Rate limits protect the account from customers; the founder is exempt.
+    if (!assistantMode) {
+      const limit = memory.rateCheck(chatId);
+      if (!limit.ok) {
+        this.stats.skipped++;
+        log.warn('rate limited', { chatId, reason: limit.reason });
+        return;
+      }
     }
 
-    const meta = entry.meta;
     await tg.markRead(chatId).catch(() => {});
 
     const typing = settings.bool('typing_simulation', true);
     if (typing) tg.setTyping(chatId, true).catch(() => {});
 
-    const result = await brain.respond({
-      chatId,
-      text,
-      chatTitle: meta.chatTitle,
-      chatType: meta.chatType,
-      userName: meta.userName,
-      senderId: meta.senderId,
-      senderUsername: meta.senderUsername,
-    });
+    const result = assistantMode
+      ? await assistant.handle({
+          chatId,
+          text,
+          chatType: meta.chatType,
+          chatTitle: meta.chatTitle,
+          msgId: meta.msgId,
+        })
+      : await brain.respond({
+          chatId,
+          text,
+          chatTitle: meta.chatTitle,
+          chatType: meta.chatType,
+          userName: meta.userName,
+          senderId: meta.senderId,
+          senderUsername: meta.senderUsername,
+        });
 
     if (!result.ok) {
       if (typing) tg.setTyping(chatId, false).catch(() => {});
@@ -334,12 +371,15 @@ class Runtime extends EventEmitter {
       return;
     }
 
-    // Human-plausible pacing: base delay + length-proportional typing time.
-    const min = settings.int('min_delay_ms', 1200);
-    const max = settings.int('max_delay_ms', 4200);
-    const typingMs = typing ? Math.min(6000, result.text.length * 22) : 0;
-    const delay = Math.max(0, min + Math.random() * Math.max(0, max - min) + typingMs - (result.meta.latencyMs || 0));
-    if (delay > 0) await sleep(delay);
+    // Human-plausible pacing for customers. The founder gets the answer as
+    // soon as it exists — a delayed "done" on a command feels like a stall.
+    if (!assistantMode) {
+      const min = settings.int('min_delay_ms', 1200);
+      const max = settings.int('max_delay_ms', 4200);
+      const typingMs = typing ? Math.min(6000, result.text.length * 22) : 0;
+      const delay = Math.max(0, min + Math.random() * Math.max(0, max - min) + typingMs - (result.meta.latencyMs || 0));
+      if (delay > 0) await sleep(delay);
+    }
 
     try {
       const sent = await tg.sendMessage(chatId, result.text, { replyTo: meta.chatType !== 'private' ? meta.msgId : null });
@@ -413,7 +453,32 @@ class Runtime extends EventEmitter {
     const text = String(answerText || '').trim();
     if (!text) throw new Error("Javob boʻsh");
 
-    const message = `Savolingizga rahbariyatdan javob keldi 🙂\n\n${text}`;
+    // The founder often answers with an instruction ("yes, give them my
+    // channel link") rather than words meant for the user. Forwarding that
+    // verbatim reads wrong and — worse — nothing actually gets done. When the
+    // reply looks like a directive, the assistant composes the real answer
+    // from it, with the founder's memory available.
+    let message;
+    const directive = /(\bber\b|berib|\bayt\b|aytib|\byoz\b|yozib|yubor|tasdiqla|ruxsat|mumkin|qil\b|скажи|передай|отправь|дай|tell|send|give)/i.test(text) && text.length < 400;
+    if (directive) {
+      try {
+        const composed = await assistant.handle({
+          chatId: esc.tg_chat_id,
+          chatType: 'private',
+          chatTitle: esc.chat_title,
+          msgId: null,
+          text:
+            `Foydalanuvchi (${esc.chat_title || esc.tg_chat_id}) shuni soʻragan edi: "${String(esc.question || '').slice(0, 400)}".\n` +
+            `Rahbar (Toms) javobi/koʻrsatmasi: "${text}".\n` +
+            `Vazifa: shu koʻrsatmaga asoslanib foydalanuvchiga yuboriladigan YAKUNIY javob matnini yoz. Kerakli maʼlumotni (havola, fakt) xotirangdan ol. ` +
+            `Faqat javob matnini qaytar — "rahbar dedi" deb tushuntirma, vosita chaqirma, oʻzing xabar yuborma.`,
+        });
+        if (composed.ok && composed.text && composed.text.length > 10) message = composed.text;
+      } catch (err) {
+        log.debug('directive compose failed, forwarding verbatim', { error: err.message });
+      }
+    }
+    if (!message) message = `Savolingizga rahbariyatdan javob keldi 🙂\n\n${text}`;
     const clean = guardrails.sanitizeOutgoing(message);
 
     const sent = await tg.sendMessage(esc.tg_chat_id, clean.text);

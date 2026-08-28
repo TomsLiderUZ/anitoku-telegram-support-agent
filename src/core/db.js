@@ -229,6 +229,59 @@ const MIGRATIONS = [
   'ALTER TABLE escalations ADD COLUMN notify_msg_id INTEGER',
   'ALTER TABLE escalations ADD COLUMN answer TEXT',
   'ALTER TABLE escalations ADD COLUMN answered_by TEXT',
+
+  // ── Assistant layer ──────────────────────────────────────────────────────
+  // Facts the founder told the agent to keep. Scope is global by design: what
+  // is said in a private chat must be known when the same thing comes up in a
+  // group or in a customer's question.
+  `CREATE TABLE IF NOT EXISTS memory_facts (
+     id          INTEGER PRIMARY KEY AUTOINCREMENT,
+     fact        TEXT NOT NULL,
+     tags        TEXT,
+     source_chat TEXT,
+     source_msg  INTEGER,
+     created_by  TEXT,
+     enabled     INTEGER DEFAULT 1,
+     hash        TEXT UNIQUE,
+     created_at  TEXT DEFAULT (datetime('now'))
+   )`,
+
+  // Work the agent has been asked to do, now or later. Runs from a ticker in
+  // the background, survives restarts, and records what happened.
+  `CREATE TABLE IF NOT EXISTS tasks (
+     id           INTEGER PRIMARY KEY AUTOINCREMENT,
+     kind         TEXT NOT NULL,
+     title        TEXT,
+     payload      TEXT NOT NULL,
+     run_at       INTEGER NOT NULL,
+     status       TEXT DEFAULT 'pending',
+     attempts     INTEGER DEFAULT 0,
+     result       TEXT,
+     error        TEXT,
+     origin_chat  TEXT,
+     origin_msg   INTEGER,
+     created_by   TEXT,
+     created_at   TEXT DEFAULT (datetime('now')),
+     started_at   TEXT,
+     finished_at  TEXT
+   )`,
+  'CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks (status, run_at)',
+
+  // Resolved people and chats, so "Ma'rufa" or "+998..." maps to an id without
+  // re-scanning dialogs every time.
+  `CREATE TABLE IF NOT EXISTS contacts (
+     tg_id       TEXT PRIMARY KEY,
+     kind        TEXT,
+     username    TEXT,
+     first_name  TEXT,
+     last_name   TEXT,
+     phone       TEXT,
+     title       TEXT,
+     aliases     TEXT,
+     access_hash TEXT,
+     updated_at  TEXT DEFAULT (datetime('now'))
+   )`,
+  'CREATE INDEX IF NOT EXISTS idx_contacts_username ON contacts (username)',
 ];
 for (const sql of MIGRATIONS) {
   try {

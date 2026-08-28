@@ -214,6 +214,21 @@ function isRelevantForGroup(text, { isReplyToMe = false, selfUsername = null } =
   return { ok: false, reason: 'off_topic' };
 }
 
+/**
+ * Is this sender the founder? Checked by Telegram id or @username, so a group
+ * where the numeric id does not resolve still recognises them.
+ */
+function isFounder(senderId, senderUsername) {
+  const ids = String(settings.get('founder_ids', '')).split(/[,\s]+/).filter(Boolean);
+  const names = String(settings.get('founder_username', ''))
+    .split(/[,\s]+/)
+    .map((s) => s.replace(/^@/, '').toLowerCase())
+    .filter(Boolean);
+  if (senderId && ids.includes(String(senderId))) return true;
+  if (senderUsername && names.includes(String(senderUsername).replace(/^@/, '').toLowerCase())) return true;
+  return false;
+}
+
 /** Should this message be answered at all? */
 function shouldRespond({ chatType, isReplyToMe, isOutgoing, text, senderId, chatId, selfUsername = null }) {
   if (isOutgoing) return { ok: false, reason: 'outgoing' };
@@ -251,4 +266,4 @@ function shouldRespond({ chatType, isReplyToMe, isOutgoing, text, senderId, chat
   return { ok: true };
 }
 
-module.exports = { isRelevantForGroup, inspectIncoming, sanitizeOutgoing, scrubSecrets, stripLaunchDates, shouldRespond, flattenMarkdown };
+module.exports = { isFounder, isRelevantForGroup, inspectIncoming, sanitizeOutgoing, scrubSecrets, stripLaunchDates, shouldRespond, flattenMarkdown };

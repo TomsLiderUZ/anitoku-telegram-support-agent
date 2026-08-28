@@ -11,6 +11,10 @@ const selfTrain = require('./training/selfTrain');
 const ingest = require('./knowledge/ingest');
 const adminServer = require('./admin/server');
 const adminAuth = require('./admin/auth');
+const tasks = require('./agent/tasks');
+const executors = require('./agent/executors');
+const contacts = require('./agent/contacts');
+const local = require('./ai/local');
 
 const log = createLogger('main');
 
@@ -77,6 +81,27 @@ function startPresence() {
   push().catch(() => {});
   timers.push(setInterval(() => push().catch(() => {}), 45_000));
   log.info('Presence yangilash faol (45s)');
+}
+
+/**
+ * A model file that finishes downloading while the agent is running should be
+ * picked up without a restart — the download takes long enough that this is
+ * the common case, not the exception.
+ */
+function startLocalModelWatch() {
+  timers.push(
+    setInterval(() => {
+      if (shuttingDown || !settings.bool('local_model_enabled', true)) return;
+      const s = local.status();
+      if (s.loading) return;
+      if ((s.chat.present && !s.chat.loaded) || (s.embed.present && !s.embed.loaded)) {
+        log.info('Yangi lokal model fayli topildi — yuklanmoqda');
+        local.load().then((r) => {
+          if (r.chat.loaded) log.info(`Chat modeli yuklandi: ${r.chat.label} (${r.gpu})`);
+        }).catch(() => {});
+      }
+    }, 60_000)
+  );
 }
 
 /** Housekeeping: prune old telemetry, revive keys whose cooldown has lapsed. */
@@ -147,8 +172,11 @@ async function main() {
   // 3. Admin panel (always starts — it is how you configure everything else)
   httpServer = await adminServer.start();
 
-  // 4. Agent runtime
+  // 4. Agent runtime + background task queue
   runtime.attach();
+  executors.register();
+  tasks.start(20_000);
+  tg.on('connected', () => contacts.refreshFromDialogs(300).catch(() => {}));
 
   // 5. Telegram — resume an existing session if we have one
   const rec = tg.record();
@@ -158,6 +186,29 @@ async function main() {
     if (!ok) log.warn('Sessiyani tiklab bo\'lmadi — admin panel orqali qayta login qiling');
   } else {
     log.warn('Telegram akkaunt ulanmagan → admin panelda "Telegram" bo\'limiga o\'ting');
+  }
+
+  // 5b. Local models — loaded after Telegram so replies are never delayed by a
+  // 7 GB model load; until it is up, cloud providers serve everything.
+  if (settings.bool('local_model_enabled', true)) {
+    local
+      .load()
+      .then(async (s) => {
+        if (s.chat.loaded || s.embed.loaded) {
+          log.info(`Lokal model: chat ${s.chat.loaded ? '✅' : '—'} · embedding ${s.embed.loaded ? '✅' : '—'} · GPU ${s.gpu}`);
+          if (s.embed.loaded) {
+            const vectors = require('./knowledge/vectors');
+            for (let i = 0; i < 40; i++) {
+              const r = await vectors.backfill({ batch: 50 });
+              if (!r.remaining) break;
+            }
+            log.info('Semantik indeks tayyor', vectors.stats());
+          }
+        } else {
+          log.info('Lokal model fayllari yoʻq — cloud provayderlar ishlatiladi');
+        }
+      })
+      .catch((err) => log.warn('lokal model yuklanmadi', { error: err.message }));
   }
 
   // 6. Background services
@@ -174,6 +225,7 @@ async function main() {
 
   startWatchdog();
   startPresence();
+  startLocalModelWatch();
   startMaintenance();
   startRetrainSchedule();
   await maybeBootstrapTraining();
@@ -198,6 +250,7 @@ async function shutdown(signal) {
   recordEvent('system', 'Agent stopping', { signal });
 
   for (const t of timers) clearInterval(t);
+  tasks.stop();
   if (httpServer) await new Promise((r) => httpServer.close(r)).catch(() => {});
   try {
     if (tg.isConnected()) await tg.setOnline(false);

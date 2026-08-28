@@ -2,6 +2,7 @@
 const { db, FTS_OK } = require('../core/db');
 const { sha256 } = require('../core/crypto');
 const { createLogger } = require('../core/logger');
+const vectors = require('./vectors');
 
 const log = createLogger('knowledge');
 
@@ -115,7 +116,12 @@ function upsert({ source = 'manual', sourceRef = null, title = null, content, ta
   const r = db
     .prepare('INSERT INTO knowledge (source, source_ref, title, content, tags, weight, hash) VALUES (?, ?, ?, ?, ?, ?, ?)')
     .run(source, sourceRef, title, body, tags, weight, hash);
-  return Number(r.lastInsertRowid);
+  const id = Number(r.lastInsertRowid);
+
+  // Embed in the background when the local model is up; a failure here must
+  // never block an insert — the FTS index still serves the document.
+  if (vectors.ready()) vectors.index(id, `${title ? title + '. ' : ''}${body}`).catch((err) => log.debug('embed failed', { id, error: err.message }));
+  return id;
 }
 
 /** Jaccard similarity over content words. */
@@ -174,6 +180,27 @@ function ftsQuery(text) {
 }
 
 /**
+ * Semantic search, when the embedding model is loaded. Async by nature, so it
+ * is a separate entry point; `buildContext` merges it with the lexical search.
+ */
+async function searchSemantic(query, limit = 6) {
+  if (!vectors.ready()) return [];
+  try {
+    const hits = await vectors.search(query, limit, 0.4);
+    if (!hits.length) return [];
+    const byId = new Map(hits.map((h) => [h.id, h.score]));
+    const rows = db
+      .prepare(`SELECT id, title, content, source, source_ref, tags, weight FROM knowledge WHERE enabled = 1 AND id IN (${hits.map(() => '?').join(',')})`)
+      .all(...hits.map((h) => h.id));
+    // Cosine 0.4–1.0 → comparable magnitude to the lexical scores (≈ 0–10).
+    return rows.map((r) => ({ ...r, score: (byId.get(r.id) - 0.4) * 16 * (r.weight || 1), semantic: true })).sort((a, b) => b.score - a.score);
+  } catch (err) {
+    log.debug('semantic search failed', { error: err.message });
+    return [];
+  }
+}
+
+/**
  * Hybrid retrieval: FTS5/BM25 for ranking plus a normalized-substring pass so
  * short or misspelled Uzbek queries still find documents.
  */
@@ -222,9 +249,21 @@ function search(query, limit = 6) {
   return [...results.values()].sort((a, b) => b.score - a.score).slice(0, limit);
 }
 
-/** Format retrieved docs as a compact context block for the prompt. */
-function buildContext(query, limit = 6, maxChars = 3200) {
-  const docs = search(query, limit);
+/**
+ * Format retrieved docs as a compact context block for the prompt.
+ * Lexical and semantic hits are merged; a document found by both ranks first.
+ */
+async function buildContext(query, limit = 6, maxChars = 3200) {
+  const lexical = search(query, limit);
+  const semantic = await searchSemantic(query, limit);
+
+  const merged = new Map();
+  for (const d of lexical) merged.set(d.id, { ...d });
+  for (const d of semantic) {
+    if (merged.has(d.id)) merged.get(d.id).score += d.score * 0.6;
+    else merged.set(d.id, d);
+  }
+  const docs = [...merged.values()].sort((a, b) => b.score - a.score).slice(0, limit);
   if (!docs.length) return { text: '', docs: [] };
   const parts = [];
   let used = 0;
@@ -261,7 +300,10 @@ function list({ q = '', source = '', limit = 100, offset = 0 } = {}) {
   return db.prepare(sql).all(...params, limit, offset);
 }
 
-const remove = (id) => db.prepare('DELETE FROM knowledge WHERE id = ?').run(id).changes;
+const remove = (id) => {
+  vectors.remove(id);
+  return db.prepare('DELETE FROM knowledge WHERE id = ?').run(id).changes;
+};
 const setEnabled = (id, on) => db.prepare('UPDATE knowledge SET enabled = ? WHERE id = ?').run(on ? 1 : 0, id).changes;
 
-module.exports = { normalize, tokens, upsert, addQA, search, buildContext, stats, list, remove, setEnabled };
+module.exports = { normalize, tokens, upsert, addQA, search, searchSemantic, buildContext, stats, list, remove, setEnabled };

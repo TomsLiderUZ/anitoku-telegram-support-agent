@@ -930,7 +930,19 @@ const SETTING_GROUPS = [
     ],
   },
   {
-    title: 'Trening va ingest',
+    title: 'Lokal model va yordamchi',
+    items: [
+      ['local_model_enabled', 'Lokal modeldan foydalanish', 'bool', 'Fayllar bo\'lsa Gemma 3 shu kompyuterda ishlaydi; bo\'lmasa cloud'],
+      ['local_purposes', 'Lokal model xizmat qiladigan chaqiruvlar', 'text', 'reply, reply:retry, memory:summary — vergul bilan'],
+      ['local_context_size', 'Kontekst hajmi (token)', 'num', 'Standart 8192'],
+      ['founder_username', 'Asoschi @username', 'text', 'Yordamchi rejimi faqat shu foydalanuvchi uchun'],
+      ['founder_ids', 'Asoschi Telegram ID', 'text', 'Vergul bilan bir nechta bo\'lishi mumkin'],
+      ['catchup_enabled', 'Javobsiz qolganlarga javob berish', 'bool', 'Agent o\'chiq bo\'lganda kelgan xabarlarga ishga tushganda javob beradi'],
+      ['catchup_max_age_hours', 'Javobsiz xabar yoshi (soat)', 'num', ''],
+    ],
+  },
+  {
+    title: "O'qitish",
     items: [
       ['training_channel_id', 'Trening kanal ID', 'text', 'Maxfiy kanal — agent shundan o\'rganadi'],
       ['ingest_dialog_limit', 'Ingest: chat soni', 'num', ''],
@@ -1047,6 +1059,116 @@ function connectLogStream() {
   };
   src.onopen = () => ($('liveDot').className = 'pill info');
 }
+
+// ── yordamchi: buyruq berish ────────────────────────────────────────────────
+$('asRun').addEventListener('click', async () => {
+  const text = $('asInput').value.trim();
+  if (!text) return toast("Ko'rsatma yozing", 'warn');
+  const btn = $('asRun');
+  btn.disabled = true;
+  btn.textContent = 'Bajarilmoqda…';
+  try {
+    const r = await api('/assistant/run', { method: 'POST', body: { text } });
+    $('asOut').innerHTML = r.ok
+      ? `<div class="msg in">${esc(text)}<div class="meta"><span>Siz</span></div></div>
+         <div class="msg out agent">${esc(r.text)}<div class="meta"><span>Yordamchi</span><span>${r.meta.latencyMs || 0}ms</span></div></div>`
+      : `<div class="empty" style="color:var(--err)">Xato: ${esc(r.error)}</div>`;
+    const m = r.meta || {};
+    $('asMeta').textContent = [
+      `Vositalar: ${(m.toolsUsed || []).join(', ') || '—'}`,
+      m.deterministic && m.deterministic.length ? `Avtomatik: ${JSON.stringify(m.deterministic)}` : null,
+      m.forcedTools ? 'Model "bajardim" dedi, lekin vosita chaqirmagan edi — majburlandi' : null,
+      `Model: ${m.model || '—'}`,
+    ].filter(Boolean).join('\n');
+    loaders.tasks && loaders.tasks().catch(() => {});
+  } catch (err) {
+    toast(err.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Bajarish';
+  }
+});
+
+// ── vazifalar ───────────────────────────────────────────────────────────────
+const TASK_STATUS = { pending: ['Navbatda', 'info'], running: ['Bajarilmoqda', 'warn'], done: ['Bajarildi', 'ok'], failed: ['Xato', 'err'], cancelled: ['Bekor', ''] };
+const TASK_KIND = { send_message: 'Xabar yuborish', assistant_run: "Ko'rsatma", create_bot: 'Bot yaratish' };
+
+loaders.tasks = async () => {
+  const list = await api(`/tasks?status=${$('taskFilter').value}`);
+  const pending = list.filter((t) => t.status === 'pending').length;
+  $('taskBadge').hidden = !pending;
+  $('taskBadge').textContent = pending;
+
+  $('tasksTable').innerHTML = list.length
+    ? list
+        .map((t) => {
+          const [label, cls] = TASK_STATUS[t.status] || [t.status, ''];
+          const res = t.status === 'done' ? (t.result || '') : t.error || '';
+          return `<tr>
+            <td>${t.id}</td>
+            <td><span class="pill ${cls}">${label}</span></td>
+            <td><b>${esc(t.title || TASK_KIND[t.kind] || t.kind)}</b><div class="hint">${esc(TASK_KIND[t.kind] || t.kind)}${t.payload && t.payload.to ? ' → ' + esc(t.payload.to) : ''}</div></td>
+            <td>${fmtTime(new Date(t.run_at).toISOString())}</td>
+            <td style="max-width:300px"><div class="hint">${esc(String(res).replace(/[{}"]/g, '').slice(0, 140))}</div></td>
+            <td><div class="row">${t.status === 'pending' ? `<button class="btn ghost sm" data-trun="${t.id}">Hozir</button><button class="btn danger sm" data-tcancel="${t.id}">Bekor</button>` : ''}</div></td></tr>`;
+        })
+        .join('')
+    : '<tr><td colspan="6" class="empty">Vazifa yo\'q</td></tr>';
+
+  $('tasksTable').querySelectorAll('[data-tcancel]').forEach((b) =>
+    b.addEventListener('click', async () => { await api(`/tasks/${b.dataset.tcancel}/cancel`, { method: 'POST' }); loaders.tasks(); })
+  );
+  $('tasksTable').querySelectorAll('[data-trun]').forEach((b) =>
+    b.addEventListener('click', async () => { b.disabled = true; await api(`/tasks/${b.dataset.trun}/run`, { method: 'POST' }); toast('Bajarildi', 'ok'); loaders.tasks(); })
+  );
+};
+$('taskFilter').addEventListener('change', () => loaders.tasks());
+$('tasksRefresh').addEventListener('click', () => loaders.tasks());
+
+// ── xotira ──────────────────────────────────────────────────────────────────
+loaders.memory = async () => {
+  const list = await api('/memory');
+  $('memCount').textContent = list.length;
+  $('memList').innerHTML = list.length
+    ? list.map((f) => `<div class="fact-item"><div class="txt">${esc(f.fact)}<div class="when">${fmtTime(f.created_at)}${f.created_by ? ' · ' + esc(f.created_by) : ''}</div></div><button class="btn danger sm" data-mdel="${f.id}">O'chirish</button></div>`).join('')
+    : '<div class="empty">Hali fakt saqlanmagan. Telegramda "eslab qol: …" deb yozing yoki shu yerda qo\'shing.</div>';
+  $('memList').querySelectorAll('[data-mdel]').forEach((b) =>
+    b.addEventListener('click', async () => { await api(`/memory/${b.dataset.mdel}`, { method: 'DELETE' }); loaders.memory(); })
+  );
+};
+$('memAdd').addEventListener('click', async () => {
+  const fact = $('memInput').value.trim();
+  if (fact.length < 4) return toast('Fakt juda qisqa', 'warn');
+  await api('/memory', { method: 'POST', body: { fact } });
+  $('memInput').value = '';
+  toast('Saqlandi', 'ok');
+  loaders.memory();
+});
+
+// ── lokal model ─────────────────────────────────────────────────────────────
+const gb = (b) => (b / 1073741824).toFixed(2) + ' GB';
+
+loaders.local = async () => {
+  const s = await api('/local');
+  $('localDir').textContent = s.modelsDir;
+  const v = s.vectors || {};
+  $('localStats').innerHTML = `
+    <div class="stat ${s.chat.loaded ? 'ok' : ''}"><div class="stat-label">Chat modeli</div><div class="stat-value" style="font-size:18px">${s.chat.loaded ? 'Yuklangan' : s.chat.present ? 'Tayyor' : s.chat.downloading ? 'Yuklanmoqda' : "Yo'q"}</div><div class="stat-sub">${esc(s.chat.label)}</div></div>
+    <div class="stat ${s.embed.loaded ? 'ok' : ''}"><div class="stat-label">Embedding</div><div class="stat-value" style="font-size:18px">${s.embed.loaded ? 'Yuklangan' : s.embed.present ? 'Tayyor' : "Yo'q"}</div><div class="stat-sub">${esc(s.embed.label)}</div></div>
+    <div class="stat"><div class="stat-label">Tezlatgich</div><div class="stat-value" style="font-size:18px">${esc(String(s.gpu || '—').toUpperCase())}</div><div class="stat-sub">${s.calls ? s.calls + ' chaqiruv · ' + s.avgMs + 'ms' : 'hali ishlatilmagan'}</div></div>
+    <div class="stat"><div class="stat-label">Semantik indeks</div><div class="stat-value" style="font-size:18px">${fmtNum(v.embedded || 0)} / ${fmtNum(v.documents || 0)}</div><div class="stat-sub">${v.dim ? v.dim + ' o\'lchov' : 'indeks yo\'q'}</div></div>`;
+
+  const row = (m, kind) => `<div class="model-card"><div><div class="name">${esc(m.label)}</div><div class="sub">${esc(m.file)} · ${m.sizeGb} GB${m.present ? ' · diskda ' + gb(m.bytes) : m.downloading ? ' · yuklanmoqda ' + gb(m.bytes) : ''}</div></div>
+    <span class="pill ${m.loaded ? 'ok' : m.present ? 'info' : m.downloading ? 'warn' : ''}">${m.loaded ? 'xotirada' : m.present ? 'diskda' : m.downloading ? 'yuklanmoqda' : "yo'q"}</span></div>`;
+  $('localModels').innerHTML = row(s.chat, 'chat') + row(s.embed, 'embed');
+  $('localVectors').textContent = v.ready
+    ? `${v.embedded} ta hujjat ${v.model} bilan indekslangan (${v.dim} o'lchov). Yangi hujjatlar avtomatik qo'shiladi.`
+    : "Embedding modeli yuklanmagan — qidiruv faqat kalit so'zlar bo'yicha ishlaydi.";
+  if (s.error) toast('Lokal model xatosi: ' + s.error, 'err', 6000);
+};
+$('localLoad').addEventListener('click', async (e) => { e.target.disabled = true; e.target.textContent = 'Yuklanmoqda…'; try { await api('/local/load', { method: 'POST' }); toast('Yuklandi', 'ok'); } catch (err) { toast(err.message, 'err'); } finally { e.target.disabled = false; e.target.textContent = 'Yuklash'; loaders.local(); } });
+$('localUnload').addEventListener('click', async () => { await api('/local/unload', { method: 'POST' }); toast("Bo'shatildi", 'ok'); loaders.local(); });
+$('localReindex').addEventListener('click', async (e) => { e.target.disabled = true; try { const r = await api('/local/reindex', { method: 'POST' }); toast(`${r.embedded} hujjat indekslandi`, 'ok'); } catch (err) { toast(err.message, 'err'); } finally { e.target.disabled = false; loaders.local(); } });
 
 // ── boot ────────────────────────────────────────────────────────────────────
 function debounce(fn, ms) {
