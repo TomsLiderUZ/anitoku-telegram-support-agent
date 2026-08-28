@@ -154,7 +154,8 @@ const definitions = [
     type: 'function',
     function: {
       name: 'configure_bot',
-      description: 'Mavjud botning nomi, tavsifi, about matni yoki buyruqlar roʻyxatini BotFather orqali oʻzgartirish.',
+      description:
+        "FAQAT BotFather'dagi koʻrinish: botning nomi, tavsifi, about matni, menyudagi buyruqlar roʻyxati (koʻrsatma matni). Bu bot KODIGA va xatti-harakatiga TAʼSIR QILMAYDI — yangi buyruq ishlashi uchun build_and_run_bot kerak. Buyruq qoʻshish/tuzatish uchun BU VOSITANI ISHLATMA.",
       parameters: {
         type: 'object',
         properties: {
@@ -173,7 +174,7 @@ const definitions = [
     function: {
       name: 'build_and_run_bot',
       description:
-        "Bot uchun KOD YOZIB, shu kompyuterda ISHGA TUSHIRISH. Toms 'kod yozib run qil', 'ishlaydigan bot qil' desa — shu. Bot avval BotFather'da yaratilgan boʻlishi kerak (create_bot). Token bazada boʻlmasa oʻzi BotFather'dan oladi. Spec'ni Toms bermasa — oʻzing mantiqiy funksiyalar toʻplamini yoz (masalan anime: /search, /random, /top). Kod chatga YOZILMAYDI — u faylga saqlanadi va ishga tushadi.",
+        "Bot uchun KOD YOZIB (yoki mavjud kodni OʻZGARTIRIB), shu kompyuterda ISHGA TUSHIRISH. Quyidagilarning HAMMASI shu vosita: 'kod yozib run qil', 'ishlaydigan bot qil', 'buyruq qoʻsh', 'buyruqni tuzat', 'X ishlamayapti', 'Y funksiyasini oʻzgartir'. Bot avval BotFather'da yaratilgan boʻlishi kerak (create_bot). Token bazada boʻlmasa oʻzi oladi. Spec'ni Toms bermasa — oʻzing mantiqiy funksiyalar toʻplamini yoz. Mavjud botga oʻzgartirish kiritayotganda `fix` maydonida nima kerakligini yoz — mavjud buyruqlar avtomatik saqlanadi va natijada `commands` roʻyxati qaytadi: hisobotda AYNAN shu roʻyxatni ayt, taxmin qilma. Kod chatga YOZILMAYDI.",
       parameters: {
         type: 'object',
         properties: {
