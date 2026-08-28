@@ -101,6 +101,16 @@ async function generateCode({ username, name, spec, previousError = null, previo
   return code;
 }
 
+/** Slash-commands named in the spec plus (for repairs) those the old code handled. */
+function requiredCommands(spec, previousCode) {
+  const set = new Set(['start', 'help']);
+  for (const m of String(spec || '').matchAll(/\/([a-z][a-z0-9_]{1,30})\b/gi)) set.add(m[1].toLowerCase());
+  if (previousCode) {
+    for (const m of String(previousCode).matchAll(/['"`]\/([a-z][a-z0-9_]{1,30})\b/gi)) set.add(m[1].toLowerCase());
+  }
+  return [...set];
+}
+
 function syntaxCheck(file) {
   try {
     execFileSync(process.execPath, ['--check', file], { stdio: ['ignore', 'pipe', 'pipe'], timeout: 15_000 });
@@ -135,7 +145,8 @@ async function deploy({ username, name = null, token = null, spec, hint = null }
   // Stop the old process first: two pollers on one token fight over updates.
   if (prev && prev.alive) stop(u);
 
-  let code = hint && fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
+  const prevCodeText = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
+  let code = hint && prevCodeText ? prevCodeText : null;
   let error = hint ? `Rahbar shikoyati / kuzatilgan muammo: ${hint}\nSo'nggi log:\n${logs(u, 25)}` : null;
   for (let attempt = 0; attempt < 3; attempt++) {
     code = await generateCode({ username: u, name, spec, previousError: error, previousCode: code });
@@ -147,6 +158,17 @@ async function deploy({ username, name = null, token = null, spec, hint = null }
       error = 'kodga token yozilgan — faqat process.env.BOT_TOKEN ishlat';
       continue;
     }
+    // Every command the spec names — and, in a repair, every command the old
+    // code had — must survive. The model dropped /top twice when asked to fix
+    // /search; asking nicely did not work, checking does.
+    const required = requiredCommands(spec, hint ? prevCodeText : null);
+    const missing = required.filter((c) => !new RegExp(`['"\`]/${c}\\b`).test(code));
+    if (missing.length) {
+      error = `Quyidagi buyruqlar kodda YO'Q, ular bo'lishi shart: ${missing.map((c) => '/' + c).join(', ')}. Hammasini qo'sh, boshqa hech narsani olib tashlama.`;
+      log.warn('bot kodida buyruqlar yetishmaydi, qayta yozilmoqda', { username: u, attempt, missing });
+      continue;
+    }
+
     fs.writeFileSync(file, code, 'utf8');
     error = syntaxCheck(file);
     if (!error) break;
