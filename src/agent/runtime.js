@@ -65,6 +65,22 @@ class Runtime extends EventEmitter {
       /* metadata is optional */
     }
 
+    // Messages from bots are never customer traffic. The assistant talks to
+    // bots on purpose through its own tools; letting the support brain answer
+    // them produced the agent lecturing its own anime bot about /help, and
+    // two auto-responders facing each other is a loop waiting to happen.
+    let senderIsBot = false;
+    try {
+      const sender = await msg.getSender();
+      senderIsBot = !!(sender && sender.bot);
+    } catch {
+      /* unknown sender — treat as human */
+    }
+    if (senderIsBot) {
+      log.debug('skip: sender is a bot', { chatId });
+      return;
+    }
+
     ingest.upsertChat({ id: chatId, type: chatType, title: chatTitle, username: null });
     ingest.saveMessage(chatId, msg);
 
