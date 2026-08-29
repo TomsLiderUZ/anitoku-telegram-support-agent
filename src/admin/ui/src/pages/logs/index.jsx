@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   TbArrowDown,
   TbFilter,
+  TbFileAnalytics,
   TbPlayerPause,
   TbPlayerPlay,
   TbRefresh,
@@ -248,7 +249,7 @@ export default function Logs() {
       </Card>
 
       {/* ── Jurnal ──────────────────────────────────────────────── */}
-      <Card title="Jurnal" icon={TbFilter} actions={live ? <Badge tone="info" pulse>jonli</Badge> : null}>
+      <Card title="Jurnal" icon={TbFileAnalytics} actions={live ? <Badge tone="info" pulse>jonli</Badge> : null}>
         {items.length ? (
           <div className={styles.logs} ref={boxRef} onScroll={onScroll}>
             {items.map((l, i) => (

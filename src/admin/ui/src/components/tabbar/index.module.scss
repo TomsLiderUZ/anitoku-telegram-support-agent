@@ -1,14 +1,18 @@
 /**
- * Mobil pastki menyu.
+ * Mobil pastki menyu — suzuvchi kapsula (iOS 18 uslubi).
  *
- * Faqat 1024px dan tor ekranda ko'rinadi — kengida sidebar bor va
- * ikkalasi birga turishi navigatsiyani ikki joyga bo'lib yuborardi.
+ * NEGA KAPSULA, EKRAN CHETIGA YOPISHGAN LENTA EMAS:
+ * yopishgan lenta kontentni "kesib" turadi — matn uning tagiga kirib
+ * ketgandek koʻrinadi va ekranning pastki qirrasi bilan qoʻshilib
+ * ketadi. Chetdan bir oz koʻtarilgan kapsula esa aniq ALOHIDA qatlam:
+ * ostidan kontent oʻtayotgani koʻrinib turadi, shuning uchun u
+ * "ustida suzayotgan" boshqaruv sifatida oʻqiladi.
+ *
+ * Faqat 1024px dan tor ekranda — kengida sidebar bor va ikkalasi birga
+ * turishi navigatsiyani ikki joyga boʻlib yuborardi.
  */
 
-.wrapper {
-  display: none;
-}
-
+.wrapper,
 .overlay,
 .sheet {
   display: none;
@@ -18,18 +22,32 @@
   .wrapper {
     position: fixed;
     z-index: var(--z-tabbar);
-    right: 0;
-    bottom: 0;
-    left: 0;
+    right: var(--tabbar-inset);
+    bottom: calc(var(--tabbar-inset) + env(safe-area-inset-bottom, 0px));
+    left: var(--tabbar-inset);
     display: flex;
     align-items: stretch;
-    height: calc(var(--tabbar-height) + env(safe-area-inset-bottom, 0px));
-    // iPhone'dagi "home indicator" chizig'i ustiga tushib qolmasin
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-    border-top: 1px solid var(--color-border-secondary);
+    gap: 2px;
+    height: var(--tabbar-height);
+    padding: var(--tabbar-pad);
+    border: 1px solid var(--color-glass-border);
+    border-radius: var(--border-radius-pill);
     background-color: var(--color-glass-bg);
-    backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-    -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+    backdrop-filter: blur(var(--blur-glass-strong)) saturate(var(--saturate-glass));
+    -webkit-backdrop-filter: blur(var(--blur-glass-strong)) saturate(var(--saturate-glass));
+    /* Tashqi soya kapsulani fondan koʻtaradi, ichki yuqori chiziq esa
+       shisha "qirrasi" — ikkalasi birga hajm hissini beradi. */
+    box-shadow:
+      var(--shadow-lg),
+      inset 0 1px 0 var(--color-glass-highlight);
+  }
+
+  /* backdrop-filter yoʻq brauzerda shaffof kapsula ostidagi matn bilan
+     qoʻshilib ketardi — shaffofmas fonga oʻtamiz. */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .wrapper {
+      background-color: var(--color-bg-surface);
+    }
   }
 
   .tab {
@@ -38,22 +56,27 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: var(--gap-2);
-    // Har qanday holatda 44px dan katta tegish maydoni
-    min-width: 44px;
-    padding: var(--padding-6) var(--padding-2, 2px);
+    gap: 1px;
+    // Kapsula ichidagi har bir band ham kapsula — aktivi shu shaklda
+    // boʻyaladi, shuning uchun radius doim mavjud
+    min-width: 44px;              // tegish maydonining eng kichigi
     border: none;
+    border-radius: var(--border-radius-pill);
     background: transparent;
     color: var(--color-text-muted);
     font-family: inherit;
-    font-size: var(--font-size-11);
-    font-weight: 500;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
     cursor: pointer;
-    transition: color var(--duration-fast) var(--ease-out);
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      background-color var(--duration-base) var(--ease-out),
+      color var(--duration-fast) var(--ease-out);
 
     span {
-      overflow: hidden;
       max-width: 100%;
+      overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
@@ -61,19 +84,26 @@
     svg {
       transition: transform var(--duration-base) var(--ease-spring);
     }
-  }
 
-  .tabOn {
-    color: var(--color-accent);
-
-    // Aktiv bandning belgisi bir oz ko'tariladi — qaysi bo'limdaligi
-    // rangdan tashqari shakl bilan ham ko'rinsin
-    svg {
-      transform: translateY(-2px) scale(1.08);
+    &:active svg {
+      transform: scale(0.88);
     }
   }
 
-  /* ── "Yana" varag'i ─────────────────────────── */
+  .tabOn {
+    background-color: var(--color-accent-soft);
+    color: var(--color-accent);
+
+    // Aktiv band belgisi bir oz kattaroq — qaysi boʻlimdaligi rangdan
+    // tashqari SHAKL bilan ham koʻrinsin
+    svg {
+      transform: scale(1.06);
+    }
+  }
+
+  /* ── "Yana" varagʻi ───────────────────────────
+     U ham suzuvchi kartochka: kapsula ustida, xuddi shunday chetdan
+     koʻtarilgan holda turadi. */
   .overlay {
     position: fixed;
     z-index: calc(var(--z-tabbar) - 1);
@@ -86,31 +116,46 @@
   .sheet {
     position: fixed;
     z-index: var(--z-tabbar);
-    right: 0;
-    bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom, 0px));
-    left: 0;
+    right: var(--tabbar-inset);
+    bottom: calc(var(--tabbar-height) + var(--tabbar-inset) * 2 + env(safe-area-inset-bottom, 0px));
+    left: var(--tabbar-inset);
     display: flex;
     flex-direction: column;
-    gap: var(--gap-16);
-    max-height: 70vh;
+    gap: var(--gap-14);
+    max-height: 66vh;
+    max-height: 66dvh;
     padding: var(--padding-16);
-    border-top: 1px solid var(--color-border-secondary);
-    border-radius: var(--border-radius-16) var(--border-radius-16) 0 0;
-    background-color: var(--color-bg-surface);
-    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--color-glass-border);
+    border-radius: var(--border-radius-20);
+    background-color: var(--color-glass-bg);
+    backdrop-filter: blur(var(--blur-glass-strong)) saturate(var(--saturate-glass));
+    -webkit-backdrop-filter: blur(var(--blur-glass-strong)) saturate(var(--saturate-glass));
+    box-shadow:
+      var(--shadow-lg),
+      inset 0 1px 0 var(--color-glass-highlight);
     overflow-y: auto;
 
-    // Yopiq holatda pastga suriladi. `display: none` emas — shunda
-    // ochilish/yopilish animatsiyasi ikkala tomonga ham ishlaydi.
-    transform: translateY(101%);
+    // Yopiq holatda pastga suriladi va kichrayadi. `display: none` emas —
+    // shunda ochilish va yopilish animatsiyasi ikkala tomonga ishlaydi.
+    transform: translateY(12px) scale(0.97);
+    opacity: 0;
     visibility: hidden;
+    transform-origin: bottom center;
     transition:
-      transform var(--duration-base) var(--ease-out),
+      transform var(--duration-base) var(--ease-spring),
+      opacity var(--duration-fast) var(--ease-out),
       visibility var(--duration-base);
+  }
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .sheet {
+      background-color: var(--color-bg-surface);
+    }
   }
 
   .sheetOpen {
     transform: none;
+    opacity: 1;
     visibility: visible;
   }
 
@@ -125,7 +170,7 @@
   .sheetGroup {
     display: flex;
     flex-direction: column;
-    gap: var(--gap-2);
+    gap: 2px;
   }
 
   .sheetGroupTitle {
@@ -142,10 +187,12 @@
     align-items: center;
     gap: var(--gap-12);
     padding: var(--padding-12);
-    border-radius: var(--border-radius-8);
+    border-radius: var(--border-radius-12);
     color: var(--color-text-secondary);
     font-size: var(--font-size-14);
     font-weight: 500;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color var(--duration-fast) var(--ease-out);
 
     &:active {
       background-color: var(--color-bg-hover);
@@ -154,7 +201,7 @@
 
   .sheetItemOn {
     background-color: var(--color-accent-soft);
-    color: var(--color-text-primary);
+    color: var(--color-accent);
 
     svg {
       color: var(--color-accent);

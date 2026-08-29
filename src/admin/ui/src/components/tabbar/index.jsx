@@ -86,14 +86,14 @@ function Tabbar() {
       </div>
 
       <nav className={styles.wrapper} aria-label="Asosiy menyu">
-        {tabbarItems.map(({ path, label, icon: Icon }) => (
+        {tabbarItems.map(({ path, label, short, icon: Icon }) => (
           <NavLink
             key={path}
             to={path}
             className={({ isActive }) => `${styles.tab} ${isActive ? styles.tabOn : ""}`}
           >
             <Icon size={19} />
-            <span>{label}</span>
+            <span>{short || label}</span>
           </NavLink>
         ))}
 

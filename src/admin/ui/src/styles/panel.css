@@ -66,6 +66,29 @@ a {
   padding-left: var(--layout-gutter);
 }
 
+/**
+ * ── Sahifa bloklari orasidagi bo'shliq ────────
+ *
+ * BU YERDA BO'LISHI SHART, `.inner` da EMAS.
+ *
+ * Router har bir sahifani `.page-transition` div'iga o'raydi (fade-in
+ * animatsiyasi uchun). Ya'ni `.inner` ning YAGONA bolasi — o'sha div,
+ * va unga berilgan `gap` hech narsaga ta'sir qilmaydi: bo'shliq
+ * qo'yish uchun kamida ikkita qo'shni element kerak. Kartochkalar esa
+ * bir qavat ichkarida, o'ralgan div ichida turadi va ular orasida
+ * hech qanday oraliq qolmagandi — ekranda ular bir-biriga yopishib
+ * ko'rinardi, faqat soya ingichka chiziq bo'lib ajratib turardi.
+ *
+ * Qoida aynan o'ralgan div'ga berilsa, hamma sahifa birdaniga
+ * to'g'rilanadi va yangi sahifa yozganda buni takrorlash kerak
+ * bo'lmaydi.
+ */
+.page-transition {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-24);
+}
+
 /* ── Tugma ────────────────────────────────────
    Bosilganda 1px "cho'kadi" — tegish jismoniy his beradi. */
 .btn {

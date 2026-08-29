@@ -47,6 +47,7 @@
    balandligi + iPhone "home indicator" zaxirasi qo'shiladi. */
 @media (max-width: 1024px) {
   .content {
-    padding-bottom: calc(var(--tabbar-height) + var(--gap-24) + env(safe-area-inset-bottom, 0px));
+    // Suzuvchi kapsula + uning chetdagi masofasi (ikki tomondan) + havo
+    padding-bottom: calc(var(--tabbar-height) + var(--tabbar-inset) * 2 + var(--gap-16) + env(safe-area-inset-bottom, 0px));
   }
 }

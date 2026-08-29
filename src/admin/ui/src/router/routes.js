@@ -117,7 +117,7 @@ export const routes = [
     Component: DashboardPage,
     private: true,
     standalone: false,
-    nav: { label: "Boshqaruv paneli", icon: TbLayoutDashboard, group: "Kuzatuv" },
+    nav: { label: "Boshqaruv paneli", short: "Panel", icon: TbLayoutDashboard, group: "Kuzatuv" },
     tabbar: true,
   },
   {
@@ -127,7 +127,7 @@ export const routes = [
     Component: ChatsPage,
     private: true,
     standalone: false,
-    nav: { label: "Suhbatlar", icon: TbMessages, group: "Kuzatuv" },
+    nav: { label: "Suhbatlar", short: "Suhbat", icon: TbMessages, group: "Kuzatuv" },
     tabbar: true,
   },
 
@@ -149,7 +149,7 @@ export const routes = [
     Component: AssistantPage,
     private: true,
     standalone: false,
-    nav: { label: "Buyruq berish", icon: TbTerminal2, group: "Boshqaruv" },
+    nav: { label: "Buyruq berish", short: "Buyruq", icon: TbTerminal2, group: "Boshqaruv" },
     tabbar: true,
   },
   {
@@ -159,7 +159,7 @@ export const routes = [
     Component: TasksPage,
     private: true,
     standalone: false,
-    nav: { label: "Vazifalar", icon: TbListCheck, group: "Boshqaruv" },
+    nav: { label: "Vazifalar", short: "Vazifa", icon: TbListCheck, group: "Boshqaruv" },
     tabbar: true,
   },
   {
@@ -169,7 +169,7 @@ export const routes = [
     Component: ProjectsPage,
     private: true,
     standalone: false,
-    nav: { label: "Loyihalar", icon: TbStack2, group: "Boshqaruv" },
+    nav: { label: "Loyihalar", short: "Loyiha", icon: TbStack2, group: "Boshqaruv" },
     tabbar: true,
   },
   {
@@ -252,7 +252,13 @@ export const navGroups = routes
     return groups;
   }, []);
 
-/** Mobil tabbar uchun — eng ko'p ochiladigan bandlar. */
+/**
+ * Mobil kapsuladagi bandlar — eng ko'p ochiladigan BESHTASI.
+ *
+ * Beshtadan ko'pi sig'maydi: oltinchi band bilan birga har birining
+ * tegish maydoni 44px dan kichrayadi, ya'ni barmoq bilan aniq bosib
+ * bo'lmay qoladi. Qolgan bo'limlar "Yana" varag'ida.
+ */
 export const tabbarItems = routes
   .filter((r) => r.nav && r.tabbar)
   .map((r) => ({ path: r.path, ...r.nav }));

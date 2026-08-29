@@ -162,7 +162,12 @@
   --sidebar-width: 248px;
   --sidebar-width-collapsed: 72px;
   --navbar-height: 62px;
-  --tabbar-height: 60px;         /* Mobil pastki menyu — sidebar o'rnini bosadi */
+  /* Mobil pastki menyu — sidebar o'rnini bosadi. Ekran chetiga
+     yopishmaydi: "inset" uni har tomondan ko'taradi va u suzuvchi
+     kapsula bo'lib ko'rinadi (iOS 18 uslubi). */
+  --tabbar-height: 58px;
+  --tabbar-inset: 12px;          /* Kapsulaning ekran chetidan masofasi */
+  --tabbar-pad: 5px;             /* Kapsula ichidagi bandlar atrofidagi joy */
 
   --z-tabbar: 300;               /* Sticky'dan yuqori, modaldan past */
 
