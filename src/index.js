@@ -122,6 +122,9 @@ function startMaintenance() {
     setInterval(() => {
       if (shuttingDown) return;
       vacuumOld();
+      // Folders left behind by a delete that raced a still-running process.
+      projects.sweepOrphans();
+      require('./agent/shell').sweepSandboxes();
       // Forget chats the account has left since the last sweep.
       if (tg.isConnected()) ingest.pruneStaleChats().catch((err) => log.debug('prune failed', { error: err.message }));
       db.prepare("UPDATE api_keys SET status = 'active' WHERE status = 'active' AND cooldown_until > 0 AND cooldown_until <= ?").run(Date.now());

@@ -372,12 +372,42 @@ function restart(slug) {
   return new Promise((res) => setTimeout(() => res(start(slug)), 800));
 }
 
+/**
+ * Delete a project and its files.
+ *
+ * Windows keeps a handle on the working directory until the process it was
+ * running has fully exited, so deleting immediately after `stop()` failed with
+ * EPERM and left the folder behind. `retryDelay` lets the OS catch up.
+ */
 function remove(slug) {
   const s = String(slug);
   stop(s);
   db.prepare('DELETE FROM projects WHERE slug = ?').run(s);
-  fs.rmSync(dirOf(s), { recursive: true, force: true });
-  return { ok: true };
+  try {
+    fs.rmSync(dirOf(s), { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
+  } catch (err) {
+    log.warn('loyiha papkasini oʻchirib boʻlmadi — keyinroq tozalanadi', { slug: s, error: err.message });
+    return { ok: true, dirRemoved: false, note: 'Fayllar band edi; jarayon toʻxtagach tozalanadi.' };
+  }
+  return { ok: true, dirRemoved: true };
+}
+
+/** Sweep project folders whose database row is gone. */
+function sweepOrphans() {
+  if (!fs.existsSync(ROOT)) return 0;
+  const known = new Set(db.prepare('SELECT slug FROM projects').all().map((r) => r.slug));
+  let removed = 0;
+  for (const entry of fs.readdirSync(ROOT, { withFileTypes: true })) {
+    if (!entry.isDirectory() || known.has(entry.name)) continue;
+    try {
+      fs.rmSync(path.join(ROOT, entry.name), { recursive: true, force: true, maxRetries: 3, retryDelay: 300 });
+      removed++;
+    } catch {
+      /* still locked — next sweep will get it */
+    }
+  }
+  if (removed) log.info('egasiz loyiha papkalari tozalandi', { removed });
+  return removed;
 }
 
 function logs(slug, lines = 80) {
@@ -404,7 +434,7 @@ function stopAll() {
 }
 
 module.exports = {
-  ROOT, create, update, find, record, list, remove, slugify, dirOf, safePath, setDeployed, killStray,
+  ROOT, create, update, find, record, list, remove, sweepOrphans, slugify, dirOf, safePath, setDeployed, killStray,
   listFiles, readFile, writeFile, editFile, deleteFile, runCommand,
   start, stop, restart, logs, resumeAll, stopAll, envOf, setEnv,
 };
