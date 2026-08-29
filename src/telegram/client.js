@@ -10,6 +10,9 @@ const { createLogger } = require('../core/logger');
 
 const log = createLogger('telegram');
 
+/** Give up on an unscanned QR after this long so a fresh attempt can start. */
+const QR_MAX_WAIT_SEC = 240;
+
 /**
  * Wraps a GramJS MTProto user session.
  *
@@ -322,13 +325,38 @@ class TelegramService extends EventEmitter {
     return this.qrState();
   }
 
+  /**
+   * Current QR login state.
+   *
+   * GramJS refreshes the token every ~30 s while it waits, but if that loop
+   * dies — a dropped socket, a rejected promise nobody surfaced — the panel
+   * kept showing "waiting for QR" forever with a token that had long expired.
+   * A stale token is therefore reported as such, and after a few minutes with
+   * no scan the attempt is abandoned so a fresh one can start cleanly.
+   */
   qrState() {
+    const expiresInSec = this.qr.expires ? Math.max(0, Math.round((this.qr.expires - Date.now()) / 1000)) : 0;
+    const ageSec = this.qr.generatedAt ? Math.round((Date.now() - this.qr.generatedAt) / 1000) : 0;
+    const stale = this.status === 'awaiting_qr' && this.qr.url && expiresInSec === 0 && ageSec > 40;
+    const abandoned = this.status === 'awaiting_qr' && ageSec > QR_MAX_WAIT_SEC;
+
+    if (abandoned) {
+      log.warn('QR login javobsiz qoldi — bekor qilinmoqda', { ageSec });
+      this.cancelLogin().catch(() => {});
+      this.setStatus('disconnected', 'QR kod skanerlanmadi — qaytadan urinib koʻring');
+      return { status: this.status, url: null, expiresInSec: 0, generatedAt: 0, error: this.lastError, expired: true };
+    }
+
     return {
       status: this.status,
       url: this.qr.url,
-      expiresInSec: this.qr.expires ? Math.max(0, Math.round((this.qr.expires - Date.now()) / 1000)) : 0,
+      expiresInSec,
       generatedAt: this.qr.generatedAt,
+      ageSec,
+      stale: !!stale,
       error: this.lastError,
+      // The panel uses this to offer "try again" instead of spinning forever.
+      canRetry: this.status === 'awaiting_qr' || this.status === 'error' || this.status === 'disconnected',
     };
   }
 

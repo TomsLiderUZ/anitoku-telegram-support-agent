@@ -83,7 +83,24 @@ function looksDegenerate(s) {
 
 /** Reply text that asserts something was done. */
 const claimsAction = (s) =>
-  /(yubor(dim|ildi|aman|adi)|\byoz(dim|ildi)\b|jo['‘’ʻ]?nat(dim|ildi)|rejalashtir(dim|ildi)|eslat(aman|iladi)|yarat(dim|ildi)|bajar(dim|ildi)|o['‘’ʻ]?rnat(dim|ildi)|yangila(dim|ndi)|o['‘’ʻ]?chir(dim|ildi)|qo['‘’ʻ]?sh(dim|ildi)|tuzat(dim|ildi)|belgila(dim|ndi)|a['‘’ʻ]?zo\s*bo['‘’ʻ]?ldim|obuna\s*bo['‘’ʻ]?ldim|blokla(dim|ndi)|chiqar(dim|ildi)|bajarildi|отправ(ил|лено)|запланиров|sent|scheduled|created|done ✅)/i.test(String(s || ''));
+  /(yubor(dim|ildi|aman|adi)|\byoz(dim|ildi)\b|jo['‘’ʻ]?nat(dim|ildi)|rejalashtir(dim|ildi)|eslat(aman|iladi)|yarat(dim|ildi)|bajar(dim|ildi)|o['‘’ʻ]?rnat(dim|ildi)|yangila(dim|ndi)|o['‘’ʻ]?chir(dim|ildi)|qo['‘’ʻ]?sh(dim|ildi)|tuzat(dim|ildi)|belgila(dim|ndi)|a['‘’ʻ]?zo\s*bo['‘’ʻ]?ldim|obuna\s*bo['‘’ʻ]?ldim|blokla(dim|ndi)|chiqar(dim|ildi)|bajarildi|yetkazdim|tekshirildi|topilmadi|отправ(ил|лено)|запланиров|sent|scheduled|created|done ✅)/i.test(String(s || ''));
+
+/**
+ * A reply that describes the work instead of doing it.
+ *
+ * The weaker models answer "here are the steps: 1. mkdir -p anitoku-bot
+ * 2. touch bot.py …" and stop — the founder sees a tutorial where he asked for
+ * a bot. Shell snippets, numbered plans and "I will now begin" all mean the
+ * model narrated instead of calling a tool.
+ */
+const narratesInsteadOfActing = (s) => {
+  const t = String(s || '');
+  if (/```|^\s{3,}(mkdir|cd|touch|npm|node|python|rm|git|pm2|nano|echo)\s/m.test(t)) return true;
+  if (/\b(mkdir -p|rm -rf|cd \/var\/www|touch \w+\.(py|js))\b/.test(t)) return true;
+  if (/(quyidagi\s+(amallar|qadamlar|bosqichlar|adollar)|boshlanadi|boshlayman|reja\s*tuzaman|avval\s+reja)/i.test(t) && /^\s*\d[.)]/m.test(t)) return true;
+  // A numbered plan of three or more steps with nothing actually done.
+  return (t.match(/^\s*\d[.)]\s+\S/gm) || []).length >= 3 && /(qilaman|boshlayman|kerak boʻladi|kerak bo'ladi|tasdiqlang|tasdiqlaysizmi)/i.test(t);
+};
 
 /** Founder text that reads as a question, not an instruction. */
 const looksLikeQuestion = (s) => /\?\s*$|(^|\s)(nima|qanday|qachon|qayer|nechta|kim|bormi|mumkinmi|что|как|когда|what|how|when)\b/i.test(String(s || '').trim()) && !/(\byoz\b|yubor|qil\b|yarat|o['‘’ʻ]?chir|yangila|tuzat|qo['‘’ʻ]?sh)/i.test(String(s || ''));
@@ -164,6 +181,8 @@ You are not a chatbot that answers questions. You are an operator that gets work
 - WHEN HE SAYS "NOW" ("hozir", "tez", "darhol") — especially "write to my private chat NOW" — send_private is your FIRST tool call, before any other work. He is waiting for that message this second; delivering it after ten minutes of other work is a failure even if everything else succeeds. Send what you have immediately, then continue and send an update when the rest is done.
 - "ask X and tell me the answer" → send_message with wait_reply:true. The system watches for the reply and delivers it to his DM automatically. Do not promise to "keep checking" — trust it.
 - Distinguish QUESTIONS from ORDERS. "Who is X?", "did X reply?", "what groups am I in?" are questions: use read-only tools and never message anyone.
+- ANY question about what has happened — "did anyone write to me?", "any news?", "what did I miss?", "has X answered?" — MUST be answered from inbox_digest or read_chat. You do not remember other chats; guessing from memory is how you told him nobody had written minutes after someone had. Call the tool, then answer from what it returned.
+- When someone asks you to pass a message to Toms ("tell Toms that…"), actually send it to him with send_message to:"me". Telling the sender "I passed it on" without that call is a lie.
 - Groups/channels: create_chat (add users and admins in the SAME call when he says "create it and add me / make me admin"), promote_admin, ban_user, kick_user, list_members, join_chat, delete_chat (delete entirely — different from leave_chat).
 - Links: when Toms sends a channel/group invite link, join it with join_chat and report what is inside. When a bot demands forced subscription, join every required channel yourself, press the verify button, and continue the original task. Never tell Toms to subscribe himself.
 - Servers: he gives an IP and password in chat → ssh_connect with that raw text, then ssh for every command. Never ask him to open a panel.
@@ -302,11 +321,17 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
 
       const calls = out.toolCalls || [];
       if (!calls.length) {
-        if (!forcedTools && executor.used.length === 0 && claimsAction(out.content) && !looksLikeQuestion(text)) {
-          log.warn('model claimed an action without a tool call — forcing tools', { chatId, said: String(out.content).slice(0, 80) });
+        const narrated = narratesInsteadOfActing(out.content);
+        if (!forcedTools && executor.used.length === 0 && (narrated || claimsAction(out.content)) && !looksLikeQuestion(text)) {
+          log.warn('model narrated instead of acting — forcing tools', { chatId, narrated, said: String(out.content).slice(0, 90) });
           meta.forcedTools = true;
           forcedTools = true;
-          messages.push({ role: 'system', content: 'Sen "bajardim" deding, lekin hech qanday vosita chaqirmading — ish BAJARILMAGAN. Hozir kerakli vositani chaqir. Mos vosita boʻlmasa, "Bajarildi" dema — nima qila olmaganingni ayt.' });
+          messages.push({
+            role: 'system',
+            content: narrated
+              ? 'You described the work instead of doing it. Shell commands or a numbered plan written as chat text accomplish NOTHING — he asked for the result, not instructions. Call the tool that actually performs this now (build_site, build_and_run_bot, code_task, bash, ssh, …). Never paste commands for him to run himself.'
+              : 'You said it was done, but you called no tool — so nothing happened. Call the tool that performs it now. If no tool fits, say plainly what you could not do.',
+          });
           continue;
         }
         if (forcedTools && executor.used.length === 0) forcedFailed = true;
