@@ -2,11 +2,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   TbAlertCircle,
   TbArrowLeft,
+  TbAt,
+  TbCheck,
+  TbClock,
+  TbCopy,
+  TbFileDescription,
+  TbHash,
   TbInfoCircle,
+  TbLink,
   TbMessage2,
+  TbPhone,
   TbRefresh,
   TbSearch,
   TbSend,
+  TbShieldCheck,
   TbUsers,
   TbX,
 } from "react-icons/tb";
@@ -16,6 +25,7 @@ import { ENDPOINTS } from "../../api/endpoints";
 import { Badge, Card, Empty, ErrorBox, Loading, Modal, PageHead } from "../../components/ui";
 import { ago, num, time } from "../../utils/format";
 import { linkify } from "../../utils/linkify";
+import { useIsNarrowLayout } from "../../utils/useMediaQuery";
 
 /**
  * Suhbatlar — Telegram Desktop kabi ikki panel, panel dizaynida.
@@ -83,6 +93,19 @@ export default function Chats() {
   const [memberQuery, setMemberQuery] = useState("");
 
   const feedRef = useRef(null);
+
+  /**
+   * Telefonda ikki panel BIR VAQTDA turmaydi — biri ikkinchisining
+   * o'rnini oladi.
+   *
+   * Ilgari ikkalasi ham chizilib, biri CSS bilan chetga surilardi.
+   * Lekin ko'rinmas panel ham DOM da qolgani uchun ikkalasi bir-birining
+   * ustiga tushib, ro'yxat qatorlari xabarlar orasidan ko'rinib turardi.
+   * Endi qaysi biri kerak bo'lsa, faqat o'sha chiziladi.
+   */
+  const narrow = useIsNarrowLayout();
+  const showList = !narrow || !sel;
+  const showPane = !narrow || Boolean(sel);
 
   const load = useCallback(async (silent = false) => {
     try {
@@ -244,12 +267,11 @@ export default function Chats() {
         </Card>
       )}
 
-      {/*
-        Bitta kapsula, ichida ikki panel. `data-open` — mobil uchun:
-        chat tanlanganda roʻyxat chapga chiqib, yozishma oʻrnini oladi.
-      */}
-      <div className={styles.shell} data-open={sel ? "chat" : "list"}>
+      {/* Bitta kapsula, ichida panellar. Keng ekranda ikkalasi yonma-yon;
+          torida faqat bittasi chiziladi — qaysi biri kerak boʻlsa oʻsha. */}
+      <div className={styles.shell}>
         {/* ── Chapdagi roʻyxat ──────────────────────────────────── */}
+        {showList && (
         <aside className={styles.list}>
           <div className={styles.listHead}>
             <label className={styles.search}>
@@ -310,8 +332,10 @@ export default function Chats() {
             )}
           </div>
         </aside>
+        )}
 
         {/* ── Oʻngdagi yozishma ─────────────────────────────────── */}
+        {showPane && (
         <section className={styles.pane}>
           {sel ? (
             <>
@@ -457,6 +481,7 @@ export default function Chats() {
             </div>
           )}
         </section>
+        )}
       </div>
 
       {/* ── Chat maʼlumotlari va aʼzolar ───────────────────────── */}
@@ -473,54 +498,72 @@ export default function Chats() {
 
         {!infoLoading && info?.info && !info.info.error && (
           <>
-            <div className={styles.infoTop}>
+            {/* Telegramdagi kabi: katta avatar markazda, ostida nom va
+                bitta qatorlik xulosa — "16 aʼzo, 2 onlayn". */}
+            <div className={styles.hero}>
               <span
-                className={`${styles.avatar} ${styles.avatarLg}`}
+                className={`${styles.avatar} ${styles.avatarXl}`}
                 data-tone={toneOf(info.info.title || sel?.tg_chat_id)}
                 aria-hidden="true"
               >
                 {initials(info.info.title || sel?.tg_chat_id)}
               </span>
-              <div className={styles.infoName}>
-                <strong>{info.info.title || "—"}</strong>
-                <span className="hint">
-                  {KIND_LABEL[info.info.kind] || info.info.kind}
-                  {info.info.bot ? " · bot" : ""}
-                </span>
-              </div>
+              <h3 className={styles.heroName}>{info.info.title || "—"}</h3>
+              <p className={styles.heroSub}>{subtitleOf(info.info)}</p>
             </div>
 
-            {info.info.about && <p className={styles.about}>{linkify(info.info.about)}</p>}
-
-            <dl className={styles.facts}>
-              <Fact label="ID" value={info.info.id} mono />
-              <Fact
+            {/* Har bir qator: chapda belgi, oʻngda qiymat va uning ostida
+                nima ekani. Qiymat tepada — koʻz avval unga tushadi. */}
+            <div className={styles.rows}>
+              <InfoRow
+                icon={TbAt}
                 label="Username"
                 value={info.info.username ? `@${info.info.username}` : null}
                 href={info.info.link}
+                copy={info.info.username ? `@${info.info.username}` : null}
               />
-              <Fact label="Telefon" value={info.info.phone} />
-              <Fact label="Aʼzolar" value={info.info.members ? num(info.info.members) : null} />
-              <Fact label="Onlayn" value={info.info.online ? num(info.info.online) : null} />
-              <Fact label="Adminlar" value={info.info.admins ? num(info.info.admins) : null} />
-              <Fact label="Havola" value={info.info.inviteLink} href={info.info.inviteLink} />
-              <Fact
+              <InfoRow
+                icon={TbPhone}
+                label="Telefon"
+                value={info.info.phone ? `+${String(info.info.phone).replace(/^\+/, "")}` : null}
+                copy={info.info.phone}
+              />
+              <InfoRow icon={TbFileDescription} label="Tavsif" value={info.info.about} wrap />
+              <InfoRow
+                icon={TbLink}
+                label="Taklif havolasi"
+                value={info.info.inviteLink}
+                href={info.info.inviteLink}
+                copy={info.info.inviteLink}
+              />
+              <InfoRow
+                icon={TbShieldCheck}
                 label="Mening huquqlarim"
                 value={
                   info.info.iAmCreator
-                    ? "yaratuvchi"
+                    ? "Yaratuvchi"
                     : info.info.myAdminRights?.length
                       ? info.info.myAdminRights.join(", ")
                       : null
                 }
+                wrap
               />
-              <Fact label="Bizdagi javoblar" value={num(sel?.replies_count || 0)} />
-              <Fact label="Oxirgi xabar" value={sel?.last_at ? ago(sel.last_at) : null} />
-            </dl>
+              <InfoRow icon={TbHash} label="Chat ID" value={info.info.id} copy={info.info.id} mono />
+              <InfoRow
+                icon={TbMessage2}
+                label="Agent yozgan javoblar"
+                value={sel?.replies_count ? num(sel.replies_count) : null}
+              />
+              <InfoRow
+                icon={TbClock}
+                label="Oxirgi xabar"
+                value={sel?.last_at ? ago(sel.last_at) : null}
+              />
+            </div>
 
             {/* ── Aʼzolar ────────────────────────────────────── */}
             {info.members?.error && (
-              <p className="hint" style={{ marginTop: "var(--gap-12)" }}>
+              <p className={styles.membersError}>
                 Aʼzolar roʻyxati olinmadi: {info.members.error}
               </p>
             )}
@@ -528,15 +571,14 @@ export default function Chats() {
             {members.length > 0 && (
               <div className={styles.membersBox}>
                 <div className={styles.membersHead}>
-                  <TbUsers size={15} />
-                  <strong>Aʼzolar</strong>
-                  <Badge>{num(members.length)}</Badge>
+                  <TbUsers size={16} />
+                  <strong>{num(members.length)} aʼzo</strong>
                   <span className="spacer" />
                   <input
                     type="search"
                     value={memberQuery}
                     onChange={(e) => setMemberQuery(e.target.value)}
-                    placeholder="Aʼzo qidirish…"
+                    placeholder="Qidirish…"
                     className={styles.memberSearch}
                   />
                 </div>
@@ -548,20 +590,22 @@ export default function Chats() {
                         <span className={styles.avatar} data-tone={toneOf(m.name || m.id)} aria-hidden="true">
                           {initials(m.name || m.username || "?")}
                         </span>
+
                         <span className={styles.memberBody}>
-                          <span className={styles.memberName}>
-                            {m.name || m.username || m.id}
-                            {m.bot && <Badge>bot</Badge>}
-                            {m.role !== "member" && (
-                              <Badge tone={m.role === "creator" ? "ok" : "info"}>
-                                {m.role === "creator" ? "yaratuvchi" : m.rank || "admin"}
-                              </Badge>
-                            )}
-                          </span>
-                          <span className="hint mono">
+                          <span className={styles.memberName}>{m.name || m.username || m.id}</span>
+                          <span className={styles.memberSub}>
                             {m.username ? `@${m.username}` : `ID ${m.id}`}
                           </span>
                         </span>
+
+                        {/* Rol oʻngda — Telegramda ham shunday, va
+                            "member" yozilmaydi: u sukut boʻyicha holat. */}
+                        {m.bot && <Badge>bot</Badge>}
+                        {m.role !== "member" && (
+                          <Badge tone={m.role === "creator" ? "ok" : "info"}>
+                            {m.role === "creator" ? "yaratuvchi" : m.rank || "admin"}
+                          </Badge>
+                        )}
                       </div>
                     ))
                   ) : (
@@ -580,22 +624,73 @@ export default function Chats() {
 /** Chat turi — texnik nom emas, odam o'qiydigan so'z. */
 const KIND_LABEL = { user: "shaxsiy chat", group: "guruh", channel: "kanal" };
 
-/** Bitta ma'lumot qatori. Qiymati yo'q bo'lsa UMUMAN chizilmaydi —
- *  "Telefon: —" qatori hech narsa aytmaydi, faqat joy egallaydi. */
-function Fact({ label, value, href, mono = false }) {
+/**
+ * Avatar ostidagi bitta qator: "16 aʼzo, 2 onlayn" yoki "shaxsiy chat".
+ *
+ * Telegramda aynan shu joyda eng muhim son turadi — guruh qanchalik
+ * katta, nechtasi hozir shu yerda. Shaxsiy chatda esa bunday son yoʻq,
+ * shuning uchun u yerda turi yoziladi.
+ */
+function subtitleOf(info) {
+  if (info.kind === "user") return info.bot ? "bot" : "shaxsiy chat";
+  const parts = [];
+  if (info.members) parts.push(`${num(info.members)} aʼzo`);
+  if (info.online) parts.push(`${num(info.online)} onlayn`);
+  if (!parts.length) parts.push(KIND_LABEL[info.kind] || info.kind);
+  return parts.join(", ");
+}
+
+/**
+ * Ma'lumot qatori: belgi, qiymat, uning ostida nima ekani.
+ *
+ * Qiymati yo'q bo'lsa qator UMUMAN chizilmaydi. "Telefon: —" hech
+ * narsa aytmaydi, faqat joy egallaydi va ko'zni chalg'itadi.
+ */
+function InfoRow({ icon: Icon, label, value, href, copy, mono = false, wrap = false }) {
+  const [copied, setCopied] = useState(false);
   if (!value) return null;
+
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(String(copy));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard https siz yoki ruxsatsiz ishlamaydi — tugma
+      // shunchaki hech narsa qilmaydi, xato koʻrsatilmaydi.
+    }
+  };
+
   return (
-    <>
-      <dt>{label}</dt>
-      <dd className={mono ? "mono" : ""}>
-        {href ? (
-          <a href={href} target="_blank" rel="noopener noreferrer" className="link">
-            {value}
-          </a>
-        ) : (
-          value
-        )}
-      </dd>
-    </>
+    <div className={styles.row}>
+      <Icon size={19} className={styles.rowIcon} />
+
+      <div className={styles.rowBody}>
+        <div className={`${styles.rowValue} ${mono ? "mono" : ""} ${wrap ? styles.rowWrap : ""}`}>
+          {href ? (
+            <a href={href} target="_blank" rel="noopener noreferrer" className="link">
+              {value}
+            </a>
+          ) : wrap ? (
+            linkify(value)
+          ) : (
+            value
+          )}
+        </div>
+        <div className={styles.rowLabel}>{label}</div>
+      </div>
+
+      {copy && (
+        <button
+          type="button"
+          className={styles.copyBtn}
+          onClick={onCopy}
+          aria-label="Nusxa olish"
+          title="Nusxa olish"
+        >
+          {copied ? <TbCheck size={15} /> : <TbCopy size={15} />}
+        </button>
+      )}
+    </div>
   );
 }

@@ -10,6 +10,19 @@
 .shell {
   display: grid;
   grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  /* SCROLL SHU YERDAN BOSHLANADI.
+
+     Grid elementining standart eng kichik balandligi "auto" — ya'ni u
+     o'z kontentidan kichrayishdan bosh tortadi. Qator balandligi
+     belgilanmagani uchun ro'yxat ham, yozishma ham kontentiga qarab
+     cho'zilib ketardi va ichkaridagi "overflow: auto" hech qachon
+     chegara olmasdi: hech narsa surilmasdi, pastdagi "overflow: hidden"
+     esa ortiqchasini shunchaki kesib tashlardi.
+
+     minmax(0, 1fr) qatorni ekranga bog'laydi, elementlardagi
+     "min-height: 0" esa ularga kichrayishga ruxsat beradi. Ikkalasi
+     birga kerak — bittasi yetmaydi. */
+  grid-template-rows: minmax(0, 1fr);
   // Ekran balandligi bo'yicha: navbar, footer va bo'shliqlar chiqarib
   // tashlanadi. Yozishma qancha baland bo'lsa, shuncha foydali.
   height: calc(100vh - var(--navbar-height) - 150px);
@@ -27,6 +40,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;          // usiz ichkaridagi ro'yxat surilmaydi
   border-right: 1px solid var(--color-border-secondary);
   background-color: var(--color-bg-secondary);
 }
@@ -209,6 +223,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;          // usiz yozishma surilmaydi
 }
 
 .paneHead {
@@ -410,47 +425,28 @@
    vaqtinchalik oyna uchun, bu esa siz kirgan ikkinchi ekran. */
 @media (max-width: 900px) {
   .shell {
+    // Bitta ustun, bitta qator — ichida faqat BITTA panel bo'ladi
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr);
     height: calc(100dvh - var(--navbar-height) - var(--tabbar-height) - 110px);
     min-height: 380px;
   }
 
-  .list,
-  .pane {
-    // Ikkalasi ham BIR XIL katakda — biri ikkinchisining ustida
-    grid-area: 1 / 1;
-    min-width: 0;
-    background-color: var(--color-bg-surface);
-  }
-
   .list {
     border-right: none;
   }
 
+  /* Yozishma o'ngdan surilib kiradi — "ichkariga kirdim" degan his
+     beradi. Endi bu FAQAT paydo bo'lish animatsiyasi: ro'yxat bu
+     paytda DOM da ham yo'q, shuning uchun ular bir-birining ustiga
+     tusha olmaydi. */
   .pane {
-    // Yopiq holatda o'ngda turadi va ko'rinmaydi
-    transform: translateX(100%);
-    visibility: hidden;
-    transition:
-      transform var(--duration-base) var(--ease-out),
-      visibility var(--duration-base);
+    animation: pane-in var(--duration-base) var(--ease-out) both;
   }
 
-  .shell[data-open="chat"] {
-    .pane {
-      transform: none;
-      visibility: visible;
-    }
-
-    // Ro'yxat sal chapga suriladi — ikki qatlam ekani sezilsin
-    .list {
-      transform: translateX(-18%);
-    }
-  }
-
-  .list {
-    transition: transform var(--duration-base) var(--ease-out);
+  @keyframes pane-in {
+    from { opacity: 0; transform: translateX(24px); }
+    to   { opacity: 1; transform: none; }
   }
 
   .back {
@@ -559,77 +555,131 @@
   }
 }
 
-/* ── Chat ma'lumotlari ──────────────────────── */
-.infoTop {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-12);
-  padding-bottom: var(--gap-14);
-  border-bottom: 1px solid var(--color-border-secondary);
-}
+/* ══════════════════════════════════════════════
+   Chat ma'lumotlari — Telegram ko'rinishi
+   ══════════════════════════════════════════════ */
 
-.avatarLg {
-  width: 54px;
-  height: 54px;
-  font-size: var(--font-size-16);
-}
-
-.infoName {
+/* Katta avatar markazda, ostida nom va bitta qatorlik xulosa.
+   Telegramda diqqat avval "bu kim/nima" ga tushadi, tafsilot esa
+   ostida — shuning uchun bu blok markazlashtirilgan va kattaroq. */
+.hero {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-
-  strong {
-    color: var(--color-text-primary);
-    font-size: var(--font-size-16);
-    word-break: break-word;
-  }
+  align-items: center;
+  gap: var(--gap-8);
+  padding-bottom: var(--gap-20);
+  text-align: center;
 }
 
-.about {
-  margin: var(--gap-14) 0 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-13);
-  line-height: 1.6;
-  white-space: pre-wrap;
+.avatarXl {
+  width: 76px;
+  height: 76px;
+  font-size: var(--font-size-26);
+  font-weight: 700;
+}
+
+.heroName {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-18);
+  font-weight: 600;
+  line-height: 1.25;
   word-break: break-word;
 }
 
-/* Nom-qiymat ro'yxati: chapda yorliq, o'ngda qiymat. Ikki ustunli
-   grid — qiymatlar bir vertikal chiziqda tekislanadi. */
-.facts {
-  display: grid;
-  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
-  gap: var(--gap-6) var(--gap-16);
-  margin: var(--gap-14) 0 0;
+.heroSub {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-13);
+}
 
-  dt {
-    color: var(--color-text-muted);
-    font-size: var(--font-size-12);
-    white-space: nowrap;
+/* ── Ma'lumot qatorlari ─────────────────────── */
+.rows {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--color-border-secondary);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-14);
+  padding: var(--padding-10) var(--padding-6);
+  border-bottom: 1px solid var(--color-border-secondary);
+  transition: background-color var(--duration-fast) var(--ease-out);
+
+  &:hover {
+    background-color: var(--color-bg-hover);
   }
 
-  dd {
-    margin: 0;
-    color: var(--color-text-primary);
-    font-size: var(--font-size-13);
-    word-break: break-word;
+  &:last-child {
+    border-bottom: none;
   }
 }
 
-@media (max-width: 400px) {
-  .facts {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0 0;
+.rowIcon {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
 
-    dd {
-      margin-bottom: var(--gap-8);
-    }
+.rowBody {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+/* Qiymat TEPADA, nomi ostida — Telegramdagi tartib. Ko'z avval
+   kerakli narsani ko'radi, "Username" so'zini emas. */
+.rowValue {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-14);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Tavsif va huquqlar uzun bo'ladi — ular o'raladi */
+.rowWrap {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow: visible;
+  line-height: 1.55;
+}
+
+.rowLabel {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-12);
+}
+
+.copyBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--border-radius-circle);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+
+  &:hover {
+    background-color: var(--color-bg-secondary);
+    color: var(--color-accent);
   }
 }
 
 /* ── A'zolar ────────────────────────────────── */
+.membersError {
+  margin-top: var(--gap-14);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-12);
+}
+
 .membersBox {
   margin-top: var(--gap-16);
   padding-top: var(--gap-14);
@@ -643,29 +693,34 @@
   flex-wrap: wrap;
   margin-bottom: var(--gap-10);
   color: var(--color-text-primary);
-  font-size: var(--font-size-13);
+  font-size: var(--font-size-14);
+
+  svg {
+    color: var(--color-text-muted);
+  }
 }
 
 .memberSearch {
-  width: 180px;
+  width: 170px;
   max-width: 100%;
   padding: var(--padding-6-10);
   border-radius: var(--border-radius-pill);
+  font-size: var(--font-size-13);
 }
 
 .members {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  max-height: 320px;
+  gap: 1px;
+  max-height: 340px;
   overflow-y: auto;
 }
 
 .member {
   display: flex;
   align-items: center;
-  gap: var(--gap-10);
-  padding: var(--padding-6) var(--padding-8);
+  gap: var(--gap-12);
+  padding: var(--padding-6) var(--padding-6);
   border-radius: var(--border-radius-8);
 
   &:hover {
@@ -673,9 +728,9 @@
   }
 
   .avatar {
-    width: 30px;
-    height: 30px;
-    font-size: 10px;
+    width: 36px;
+    height: 36px;
+    font-size: var(--font-size-11);
   }
 }
 
@@ -688,11 +743,30 @@
 }
 
 .memberName {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-6);
-  flex-wrap: wrap;
   color: var(--color-text-primary);
-  font-size: var(--font-size-13);
-  word-break: break-word;
+  font-size: var(--font-size-14);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memberSub {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-12);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 400px) {
+  .avatarXl {
+    width: 64px;
+    height: 64px;
+    font-size: var(--font-size-22);
+  }
+
+  // Qidiruv maydoni sarlavha bilan bir qatorga sig'maydi — ostiga tushadi
+  .memberSearch {
+    width: var(--width-100-percent);
+  }
 }
