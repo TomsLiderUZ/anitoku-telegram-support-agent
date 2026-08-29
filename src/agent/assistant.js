@@ -48,6 +48,39 @@ function stripToolMarkup(s) {
     .trim();
 }
 
+/**
+ * Has the model fallen into a repetition loop?
+ *
+ * One reply to the founder degenerated into "Qoidaga rioya etish uchun:"
+ * hundreds of times, then into broken syllables ("Qo da ga riya eti sh"), and
+ * the whole wall of text was posted into a group. Nothing downstream caught
+ * it, so it is caught here: a sane answer does not repeat one phrase a dozen
+ * times, and does not run to thousands of characters of near-identical lines.
+ */
+function looksDegenerate(s) {
+  const t = String(s || '').trim();
+  if (!t) return false;
+
+  // The same 12+ character phrase over and over.
+  const phrase = t.match(/(.{12,60}?)\1{3,}/s);
+  if (phrase) return true;
+
+  // Long runs of filler: dots, dashes or emoji taking over the message.
+  if (/([.\-—_·]\s*){40,}/.test(t)) return true;
+  const emoji = (t.match(/\p{Extended_Pictographic}/gu) || []).length;
+  if (emoji > 25 && emoji > t.replace(/\s/g, '').length / 6) return true;
+
+  // Very repetitive vocabulary over a long message.
+  if (t.length > 700) {
+    const words = t.toLowerCase().match(/[\p{L}\p{N}']{3,}/gu) || [];
+    if (words.length > 60) {
+      const unique = new Set(words).size;
+      if (unique / words.length < 0.18) return true;
+    }
+  }
+  return false;
+}
+
 /** Reply text that asserts something was done. */
 const claimsAction = (s) =>
   /(yubor(dim|ildi|aman|adi)|\byoz(dim|ildi)\b|jo['‘’ʻ]?nat(dim|ildi)|rejalashtir(dim|ildi)|eslat(aman|iladi)|yarat(dim|ildi)|bajar(dim|ildi)|o['‘’ʻ]?rnat(dim|ildi)|yangila(dim|ndi)|o['‘’ʻ]?chir(dim|ildi)|qo['‘’ʻ]?sh(dim|ildi)|tuzat(dim|ildi)|belgila(dim|ndi)|a['‘’ʻ]?zo\s*bo['‘’ʻ]?ldim|obuna\s*bo['‘’ʻ]?ldim|blokla(dim|ndi)|chiqar(dim|ildi)|bajarildi|отправ(ил|лено)|запланиров|sent|scheduled|created|done ✅)/i.test(String(s || ''));
@@ -97,7 +130,7 @@ const GREETING_PREAMBLE = /^\s*(?:assalomu\s+alaykum|va\s+alaykum\s+assalom|salo
  * restrictions — the founder is allowed to know the launch date, share their
  * own links, and direct the account to act on their behalf.
  */
-function systemPrompt({ chatType, chatTitle, factsBlock, summaryBlock, founderDm }) {
+function systemPrompt({ chatType, chatTitle, factsBlock, summaryBlock, founderDm, chatId }) {
   const handle = String(settings.get('founder_username', 'itz_toms')).replace(/^@/, '');
   const founderIds = String(settings.get('founder_ids', '')).split(/[,\s]+/).filter(Boolean);
   const privateAlways = settings.bool('founder_private_replies', false);
@@ -149,7 +182,8 @@ ${factsBlock ? `\n# MEMORY (facts Toms told you)\n${factsBlock}` : ''}
 ${summaryBlock ? `\n# EARLIER IN THIS CHAT\n${summaryBlock}` : ''}
 
 # CONTEXT
-Chat: ${chatType === 'private' ? "Toms's private chat" : `group "${chatTitle || ''}" — other people can read your replies`}.
+Chat: ${chatType === 'private' ? "Toms's private chat" : `group "${chatTitle || ''}" — other people can read your replies`}. Chat id: ${chatId}.
+"this group", "here", "shu guruhga", "shu yerga" all mean THIS chat — you are already in it, so never ask for its link or @username. Pass "here" as the chat/to argument.
 Current time (Tashkent): ${now}`;
 }
 
@@ -187,7 +221,7 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
   } catch {
     /* best effort */
   }
-  const messages = [{ role: 'system', content: systemPrompt({ chatType, chatTitle, factsBlock, summaryBlock, founderDm }) }];
+  const messages = [{ role: 'system', content: systemPrompt({ chatType, chatTitle, factsBlock, summaryBlock, founderDm, chatId }) }];
 
   // History is context, not a backlog. Without this separator the model
   // treated older unanswered turns as live orders and re-ran them — a request
@@ -227,7 +261,7 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
 
   // 3. Tool loop. `toolChoice` is escalated to 'required' when the model
   // claims to have acted but made no call.
-  const executor = assistantTools.createExecutor({ chatId, msgId, text, founderDm, chatType });
+  const executor = assistantTools.createExecutor({ chatId, msgId, text, founderDm, chatType, chatTitle });
   // Only the tools this request could plausibly need: all ~77 schemas at once
   // pushed the request past provider token limits and diluted the model's
   // attention. `bash` is always in the set, so nothing is truly out of reach.
@@ -293,6 +327,15 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
     } else {
       return { ok: false, error: err.message, silent: true, meta };
     }
+  }
+
+  if (looksDegenerate(reply)) {
+    // Never send a repetition loop to a human. What the tools actually did is
+    // the only trustworthy thing left in the turn.
+    log.warn('degenerate reply suppressed', { chatId, model: meta.model, chars: reply.length });
+    recordEvent('assistant', 'Degenerate reply suppressed', { chatId, model: meta.model, chars: reply.length }, 'warn');
+    meta.degenerate = true;
+    reply = meta.toolsUsed.length ? `Bajarildi ✅ (${[...new Set(meta.toolsUsed)].join(', ')})` : 'Kechirasiz, Toms aka — javobim buzilib ketdi. Qaytadan ayting.';
   }
 
   if (looksLikeToolMarkup(reply)) {

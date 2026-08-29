@@ -198,6 +198,13 @@ const isReadOnlyQuestion = (text) => {
 
 const SELF_REF = /^(me|men|menga|o['‘’ʻ]?zim(ga)?|toms|toms\s*aka|rahbar|мне|себе|my\s*private|shaxsiy|shaxsiy\s*chat(im)?(ga)?|lichka(m)?(ga)?)$/i;
 
+/**
+ * "This group", "here", "this chat" — the conversation the instruction was
+ * given in. Without this the agent kept asking for a link to a group it was
+ * already sitting in, and "write /join to this group" went nowhere.
+ */
+const HERE_REF = /^(here|shu\s*(guruh|chat|yer)(ga|da)?|bu\s*(guruh|chat)(ga)?|shu\s*yerga|hozirgi\s*(guruh|chat)|current\s*chat|сюда|этот\s*чат)$/i;
+
 /** Tools whose results are secrets — in a group they go to the founder's DM verbatim. */
 const SECRET_TOOLS = new Set(['get_bot_token', 'revoke_bot_token', 'my_bots', 'create_bot', 'ssh_public_key', 'invite_link', 'list_members', 'create_chat', 'chat_info']);
 
@@ -237,9 +244,13 @@ function createExecutor(ctx) {
   async function sendTo(to, text, { wait = false, note = null } = {}) {
     let target;
     let name;
-    if (SELF_REF.test(String(to || '').trim()) && founderDm) {
+    const ref = String(to || '').trim();
+    if (SELF_REF.test(ref) && founderDm) {
       target = await tg.resolveEntity(founderDm);
       name = 'Toms (shaxsiy chat)';
+    } else if (HERE_REF.test(ref) && ctx.chatId) {
+      target = await tg.resolveEntity(ctx.chatId);
+      name = ctx.chatTitle || 'shu chat';
     } else {
       const r = await contacts.resolve(to);
       target = r.entity;
@@ -256,6 +267,9 @@ function createExecutor(ctx) {
     }
     return out;
   }
+
+  /** Resolve a chat reference, understanding 'here' and 'me'. */
+  const chatRef = (r) => (HERE_REF.test(String(r || '').trim()) && ctx.chatId ? ctx.chatId : SELF_REF.test(String(r || '').trim()) && founderDm ? founderDm : r);
 
   const projectOf = (ref) => {
     const p = projects.find(ref);
@@ -293,7 +307,7 @@ function createExecutor(ctx) {
         return { ...r, deliveredNow: true };
       }
       case 'delete_message':
-        return telegramOps.deleteMessages(args.chat, args.message_ids || null);
+        return telegramOps.deleteMessages(chatRef(args.chat), args.message_ids || null);
       case 'watch_reply': {
         const r = await contacts.resolve(args.chat);
         const last = await tg.client.getMessages(r.entity, { limit: 1 });
@@ -364,9 +378,9 @@ function createExecutor(ctx) {
       case 'join_chat':
         return telegramOps.joinChat(args.link);
       case 'leave_chat':
-        return telegramOps.leaveChat(args.chat);
+        return telegramOps.leaveChat(chatRef(args.chat));
       case 'delete_chat':
-        return telegramOps.deleteChat(args.chat);
+        return telegramOps.deleteChat(chatRef(args.chat));
       case 'inbox_digest':
         return telegramOps.inboxDigest({ hours: Math.min(168, Number(args.hours) || 24) });
       case 'create_chat':
@@ -385,27 +399,27 @@ function createExecutor(ctx) {
           return { ok: false, error: err.message, chat: err.chat || null };
         }
       case 'chat_info':
-        return telegramOps.chatInfo(args.chat);
+        return telegramOps.chatInfo(chatRef(args.chat));
       case 'list_members':
-        return telegramOps.listMembers(args.chat, { query: args.query || '', admins: !!args.admins_only, limit: Number(args.limit) || 200 });
+        return telegramOps.listMembers(chatRef(args.chat), { query: args.query || '', admins: !!args.admins_only, limit: Number(args.limit) || 200 });
       case 'promote_admin':
-        return telegramOps.promoteAdmin(args.chat, SELF_REF.test(args.user) ? founderDm : args.user, { rank: args.rank || 'admin' });
+        return telegramOps.promoteAdmin(chatRef(args.chat), SELF_REF.test(args.user) ? founderDm : args.user, { rank: args.rank || 'admin' });
       case 'demote_admin':
-        return telegramOps.demoteAdmin(args.chat, args.user);
+        return telegramOps.demoteAdmin(chatRef(args.chat), args.user);
       case 'ban_user':
-        return telegramOps.removeUser(args.chat, args.user, { ban: true });
+        return telegramOps.removeUser(chatRef(args.chat), args.user, { ban: true });
       case 'kick_user':
-        return telegramOps.removeUser(args.chat, args.user, { ban: false });
+        return telegramOps.removeUser(chatRef(args.chat), args.user, { ban: false });
       case 'unban_user':
-        return telegramOps.unbanUser(args.chat, args.user);
+        return telegramOps.unbanUser(chatRef(args.chat), args.user);
       case 'add_members':
-        return telegramOps.addMembers(args.chat, (args.users || []).map((u) => (SELF_REF.test(u) ? founderDm : u)));
+        return telegramOps.addMembers(chatRef(args.chat), (args.users || []).map((u) => (SELF_REF.test(u) ? founderDm : u)));
       case 'invite_link':
-        return { ok: true, link: await telegramOps.inviteLink(args.chat) };
+        return { ok: true, link: await telegramOps.inviteLink(chatRef(args.chat)) };
       case 'edit_chat':
-        return telegramOps.editChat(args.chat, { title: args.title || null, about: args.about ?? null });
+        return telegramOps.editChat(chatRef(args.chat), { title: args.title || null, about: args.about ?? null });
       case 'pin_message':
-        return telegramOps.pinMessage(args.chat, args.message_id);
+        return telegramOps.pinMessage(chatRef(args.chat), args.message_id);
       case 'my_chats':
         return { chats: await telegramOps.myChats({ kind: args.kind || null }) };
 

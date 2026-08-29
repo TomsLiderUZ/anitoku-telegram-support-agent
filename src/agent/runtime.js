@@ -117,6 +117,16 @@ class Runtime extends EventEmitter {
     // "the agent ignored me" is the one failure mode that must not exist.
     if (isFounder) {
       if (!text) return;
+      // "/start@some_other_bot" is addressed to that bot, not to us. Answering
+      // it made the agent butt into the founder's game with another bot — and
+      // he had to tell it to stop.
+      const selfUser = (tg.me && tg.me.username) || '';
+      const addressedElsewhere = text.match(/^\/[a-z0-9_]+@([a-z0-9_]+)/i);
+      if (addressedElsewhere && addressedElsewhere[1].toLowerCase() !== selfUser.toLowerCase()) {
+        log.debug('skip: command addressed to another bot', { chatId, bot: addressedElsewhere[1] });
+        return;
+      }
+
       this.enqueue({
         chatId, text, chatTitle, chatType, userName, senderId, senderUsername,
         msgId: Number(msg.id),
