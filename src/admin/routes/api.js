@@ -2,7 +2,7 @@
 const express = require('express');
 const QRCode = require('qrcode');
 const { db, settings, recordEvent, vacuumOld } = require('../../core/db');
-const { recentLogs, logBus, createLogger } = require('../../core/logger');
+const { recentLogs, searchLogs, knownScopes, levels: LOG_LEVELS, logBus, createLogger } = require('../../core/logger');
 const { DEFAULT_SETTINGS, PROVIDERS, MODEL_CHAINS, BRAND } = require('../../config/constants');
 
 const keyPool = require('../../ai/keyPool');
@@ -77,8 +77,101 @@ router.get(
 /** Chart-ready aggregates for the dashboard. */
 router.get('/stats', (req, res) => res.json(stats.all(Math.min(168, Number(req.query.hours) || 24))));
 
+/**
+ * The log, filtered.
+ *
+ * `hours` reaches back into the daily files (1 hour … 7 days); without it
+ * this stays the cheap in-memory read the panel uses for its first paint.
+ */
 router.get('/logs', (req, res) => {
+  if (req.query.hours || req.query.scope || req.query.q) {
+    return res.json(
+      searchLogs({
+        hours: Number(req.query.hours) || 1,
+        level: req.query.level || null,
+        scope: req.query.scope || null,
+        q: req.query.q || '',
+        limit: Number(req.query.limit) || 500,
+      })
+    );
+  }
   res.json(recentLogs(Number(req.query.limit) || 200, req.query.level || null));
+});
+
+/**
+ * What the filter dropdowns offer.
+ *
+ * Scopes come from what has actually been logged in the last day, not from a
+ * hardcoded list — a filter offering a scope that never appears is worse
+ * than no filter. The in-memory ring is only minutes deep, so the day's file
+ * is the honest source; `knownScopes()` fills in anything written since the
+ * last flush.
+ */
+router.get('/logs/facets', (req, res) => {
+  const fromFiles = searchLogs({ hours: 24, limit: 5000 }).items.map((e) => e.scope);
+  const scopes = [...new Set([...fromFiles, ...knownScopes()].filter(Boolean))].sort();
+  res.json({ levels: LOG_LEVELS, scopes });
+});
+
+/**
+ * What the agent is doing right now.
+ *
+ * Three things, because they answer one question between them: which jobs
+ * are open, how far each has got through its own checklist, and what it is
+ * typing into the terminal at this moment. Separately none of them says
+ * whether the work is going well.
+ */
+router.get('/activity', (req, res) => {
+  const todo = require('../../agent/todo');
+
+  const running = tasks.list({ limit: 60 }).filter((t) => t.status === 'pending' || t.status === 'running');
+
+  /**
+   * Checklists with unfinished items — the live jobs, including coding runs
+   * that have no row in `tasks` at all.
+   *
+   * A list nobody has touched for half an hour is reported as STALLED rather
+   * than hidden. Hiding it would be the comfortable lie: the founder would
+   * see an empty "in progress" panel and conclude everything finished, when
+   * in fact a job stopped halfway. Stalled work is exactly what he needs to
+   * see.
+   */
+  const STALE_AFTER_MS = 30 * 60_000;
+  const checklists = todo.openLists({ hours: Number(req.query.hours) || 12 }).map(({ owner, updated_at }) => {
+    const s = todo.summary(owner) || { total: 0, done: 0, blocked: 0, items: [] };
+    const [kind, subject] = String(owner).split(':');
+    const touched = Date.parse(`${String(updated_at).replace(' ', 'T')}Z`);
+    return {
+      owner,
+      kind,                                   // coder | assistant | routine
+      subject: subject || null,               // qaysi loyiha yoki chat
+      updatedAt: updated_at,
+      stalled: Number.isFinite(touched) && Date.now() - touched > STALE_AFTER_MS,
+      total: s.total,
+      done: s.done,
+      blocked: s.blocked,
+      percent: s.total ? Math.round((s.done / s.total) * 100) : 0,
+      current: s.items.find((i) => i.status === 'in_progress')?.text || null,
+      items: s.items,
+    };
+  });
+
+  res.json({
+    tasks: running.map((t) => ({
+      id: t.id,
+      kind: t.kind,
+      title: t.title,
+      status: t.status,
+      attempts: t.attempts,
+      runAt: t.run_at,
+      startedAt: t.started_at,
+      // A task and its checklist are linked by the owner key the agent uses.
+      checklist: checklists.find((c) => c.owner.includes(String(t.id))) || null,
+    })),
+    checklists,
+    commands: shell.recentCommands({ limit: Number(req.query.commands) || 60 }),
+    sessions: shell.listSessions(),
+  });
 });
 
 router.get('/logs/stream', (req, res) => {

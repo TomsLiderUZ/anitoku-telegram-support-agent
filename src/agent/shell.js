@@ -249,12 +249,25 @@ function runLocal(command, { cwd, env = {}, timeoutMs = 120_000 }) {
   const isWin = process.platform === 'win32';
   const useBash = !isWin || !!BASH;
   const marker = '__ANITOKU_CWD__';
+
+  /**
+   * The wrapper has to report the working directory AND still hand back the
+   * command's own exit status.
+   *
+   * It did not: `echo` ran last, so the script always exited 0 and every
+   * failure came back as a success. `bu-buyruq-yoq` — command not found,
+   * status 127 — was recorded as ok. That is the worst possible direction
+   * for this bug to go: the coding agent verifies its work by running it,
+   * and a shell that never reports failure means every broken build looks
+   * finished. So: save the status first, print the directory, exit with the
+   * saved status.
+   */
   const wrapped = useBash
-    ? `${command}\necho ${marker}$PWD`
+    ? `${command}\n__anitoku_rc=$?\necho ${marker}$PWD\nexit $__anitoku_rc`
     : // cmd.exe expands %CD% when it parses the line, so it would report the
       // directory we started in, not the one a `cd` moved us to. Bare `cd`
       // prints the live directory instead.
-      `${command}\r\necho ${marker}\r\ncd`;
+      `${command}\r\nset __ANITOKU_RC=%ERRORLEVEL%\r\necho ${marker}\r\ncd\r\nexit /b %__ANITOKU_RC%`;
 
   return new Promise((resolve) => {
     const started = Date.now();
@@ -402,6 +415,35 @@ function publicKey() {
  * The one entry point the agent uses. Picks local or remote from the session,
  * keeps the working directory, and records what ran.
  */
+/**
+ * Every command the agent has run, newest last.
+ *
+ * Sessions keep their own history, but the founder does not think in
+ * sessions — he wants to see what the agent is typing RIGHT NOW, wherever
+ * it is typing it. So one ring across all of them, with the tail of the
+ * output attached: a command without its answer tells you nothing about
+ * whether the work is going well.
+ *
+ * In memory on purpose. This is a live view, not an audit trail — the
+ * durable record is the log file, and writing every shell line to SQLite
+ * would put the database in the hot path of every build.
+ */
+const COMMAND_RING_SIZE = 400;
+const commandRing = [];
+
+function noteCommand(entry) {
+  commandRing.push(entry);
+  if (commandRing.length > COMMAND_RING_SIZE) commandRing.shift();
+}
+
+/** @param {{limit?: number, session?: string, failedOnly?: boolean}} opts */
+function recentCommands({ limit = 120, session = null, failedOnly = false } = {}) {
+  let items = commandRing;
+  if (session) items = items.filter((c) => c.session === session);
+  if (failedOnly) items = items.filter((c) => !c.ok);
+  return items.slice(-limit);
+}
+
 async function run(command, { sessionId = 'default', target = null, host = null, timeoutMs = 120_000, cwd = null } = {}) {
   const s = session(sessionId, { target, host });
   if (cwd) s.cwd = cwd;
@@ -429,6 +471,18 @@ async function run(command, { sessionId = 'default', target = null, host = null,
   if (result.cwd) s.cwd = s.target === 'remote' ? result.cwd : toNativePath(result.cwd);
   s.history.push({ command, code: result.code, at: Date.now() });
   if (s.history.length > 200) s.history.shift();
+  noteCommand({
+    at: Date.now(),
+    session: sessionId,
+    target: s.target,
+    host: s.target === 'remote' ? s.host : null,
+    cwd: s.cwd,
+    command: String(command).slice(0, 2000),
+    ok: !!result.ok,
+    code: result.code,
+    ms: result.ms,
+    output: String(result.output || '').slice(-1500),
+  });
   log.info('terminal', { session: sessionId, target: s.target, cmd: String(command).slice(0, 100), code: result.code, ms: result.ms });
   if (!result.ok) recordEvent('shell', 'Command failed', { session: sessionId, command: String(command).slice(0, 200), code: result.code }, 'warn');
 
@@ -436,7 +490,7 @@ async function run(command, { sessionId = 'default', target = null, host = null,
 }
 
 module.exports = {
-  run, runLocal, runRemote, session, listSessions, closeSession,
+  run, runLocal, runRemote, session, listSessions, closeSession, recentCommands,
   saveHost, getHost, listHosts, removeHost, parseHostSpec, installKey, publicKey, toPosixPath, shq,
   sandbox, sweepSandboxes, SANDBOX_ROOT,
 };

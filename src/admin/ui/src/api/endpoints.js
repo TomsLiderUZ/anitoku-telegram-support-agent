@@ -31,7 +31,18 @@ export const ENDPOINTS = {
   STATS: (hours = 24) => `/stats?hours=${hours}`,
   HEALTH: "/health",
   LOGS: (limit = 120) => `/logs?limit=${limit}`,
+  /** Filtrlangan jurnal — 1 soatdan 7 kungacha, kunlik fayllardan o'qiladi. */
+  LOGS_SEARCH: ({ hours = 1, level = "", scope = "", q = "", limit = 500 } = {}) => {
+    const p = new URLSearchParams({ hours: String(hours), limit: String(limit) });
+    if (level) p.set("level", level);
+    if (scope) p.set("scope", scope);
+    if (q) p.set("q", q);
+    return `/logs?${p}`;
+  },
+  LOGS_FACETS: "/logs/facets",
   LOGS_STREAM: "/logs/stream",
+  /** Agent hozir nima qilyapti: vazifalar, todo ro'yxatlari, terminal. */
+  ACTIVITY: (commands = 60) => `/activity?commands=${commands}`,
   EVENTS: "/events",
 
   // ─── Telegram akkaunt ─────────────────────────────────────────

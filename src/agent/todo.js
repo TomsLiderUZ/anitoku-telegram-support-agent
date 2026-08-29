@@ -88,4 +88,25 @@ function summary(owner) {
 const openOwners = () =>
   db.prepare("SELECT owner, COUNT(*) n FROM todos WHERE status IN ('pending','in_progress','blocked') GROUP BY owner").all();
 
-module.exports = { setList, list, update, clear, summary, openOwners, STATUSES };
+/**
+ * Unfinished lists that were actually touched recently, newest first.
+ *
+ * `openOwners` returns everything ever abandoned — after a few weeks that is
+ * a graveyard of runs whose project no longer exists, and showing it as
+ * "current work" would be a lie. A list nobody has touched for a day is not
+ * in progress; it stalled.
+ */
+const openLists = ({ hours = 24, limit = 20 } = {}) =>
+  db
+    .prepare(
+      `SELECT owner, COUNT(*) open, MAX(updated_at) updated_at
+         FROM todos
+        WHERE status IN ('pending','in_progress','blocked')
+        GROUP BY owner
+       HAVING MAX(updated_at) > datetime('now', ?)
+        ORDER BY updated_at DESC
+        LIMIT ?`
+    )
+    .all(`-${Math.max(1, Number(hours) || 24)} hours`, Number(limit) || 20);
+
+module.exports = { setList, list, update, clear, summary, openOwners, openLists, STATUSES };

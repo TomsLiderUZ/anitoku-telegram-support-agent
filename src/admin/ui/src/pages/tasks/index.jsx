@@ -8,11 +8,12 @@ import {
   TbRefresh,
   TbRepeat,
   TbTrash,
+  TbProgress,
 } from "react-icons/tb";
 import styles from "./index.module.scss";
 import client from "../../api/client";
 import { ENDPOINTS } from "../../api/endpoints";
-import { Badge, Card, Empty, ErrorBox, PageHead, Stat } from "../../components/ui";
+import { Badge, Card, Empty, ErrorBox, Meter, PageHead, Stat } from "../../components/ui";
 import { ago, num, time } from "../../utils/format";
 
 /**
@@ -35,23 +36,33 @@ const STATUS = {
  *  Bu MISOL, tayyor buyruq emas. */
 const SCHEDULE_HINT = "har kuni 09:00 · har 30 daqiqada · dushanba 18:30";
 
+/** Ro'yxat egasining turi — kim uchun tuzilgani. */
+const KIND_LABEL = { coder: 'kod', assistant: 'buyruq', routine: 'ratsion' };
+
+/** Bosqich holatining belgisi. Rang bilan birga SHAKL ham beriladi:
+ *  rang ko'rmaslik holatida ham holat farqlanib tursin. */
+const STEP_MARK = { done: '✓', in_progress: '▸', blocked: '✕', skipped: '–', pending: '○' };
+
 export default function Tasks() {
   const [tasks, setTasks] = useState([]);
   const [routines, setRoutines] = useState([]);
   const [watches, setWatches] = useState([]);
+  const [activity, setActivity] = useState(null);
   const [draft, setDraft] = useState({ title: "", instruction: "", schedule: "" });
   const [error, setError] = useState(null);
 
   const load = useCallback(async (silent = false) => {
     try {
-      const [t, r, w] = await Promise.all([
+      const [t, r, w, a] = await Promise.all([
         client.get(ENDPOINTS.TASKS(100), { silent }),
         client.get(ENDPOINTS.ROUTINES, { silent }),
         client.get(ENDPOINTS.WATCHES, { silent }),
+        client.get(ENDPOINTS.ACTIVITY(1), { silent }),
       ]);
       setTasks(t || []);
       setRoutines(r || []);
       setWatches(w || []);
+      setActivity(a || null);
       setError(null);
     } catch (e) {
       setError(e);
@@ -60,11 +71,14 @@ export default function Tasks() {
 
   useEffect(() => {
     load();
-    const t = setInterval(() => load(true), 15_000);
+    // Ish ketayotganda 15 soniya uzoq — foiz sakrab emas, siljib
+    // borishi kerak. 6 soniya jonli, lekin serverga ham yengil.
+    const t = setInterval(() => load(true), 6000);
     return () => clearInterval(t);
   }, [load]);
 
   const active = tasks.filter((t) => t.status === "pending" || t.status === "running");
+  const checklists = activity?.checklists || [];
 
   const addRoutine = async () => {
     if (!draft.instruction.trim() || !draft.schedule.trim()) return;
@@ -86,6 +100,63 @@ export default function Tasks() {
       </PageHead>
 
       <ErrorBox error={error} onRetry={() => load()} />
+
+      {/* ── Hozir bajarilayotgan ish ──────────────────────────────
+          Agent har bir uzun ish uchun oʻziga roʻyxat tuzadi va
+          bandlarni bajarilgani sari belgilaydi. Foiz aynan shundan
+          chiqadi — taxmin emas, agentning oʻz hisobi. */}
+      {checklists.length > 0 && (
+        <Card
+          title="Hozir bajarilmoqda"
+          icon={TbProgress}
+          actions={
+            <Badge tone={checklists.every((c) => c.stalled) ? "warn" : "info"} pulse={checklists.some((c) => !c.stalled)}>
+              {checklists.length} ta ish
+            </Badge>
+          }
+        >
+          <div className={styles.jobs}>
+            {checklists.map((c) => (
+              <div key={c.owner} className={styles.job}>
+                <div className={styles.jobTop}>
+                  <Badge tone={c.kind === "coder" ? "info" : ""}>{KIND_LABEL[c.kind] || c.kind}</Badge>
+                  <strong className={styles.jobName}>{c.subject || c.owner}</strong>
+                  {c.blocked > 0 && <Badge tone="danger">{c.blocked} toʻsiq</Badge>}
+                  {/* Yashirmaymiz, aytamiz: yarim soatdan beri qimirlamagan
+                      ish tugagan emas — toʻxtab qolgan. */}
+                  {c.stalled && <Badge tone="warn">toʻxtab qolgan</Badge>}
+                  <span className="spacer" />
+                  <span className={styles.jobPercent}>{c.percent}%</span>
+                </div>
+
+                <Meter
+                  label={c.current || "keyingi bosqich kutilmoqda"}
+                  value={c.done}
+                  max={c.total}
+                  tone={c.blocked || c.stalled ? "warn" : c.percent === 100 ? "ok" : ""}
+                  right={`${c.done}/${c.total}`}
+                />
+
+                <ol className={styles.steps}>
+                  {c.items.map((it, i) => (
+                    <li key={it.id} className={`${styles.step} ${styles[`step_${it.status}`]}`} style={{ "--i": i }}>
+                      <span className={styles.stepMark} aria-hidden="true">
+                        {STEP_MARK[it.status] || "○"}
+                      </span>
+                      <span>
+                        {it.text}
+                        {it.note && <em className={styles.stepNote}> — {it.note}</em>}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+
+                <div className="hint">Oxirgi harakat: {ago(c.updatedAt)}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <div className="grid c4">
         <Stat label="Hozir ishlamoqda" value={num(active.length)} sub="navbat va bajarilayotgan" tone="info" />

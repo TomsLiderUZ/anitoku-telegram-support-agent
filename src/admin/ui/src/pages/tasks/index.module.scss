@@ -27,3 +27,98 @@
   word-break: break-word;
   max-width: 520px;
 }
+
+/* ── Hozir bajarilayotgan ish ────────────────
+   Har bir ish alohida blok: nomi, foizi, chizigʻi va bosqichlar. */
+.jobs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-16);
+}
+
+.job {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-8);
+  padding: var(--padding-12);
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-12);
+  background-color: var(--color-bg-secondary);
+  animation: fade-up var(--duration-base) var(--ease-out) both;
+}
+
+.jobTop {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-8);
+  flex-wrap: wrap;
+}
+
+.jobName {
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-13);
+  word-break: break-all;
+}
+
+.jobPercent {
+  color: var(--color-accent);
+  font-size: var(--font-size-16);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Bosqichlar — oddiy roʻyxat, raqamsiz: tartib allaqachon koʻrinib
+   turibdi, raqam esa belgidan diqqatni tortib olardi. */
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: var(--gap-6);
+  padding: 2px 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-13);
+  line-height: 1.5;
+  animation: fade-up var(--duration-fast) var(--ease-out) both;
+  animation-delay: calc(min(var(--i, 0), 10) * 20ms);
+}
+
+.stepMark {
+  text-align: center;
+  font-weight: 700;
+}
+
+.stepNote {
+  color: var(--color-text-muted);
+  font-style: normal;
+}
+
+.step_done {
+  color: var(--color-text-muted);
+
+  .stepMark { color: var(--color-ok); }
+  // Bajarilgani ustidan chizilmaydi: oʻqilmay qoladi, roʻyxat esa
+  // "nima qilindi" degan hisobot ham hisoblanadi
+}
+
+.step_in_progress {
+  color: var(--color-text-primary);
+  font-weight: 600;
+
+  .stepMark {
+    color: var(--color-accent);
+    animation: soft-pulse 1.6s var(--ease-in-out) infinite;
+  }
+}
+
+.step_blocked .stepMark { color: var(--color-danger-text); }
+.step_skipped { color: var(--color-text-muted); }
+.step_skipped .stepMark { color: var(--color-text-muted); }

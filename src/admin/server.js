@@ -89,7 +89,7 @@ function createServer() {
   app.get('/login', (req, res) => {
     const cookies = auth.parseCookies(req.headers.cookie);
     if (auth.readSession(cookies[auth.COOKIE])) return res.redirect('/');
-    if (fs.existsSync(path.join(UI_DIR, 'index.html'))) return res.redirect('/ui/auth');
+    if (fs.existsSync(path.join(UI_DIR, 'index.html'))) return res.redirect('/auth');
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
   });
 
@@ -112,6 +112,10 @@ function createServer() {
   app.use('/api', auth.requireAuth, apiRouter);
 
   // ── The React panel ───────────────────────────────────────────────────────
+  // Mounted at the ROOT, not under /ui. The panel is the only thing this
+  // server shows a person, so a prefix bought nothing and made every address
+  // longer to read, type and share.
+  //
   // Served WITHOUT requireAuth, deliberately. The shell is just markup and
   // JavaScript — it holds no data. Every number on it comes from /api, which
   // is protected; without a session those calls return 401 and the app sends
@@ -124,28 +128,20 @@ function createServer() {
   const hasUi = fs.existsSync(path.join(uiDir, 'index.html'));
 
   if (hasUi) {
-    app.use(
-      '/ui/static',
-      express.static(path.join(uiDir, 'static'), { immutable: true, maxAge: '365d' })
-    );
+    // The panel used to live under /ui. Anyone with a bookmark or an open tab
+    // is sent to the same page at its new address rather than to a 404 —
+    // moving an address is our decision, not theirs to pay for.
+    app.get(/^\/ui(\/.*)?$/, (req, res) => res.redirect(301, req.originalUrl.replace(/^\/ui/, '') || '/'));
 
-    // Service worker, favicon and anything else copied from public/.
-    app.use('/ui', express.static(uiDir, { index: false, maxAge: '1h' }));
+    app.use('/static', express.static(path.join(uiDir, 'static'), { immutable: true, maxAge: '365d' }));
 
-    // Client-side routing: every /ui path serves the same shell.
-    app.get(/^\/ui(\/.*)?$/, (req, res) => {
-      res.setHeader('Cache-Control', 'no-cache, must-revalidate');
-      res.sendFile(path.join(uiDir, 'index.html'));
-    });
+    // Service worker, favicon, robots — everything copied from public/.
+    app.use(express.static(uiDir, { index: false, maxAge: '1h' }));
   }
 
-  app.get('/', (req, res) => {
-    if (hasUi) return res.redirect('/ui/');
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-  });
-
-  // Never cache the panel's own assets: after a redesign the browser kept
-  // serving the old stylesheet for an hour and the change looked undone.
+  // The old vanilla panel, kept as a fallback for a server where the React
+  // build has not been produced. `index: false` so it can never shadow the
+  // shell above.
   app.use(
     express.static(path.join(__dirname, 'public'), {
       index: false,
@@ -153,6 +149,19 @@ function createServer() {
       setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache, must-revalidate'),
     })
   );
+
+  /**
+   * Client-side routing: any other GET serves the same shell, so /dashboard
+   * and /projects/foo work on a hard refresh.
+   *
+   * /api is excluded on purpose — a mistyped endpoint must come back as a
+   * JSON 404, not as a page of HTML that the caller then tries to parse.
+   */
+  app.use((req, res, next) => {
+    if (!hasUi || req.method !== 'GET' || req.path.startsWith('/api/')) return next();
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    res.sendFile(path.join(uiDir, 'index.html'));
+  });
 
   app.use((req, res) => res.status(404).json({ error: 'not found' }));
 

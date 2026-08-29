@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  TbActivity,
   TbDeviceMobile,
   TbLink,
   TbLogout,
@@ -11,17 +10,16 @@ import {
 import styles from "./index.module.scss";
 import client from "../../api/client";
 import { ENDPOINTS } from "../../api/endpoints";
-import { streamLogs } from "../../api/logStream";
 import { startTelegramLoginSession } from "../../api/telegramLoginSocket";
-import { Badge, Card, Empty, ErrorBox, PageHead } from "../../components/ui";
+import { Badge, Card, ErrorBox, PageHead } from "../../components/ui";
 import { time } from "../../utils/format";
 
 /**
- * Sozlamalar — Telegram ulanishi, agent xulqi va jonli jurnal.
+ * Sozlamalar — Telegram ulanishi va agent xulqi.
  *
  * Telegram shu yerda, chunki akkauntni ulash bir marta qilinadigan
- * SOZLASH ishi. Jurnal ham shu yerda: sozlama notoʻgʻri ishlasa,
- * keyingi qaraladigan joy aynan jurnal boʻladi.
+ * SOZLASH ishi. Jurnal esa oʻz boʻlimiga koʻchdi: u kuzatuv quroli,
+ * sozlama emas, va unga butun ekran kengligi kerak edi.
  */
 
 /** Qoʻlda oʻzgartirishga arziydigan sozlamalar; qolganini agent oʻzi
@@ -42,8 +40,6 @@ const FIELDS = [
   ["escalation_chat_id", "Savollar yuboriladigan chat", "text", "Agent javob berolmagan savollar shu chatga tushadi"],
 ];
 
-const LEVEL = { info: styles.info, warn: styles.warn, error: styles.error, debug: styles.debug };
-
 export default function Settings() {
   const [values, setValues] = useState({});
   const [dirty, setDirty] = useState({});
@@ -52,7 +48,6 @@ export default function Settings() {
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
-  const [logs, setLogs] = useState([]);
   const [error, setError] = useState(null);
   const qrSession = useRef(null);
 
@@ -73,8 +68,6 @@ export default function Settings() {
 
   useEffect(() => {
     load();
-    client.get(ENDPOINTS.LOGS(120), { silent: true }).then(setLogs).catch(() => {});
-    return streamLogs((entry) => setLogs((l) => [...l.slice(-300), entry]));
   }, [load]);
 
   // Sahifadan chiqilganda QR sessiyasi albatta yopiladi — aks holda
@@ -301,34 +294,6 @@ export default function Settings() {
         </div>
       </Card>
 
-      <Card
-        title="Jonli jurnal"
-        icon={TbActivity}
-        actions={
-          <Badge tone="info" pulse>
-            jonli
-          </Badge>
-        }
-      >
-        {logs.length ? (
-          <div
-            className={styles.logs}
-            // Har yangi qatorda pastga tushadi — oxirgi hodisa doim
-            // koʻrinib tursin
-            ref={(el) => el && (el.scrollTop = el.scrollHeight)}
-          >
-            {logs.slice(-300).map((l, i) => (
-              <div key={i} className={`${styles.logLine} ${LEVEL[l.level] || ""}`}>
-                <span className={styles.logTime}>{String(l.time || l.ts || "").slice(11, 19)}</span>
-                <span className={styles.logTag}>{l.scope || l.tag || ""}</span>
-                <span>{l.message || l.msg}</span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <Empty icon={TbActivity}>Jurnal boʻsh</Empty>
-        )}
-      </Card>
     </>
   );
 }

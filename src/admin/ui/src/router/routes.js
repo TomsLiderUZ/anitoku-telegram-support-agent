@@ -9,6 +9,7 @@ import {
   TbBook2,
   TbCpu,
   TbSettings,
+  TbFileAnalytics,
 } from "react-icons/tb";
 
 /**
@@ -44,6 +45,7 @@ const lazyWithPreload = (importer) => {
 
 const DashboardPage = lazyWithPreload(() => import("../pages/dashboard/index"));
 const ChatsPage = lazyWithPreload(() => import("../pages/chats/index"));
+const LogsPage = lazyWithPreload(() => import("../pages/logs/index"));
 const AssistantPage = lazyWithPreload(() => import("../pages/assistant/index"));
 const TasksPage = lazyWithPreload(() => import("../pages/tasks/index"));
 const ProjectsPage = lazyWithPreload(() => import("../pages/projects/index"));
@@ -129,6 +131,16 @@ export const routes = [
     tabbar: true,
   },
 
+  {
+    title: "Jurnal | ANITOKU",
+    description: "Agentning ish tarixi, filtrlar bilan, va terminalda yozgan buyruqlari.",
+    path: "/logs",
+    Component: LogsPage,
+    private: true,
+    standalone: false,
+    nav: { label: "Jurnal", icon: TbFileAnalytics, group: "Kuzatuv" },
+  },
+
   // ─── Boshqaruv ───────────────────────────────────────────────
   {
     title: "Buyruq berish | ANITOKU",
@@ -194,7 +206,7 @@ export const routes = [
   },
   {
     title: "Sozlamalar | ANITOKU",
-    description: "Telegram ulanishi, agent xulqi va jonli jurnal.",
+    description: "Telegram ulanishi va agent xulqi.",
     path: "/settings",
     Component: SettingsPage,
     private: true,

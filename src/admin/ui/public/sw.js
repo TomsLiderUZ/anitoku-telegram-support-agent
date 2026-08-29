@@ -32,7 +32,7 @@ const STATIC_CACHE = `anitoku-static-${VERSION}`;
 
 // Faqat brend rasmlari — sahifa yoki ma'lumot EMAS
 // Panel /ui manzilidan beriladi — yoʻl shunga mos
-const STATIC_ASSETS = ["/ui/favicon.svg"];
+const STATIC_ASSETS = ["/favicon.svg"];
 
 // Sahifa so'rovi shuncha kutgach "internet yo'q" deb hisoblanadi
 const NAVIGATION_TIMEOUT_MS = 10000;
@@ -60,7 +60,7 @@ const OFFLINE_HTML = `
   <meta name="application-name" content="ANITOKU Agent">
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#0b0d12">
-  <link rel="icon" href="/ui/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <script>
     (function(){try{var t=localStorage.getItem("theme"),d=t!=="light"&&(t!=="auto"||matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.className=d?"dark":"light";document.querySelector('meta[name=theme-color]').content=d?"#0b0d12":"#f3f4f8"}catch(e){}})()
   </script>

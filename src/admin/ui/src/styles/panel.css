@@ -209,7 +209,10 @@ textarea {
 
 .grid {
   display: grid;
-  gap: var(--gap-16);
+  /* 16px da qoʻshni kartochkalarning yuqori rangli chiziqlari deyarli
+     tutashib, bitta yoʻl-yoʻl lenta boʻlib koʻrinardi. 20px — kartochkalar
+     alohida ekani bir qarashda ravshan boʻladigan eng kichik oraliq. */
+  gap: var(--gap-20);
 }
 
 .grid.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
