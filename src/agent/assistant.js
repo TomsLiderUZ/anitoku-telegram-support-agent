@@ -229,12 +229,25 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
   // treated older unanswered turns as live orders and re-ran them — a request
   // about a report turned into rebuilding a bot someone had asked for hours
   // earlier.
+  // History is capped by characters, not just turns: 40 turns of a busy chat
+  // came to ~2800 tokens which, on top of the tool schemas, pushed the whole
+  // request past Groq's per-minute limit — so the best tool-calling model was
+  // rejected on every message and the weakest one answered instead. Older
+  // context still reaches the model through the chat summary above.
   const past = memory.history(chatId, window);
   const current = String(text).trim();
-  for (const m of past) {
+  const kept = [];
+  let budget = settings.int('assistant_history_chars', 4000);
+  for (let i = past.length - 1; i >= 0; i--) {
+    const m = past[i];
     if (m.role === 'user' && m.content.trim() === current) continue;
-    messages.push(m);
+    const cost = (m.content || '').length;
+    if (budget - cost < 0 && kept.length >= 4) break;
+    budget -= cost;
+    kept.unshift(m);
   }
+  meta.historyTurns = kept.length;
+  for (const m of kept) messages.push(m);
   if (past.length) {
     messages.push({
       role: 'system',

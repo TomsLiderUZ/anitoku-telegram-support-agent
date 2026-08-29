@@ -218,7 +218,8 @@ const DEFAULT_SETTINGS = {
   max_replies_per_chat_hour: '25',
   max_replies_global_hour: '400',
   history_window: '14',
-  assistant_history_window: '40',   // founder chats: the assistant keeps far more turns than support does
+  assistant_history_window: '24',   // founder chats keep more turns than support does…
+  assistant_history_chars: '4000',  // …but the request must stay inside the provider's per-minute token limit
   founder_private_replies: '0',     // '1' = every assistant reply goes to the founder's private chat, even from groups
   rag_top_k: '6',
   skill_top_k: '3',
