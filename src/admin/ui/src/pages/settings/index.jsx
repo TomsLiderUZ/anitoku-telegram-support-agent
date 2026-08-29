@@ -6,12 +6,13 @@ import {
   TbRefresh,
   TbDeviceFloppy,
   TbSettings,
+  TbAdjustments,
 } from "react-icons/tb";
 import styles from "./index.module.scss";
 import client from "../../api/client";
 import { ENDPOINTS } from "../../api/endpoints";
 import { startTelegramLoginSession } from "../../api/telegramLoginSocket";
-import { Badge, Card, ErrorBox, PageHead } from "../../components/ui";
+import { Badge, Card, ErrorBox, PageHead, Switch } from "../../components/ui";
 import { time } from "../../utils/format";
 
 /**
@@ -268,26 +269,33 @@ export default function Settings() {
         )}
       </Card>
 
+      {/* Ha/yoʻq sozlamalari — kalitlar. Roʻyxatni ochib "Yoqilgan" ni
+          oʻqish oʻrniga holat koʻrinib turadi va bir tegishda almashadi. */}
       <Card title="Agent xulqi" icon={TbSettings}>
         <div className="grid c2">
-          {FIELDS.map(([key, label, kind, hint]) => (
+          {FIELDS.filter(([, , kind]) => kind === "bool").map(([key, label, , hint]) => (
+            <Switch
+              key={key}
+              label={label}
+              hint={hint}
+              checked={String(val(key)) === "1"}
+              onChange={(on) => setDirty({ ...dirty, [key]: on ? "1" : "0" })}
+            />
+          ))}
+        </div>
+      </Card>
+
+      {/* Qiymat kiritiladiganlari alohida: ular oʻlchov, kalit emas */}
+      <Card title="Vaqt va chegaralar" icon={TbAdjustments}>
+        <div className="grid c2">
+          {FIELDS.filter(([, , kind]) => kind !== "bool").map(([key, label, kind, hint]) => (
             <label key={key} className="field">
               <span>{label}</span>
-              {kind === "bool" ? (
-                <select
-                  value={String(val(key)) === "1" ? "1" : "0"}
-                  onChange={(e) => setDirty({ ...dirty, [key]: e.target.value })}
-                >
-                  <option value="1">Yoqilgan</option>
-                  <option value="0">Oʻchirilgan</option>
-                </select>
-              ) : (
-                <input
-                  type={kind === "num" ? "number" : "text"}
-                  value={val(key)}
-                  onChange={(e) => setDirty({ ...dirty, [key]: e.target.value })}
-                />
-              )}
+              <input
+                type={kind === "num" ? "number" : "text"}
+                value={val(key)}
+                onChange={(e) => setDirty({ ...dirty, [key]: e.target.value })}
+              />
               {hint && <small>{hint}</small>}
             </label>
           ))}

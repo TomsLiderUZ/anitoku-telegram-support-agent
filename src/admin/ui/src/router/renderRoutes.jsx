@@ -5,6 +5,7 @@ import { routes } from "./routes";
 import SEO from "../components/SEO";
 import ErrorBoundary from "../components/ErrorBoundary";
 import { TokenManager } from "../api/tokenManager";
+import { releaseScroll } from "../utils/scrollLock";
 
 if ("scrollRestoration" in window.history) {
   window.history.scrollRestoration = "manual";
@@ -80,6 +81,10 @@ const RouteWrapper = ({ title, description, isPrivate, Component }) => {
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    // Zaxira: ochiq oyna yoki varaq qoldirgan qulf sahifani surilishdan
+    // to'sib qo'ygan bo'lsa, boshqa sahifaga o'tish uni tozalaydi.
+    // Qulfsiz sahifada bu hech narsani o'zgartirmaydi.
+    releaseScroll();
   }, [pathname]);
 
   return (

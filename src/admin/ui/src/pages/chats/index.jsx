@@ -2,17 +2,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   TbAlertCircle,
   TbArrowLeft,
+  TbInfoCircle,
   TbMessage2,
   TbRefresh,
   TbSearch,
   TbSend,
+  TbUsers,
   TbX,
 } from "react-icons/tb";
 import styles from "./index.module.scss";
 import client from "../../api/client";
 import { ENDPOINTS } from "../../api/endpoints";
-import { Badge, Card, Empty, ErrorBox, Loading, PageHead } from "../../components/ui";
-import { ago, time } from "../../utils/format";
+import { Badge, Card, Empty, ErrorBox, Loading, Modal, PageHead } from "../../components/ui";
+import { ago, num, time } from "../../utils/format";
+import { linkify } from "../../utils/linkify";
 
 /**
  * Suhbatlar — Telegram Desktop kabi ikki panel, panel dizaynida.
@@ -69,6 +72,16 @@ export default function Chats() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
 
+  // Yozishma ichidagi qidiruv — chat roʻyxati qidiruvidan alohida
+  const [msgQuery, setMsgQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  // Chat maʼlumotlari va aʼzolar — faqat soʻralganda yuklanadi
+  const [info, setInfo] = useState(null);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [infoLoading, setInfoLoading] = useState(false);
+  const [memberQuery, setMemberQuery] = useState("");
+
   const feedRef = useRef(null);
 
   const load = useCallback(async (silent = false) => {
@@ -102,10 +115,38 @@ export default function Chats() {
   const openChat = async (chat) => {
     setSel(chat);
     setMessages([]);
+    // Boshqa chatga oʻtganda qidiruv va maʼlumot oynasi tozalanadi —
+    // oldingi chatning aʼzolari yangisinikidek koʻrinib qolmasin.
+    setMsgQuery("");
+    setSearchOpen(false);
+    setInfo(null);
     try {
       setMessages(await client.get(ENDPOINTS.CHAT_MESSAGES(chat.tg_chat_id, 80)));
     } catch (e) {
       setError(e);
+    }
+  };
+
+  /**
+   * Chat maʼlumotlari — Telegramdan, bizning bazadan emas.
+   *
+   * Bazamiz faqat YOZGAN odamlarni biladi. "Bu guruhda kimlar bor"
+   * degan savolga u notoʻgʻri javob berardi: jim turgan aʼzo umuman
+   * koʻrinmasdi. Shuning uchun soʻrov Telegramning oʻziga boradi va
+   * u sekinroq — aynan shu sababdan faqat soʻralganda yuklanadi.
+   */
+  const openInfo = async () => {
+    if (!sel) return;
+    setInfoOpen(true);
+    setMemberQuery("");
+    if (info) return; // shu chat uchun allaqachon olingan
+    setInfoLoading(true);
+    try {
+      setInfo(await client.get(ENDPOINTS.CHAT_INFO(sel.tg_chat_id)));
+    } catch (e) {
+      setInfo({ info: { error: e.message } });
+    } finally {
+      setInfoLoading(false);
     }
   };
 
@@ -132,6 +173,24 @@ export default function Chats() {
     );
   }, [chats, q]);
 
+  // Yozishma ichidagi qidiruv — matn ham, yozgan odam ham hisobga olinadi
+  const shownMessages = useMemo(() => {
+    const needle = msgQuery.trim().toLowerCase();
+    if (!needle) return messages;
+    return messages.filter((m) =>
+      `${m.text || ""} ${m.sender_name || ""}`.toLowerCase().includes(needle)
+    );
+  }, [messages, msgQuery]);
+
+  const members = info?.members?.members || [];
+  const shownMembers = useMemo(() => {
+    const needle = memberQuery.trim().toLowerCase();
+    if (!needle) return members;
+    return members.filter((m) =>
+      `${m.name || ""} ${m.username || ""} ${m.id}`.toLowerCase().includes(needle)
+    );
+  }, [members, memberQuery]);
+
   if (loading) return <Loading rows={4} />;
 
   return (
@@ -155,7 +214,7 @@ export default function Chats() {
                 <span className="hint">{ago(e.created_at)}</span>
               </div>
 
-              <p className={styles.escQ}>{e.question || e.summary}</p>
+              <p className={styles.escQ}>{linkify(e.question || e.summary)}</p>
               {e.reason && <div className="hint">Sabab: {e.reason}</div>}
 
               <div className="row" style={{ marginTop: "var(--gap-8)" }}>
@@ -279,6 +338,29 @@ export default function Chats() {
                   </small>
                 </span>
 
+                <button
+                  type="button"
+                  className={`${styles.headBtn} ${searchOpen ? styles.headBtnOn : ""}`}
+                  onClick={() => {
+                    setSearchOpen((v) => !v);
+                    if (searchOpen) setMsgQuery("");
+                  }}
+                  aria-label="Yozishma ichidan qidirish"
+                  title="Yozishma ichidan qidirish"
+                >
+                  <TbSearch size={16} />
+                </button>
+
+                <button
+                  type="button"
+                  className={styles.headBtn}
+                  onClick={openInfo}
+                  aria-label="Chat maʼlumotlari"
+                  title="Chat maʼlumotlari"
+                >
+                  <TbInfoCircle size={16} />
+                </button>
+
                 <select
                   className={styles.stateSelect}
                   value={sel.state}
@@ -294,10 +376,37 @@ export default function Chats() {
                 </select>
               </header>
 
+              {searchOpen && (
+                <div className={styles.msgSearch}>
+                  <TbSearch size={15} />
+                  <input
+                    type="search"
+                    value={msgQuery}
+                    onChange={(e) => setMsgQuery(e.target.value)}
+                    placeholder="Shu yozishma ichidan qidirish…"
+                    autoFocus
+                  />
+                  <span className="hint">
+                    {msgQuery ? `${num(shownMessages.length)} ta topildi` : `${num(messages.length)} ta xabar`}
+                  </span>
+                  <button
+                    type="button"
+                    className={styles.headBtn}
+                    onClick={() => {
+                      setSearchOpen(false);
+                      setMsgQuery("");
+                    }}
+                    aria-label="Yopish"
+                  >
+                    <TbX size={15} />
+                  </button>
+                </div>
+              )}
+
               <div className={styles.feed} ref={feedRef}>
-                {messages.length ? (
-                  messages.map((m, i) => {
-                    const prev = messages[i - 1];
+                {shownMessages.length ? (
+                  shownMessages.map((m, i) => {
+                    const prev = shownMessages[i - 1];
                     // Ketma-ket kelgan bir xil tomonli xabarlar guruhlanadi:
                     // har biriga ism yozilsa yozishma "kim-kim" bilan toʻlib
                     // ketadi va oʻqish qiyinlashadi.
@@ -312,13 +421,13 @@ export default function Chats() {
                             {m.is_outgoing ? (m.is_agent ? "Agent" : "Siz") : m.sender_name || "Foydalanuvchi"}
                           </span>
                         )}
-                        <span className={styles.text}>{m.text || `[${m.media_type || "media"}]`}</span>
+                        <span className={styles.text}>{m.text ? linkify(m.text) : `[${m.media_type || "media"}]`}</span>
                         <span className={styles.stamp}>{time(m.date)}</span>
                       </div>
                     );
                   })
                 ) : (
-                  <Empty icon={TbMessage2}>Xabar yoʻq</Empty>
+                  <Empty icon={TbMessage2}>{msgQuery ? "Bu soʻz boʻyicha topilmadi" : "Xabar yoʻq"}</Empty>
                 )}
               </div>
 
@@ -349,6 +458,144 @@ export default function Chats() {
           )}
         </section>
       </div>
+
+      {/* ── Chat maʼlumotlari va aʼzolar ───────────────────────── */}
+      <Modal
+        open={infoOpen}
+        title={sel ? sel.title || String(sel.tg_chat_id) : "Chat"}
+        onClose={() => setInfoOpen(false)}
+      >
+        {infoLoading && <Loading rows={3} />}
+
+        {!infoLoading && info?.info?.error && (
+          <ErrorBox error={{ message: info.info.error }} />
+        )}
+
+        {!infoLoading && info?.info && !info.info.error && (
+          <>
+            <div className={styles.infoTop}>
+              <span
+                className={`${styles.avatar} ${styles.avatarLg}`}
+                data-tone={toneOf(info.info.title || sel?.tg_chat_id)}
+                aria-hidden="true"
+              >
+                {initials(info.info.title || sel?.tg_chat_id)}
+              </span>
+              <div className={styles.infoName}>
+                <strong>{info.info.title || "—"}</strong>
+                <span className="hint">
+                  {KIND_LABEL[info.info.kind] || info.info.kind}
+                  {info.info.bot ? " · bot" : ""}
+                </span>
+              </div>
+            </div>
+
+            {info.info.about && <p className={styles.about}>{linkify(info.info.about)}</p>}
+
+            <dl className={styles.facts}>
+              <Fact label="ID" value={info.info.id} mono />
+              <Fact
+                label="Username"
+                value={info.info.username ? `@${info.info.username}` : null}
+                href={info.info.link}
+              />
+              <Fact label="Telefon" value={info.info.phone} />
+              <Fact label="Aʼzolar" value={info.info.members ? num(info.info.members) : null} />
+              <Fact label="Onlayn" value={info.info.online ? num(info.info.online) : null} />
+              <Fact label="Adminlar" value={info.info.admins ? num(info.info.admins) : null} />
+              <Fact label="Havola" value={info.info.inviteLink} href={info.info.inviteLink} />
+              <Fact
+                label="Mening huquqlarim"
+                value={
+                  info.info.iAmCreator
+                    ? "yaratuvchi"
+                    : info.info.myAdminRights?.length
+                      ? info.info.myAdminRights.join(", ")
+                      : null
+                }
+              />
+              <Fact label="Bizdagi javoblar" value={num(sel?.replies_count || 0)} />
+              <Fact label="Oxirgi xabar" value={sel?.last_at ? ago(sel.last_at) : null} />
+            </dl>
+
+            {/* ── Aʼzolar ────────────────────────────────────── */}
+            {info.members?.error && (
+              <p className="hint" style={{ marginTop: "var(--gap-12)" }}>
+                Aʼzolar roʻyxati olinmadi: {info.members.error}
+              </p>
+            )}
+
+            {members.length > 0 && (
+              <div className={styles.membersBox}>
+                <div className={styles.membersHead}>
+                  <TbUsers size={15} />
+                  <strong>Aʼzolar</strong>
+                  <Badge>{num(members.length)}</Badge>
+                  <span className="spacer" />
+                  <input
+                    type="search"
+                    value={memberQuery}
+                    onChange={(e) => setMemberQuery(e.target.value)}
+                    placeholder="Aʼzo qidirish…"
+                    className={styles.memberSearch}
+                  />
+                </div>
+
+                <div className={styles.members}>
+                  {shownMembers.length ? (
+                    shownMembers.map((m) => (
+                      <div key={m.id} className={styles.member}>
+                        <span className={styles.avatar} data-tone={toneOf(m.name || m.id)} aria-hidden="true">
+                          {initials(m.name || m.username || "?")}
+                        </span>
+                        <span className={styles.memberBody}>
+                          <span className={styles.memberName}>
+                            {m.name || m.username || m.id}
+                            {m.bot && <Badge>bot</Badge>}
+                            {m.role !== "member" && (
+                              <Badge tone={m.role === "creator" ? "ok" : "info"}>
+                                {m.role === "creator" ? "yaratuvchi" : m.rank || "admin"}
+                              </Badge>
+                            )}
+                          </span>
+                          <span className="hint mono">
+                            {m.username ? `@${m.username}` : `ID ${m.id}`}
+                          </span>
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <Empty icon={TbUsers}>Topilmadi</Empty>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </Modal>
+    </>
+  );
+}
+
+/** Chat turi — texnik nom emas, odam o'qiydigan so'z. */
+const KIND_LABEL = { user: "shaxsiy chat", group: "guruh", channel: "kanal" };
+
+/** Bitta ma'lumot qatori. Qiymati yo'q bo'lsa UMUMAN chizilmaydi —
+ *  "Telefon: —" qatori hech narsa aytmaydi, faqat joy egallaydi. */
+function Fact({ label, value, href, mono = false }) {
+  if (!value) return null;
+  return (
+    <>
+      <dt>{label}</dt>
+      <dd className={mono ? "mono" : ""}>
+        {href ? (
+          <a href={href} target="_blank" rel="noopener noreferrer" className="link">
+            {value}
+          </a>
+        ) : (
+          value
+        )}
+      </dd>
     </>
   );
 }

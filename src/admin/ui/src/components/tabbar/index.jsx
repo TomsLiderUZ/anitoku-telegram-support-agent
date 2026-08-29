@@ -3,6 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { TbDots, TbX } from "react-icons/tb";
 import styles from "./index.module.scss";
 import { navGroups, tabbarItems } from "../../router/routes";
+import { lockScroll } from "../../utils/scrollLock";
 
 /**
  * Tabbar — mobil navigatsiya (1024px dan tor ekran).
@@ -24,14 +25,11 @@ function Tabbar() {
   // ham ekranni yopib turardi.
   useEffect(() => setSheetOpen(false), [pathname]);
 
-  // Varaq ochiq turganda ortidagi sahifa suriladigan bo'lib qolmasin
+  // Varaq ochiq turganda ortidagi sahifa suriladigan bo'lib qolmasin.
+  // Umumiy qulf: oyna ustiga oyna ochilsa hisob to'g'ri qoladi.
   useEffect(() => {
     if (!sheetOpen) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previous;
-    };
+    return lockScroll();
   }, [sheetOpen]);
 
   // Escape bilan yopish — klaviatura ulangan planshetda ham ishlasin

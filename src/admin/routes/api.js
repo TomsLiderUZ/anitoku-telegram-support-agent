@@ -28,6 +28,7 @@ const servers = require('../../agent/servers');
 const watches = require('../../agent/watches');
 const routines = require('../../agent/routines');
 const shell = require('../../agent/shell');
+const telegramOps = require('../../agent/telegramOps');
 const { fmtTashkent } = require('../../agent/timeparse');
 const stats = require('../stats');
 const auth = require('../auth');
@@ -536,6 +537,38 @@ router.post(
 router.get('/chats/:id/messages', (req, res) => {
   res.json(memory.chatMessages(req.params.id, Number(req.query.limit) || 80));
 });
+
+/**
+ * Everything about one chat: who it is, and — for a group or channel —
+ * who is in it.
+ *
+ * Members come from Telegram, not from our database: our tables only know
+ * the people who have written something. "Who is in this group" has to be
+ * asked of Telegram or the answer is quietly wrong.
+ *
+ * The two calls are separate `catch`es on purpose. A group whose member
+ * list we are not allowed to read still has a name, a description and a
+ * member count worth showing; failing the whole request would hide those
+ * too.
+ */
+router.get(
+  '/chats/:id/info',
+  wrap(async (req, res) => {
+    if (!tg.isConnected()) return res.status(400).json({ error: 'Telegram ulanmagan' });
+
+    const ref = req.params.id;
+    const info = await telegramOps.chatInfo(ref).catch((err) => ({ error: err.message }));
+
+    let members = null;
+    if (info && !info.error && info.kind !== 'user') {
+      members = await telegramOps
+        .listMembers(ref, { limit: Number(req.query.members) || 200 })
+        .catch((err) => ({ error: err.message }));
+    }
+
+    res.json({ info, members });
+  })
+);
 
 router.post('/chats/:id/state', (req, res) => {
   const state = String((req.body && req.body.state) || 'auto');

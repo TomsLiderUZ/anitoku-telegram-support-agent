@@ -36,6 +36,21 @@ a {
   text-decoration: none;
 }
 
+/* Matn ichidagi havola — u bosiladigan ekani KO'RINIB turishi kerak.
+   Rangning o'zi yetarli emas: rang ko'rmaslik holatida havola oddiy
+   matndan farq qilmay qoladi, shuning uchun ostiga chiziq ham. */
+.link {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  word-break: break-all;
+}
+
+.link:hover {
+  color: var(--color-accent-hover);
+}
+
 /* Klaviatura bilan yuruvchi qayerdaligini ko'rsin; sichqoncha bilan
    bosilganda halqa chiqmasin — shuning uchun :focus emas,
    :focus-visible. */
@@ -266,6 +281,36 @@ textarea {
   .grid.c2,
   .grid.c3,
   .grid.c4 { grid-template-columns: minmax(0, 1fr); }
+}
+
+/**
+ * ── Suriladigan kapsula (.swipe) ──────────────
+ *
+ * Segmentli tanlagichlar — vaqt oraliqlari, yorliqlar — tor ekranda
+ * sig'maydi. Ikkita yechim bor edi: o'rash yoki surish. O'rash
+ * balandlikni o'zgartiradi va ostidagi hamma narsani siljitadi;
+ * surish esa telefonda tabiiy harakat va kapsula shaklini saqlaydi.
+ *
+ * `scroll-snap` — barmoq qo'yib yuborilganda tugmalar yarmida emas,
+ * chekkasida to'xtaydi. Scrollbar yashiriladi: kapsula ichida u
+ * shakldan chiqib turadi va bu yerda 4-5 ta banddan ko'p bo'lmaydi.
+ */
+.swipe {
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+
+.swipe::-webkit-scrollbar {
+  display: none;
+}
+
+.swipe > * {
+  /* Sig'masa ham kichraymasin — aks holda surish o'rniga siqilardi */
+  flex: 0 0 auto;
+  scroll-snap-align: start;
 }
 
 .hint {

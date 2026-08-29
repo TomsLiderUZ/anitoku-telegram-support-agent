@@ -9,6 +9,7 @@
 /* ── Yorliqlar ──────────────────────────────── */
 .tabs {
   display: inline-flex;
+  max-width: 100%;
   padding: 3px;
   border: 1px solid var(--color-border-secondary);
   border-radius: var(--border-radius-8);
@@ -159,15 +160,6 @@
    Yorliqlar bir qatorga sigʻmasa oʻralsin, oʻralganda ham ular
    kartochkadan chiqib ketmasin. */
 @media (max-width: 400px) {
-  .tabs {
-    width: var(--width-100-percent);
-    flex-wrap: wrap;
-  }
-
-  .tab {
-    flex: 1 0 auto;
-  }
-
   .search {
     width: var(--width-100-percent);
   }

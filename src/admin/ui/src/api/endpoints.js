@@ -61,6 +61,8 @@ export const ENDPOINTS = {
   CHAT_MESSAGES: (id, limit = 60) => `/chats/${id}/messages?limit=${limit}`,
   CHAT_REPLY: (id) => `/chats/${id}/reply`,
   CHAT_STATE: (id) => `/chats/${id}/state`,
+  /** Chat haqida hamma narsa + guruh/kanal boʻlsa aʼzolar roʻyxati. */
+  CHAT_INFO: (id, members = 200) => `/chats/${id}/info?members=${members}`,
   ESCALATIONS: (status = "open") => `/escalations?status=${status}`,
   ESCALATION_ANSWER: (id) => `/escalations/${id}/answer`,
 

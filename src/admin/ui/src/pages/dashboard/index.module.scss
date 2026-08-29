@@ -1,6 +1,7 @@
 /* Vaqt oralig'i almashtirgichi — segmentli tugma */
 .range {
   display: inline-flex;
+  max-width: 100%;
   padding: 3px;
   border: 1px solid var(--color-border-secondary);
   border-radius: var(--border-radius-8);
@@ -41,12 +42,41 @@
   line-height: 1.1;
 }
 
-/* Xato matni — uzun bo'lsa ham jadvalni cho'zib yubormasin */
+/* ── So'nggi xatolar ─────────────────────────
+   Har biri alohida blok: tepada qayerdan kelgani, ostida to'liq
+   matni. Jadvalda bu matn eng tor ustunga tushib qolardi. */
+.errors {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-8);
+}
+
+.errorRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-6);
+  padding: var(--padding-10) var(--padding-12);
+  border: 1px solid var(--color-danger-soft);
+  border-radius: var(--border-radius-8);
+  background-color: var(--color-danger-soft);
+  animation: fade-up var(--duration-base) var(--ease-out) both;
+  animation-delay: calc(min(var(--i, 0), 10) * var(--stagger-step));
+}
+
+.errorMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-8);
+  flex-wrap: wrap;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-11);
+}
+
 .errorText {
-  max-width: 480px;
+  margin: 0;
   color: var(--color-danger-text);
   font-family: var(--font-mono);
   font-size: var(--font-size-11);
-  line-height: 1.5;
+  line-height: 1.55;
   word-break: break-word;
 }

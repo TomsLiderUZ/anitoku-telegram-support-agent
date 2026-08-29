@@ -1,7 +1,9 @@
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { TbAlertTriangle, TbInbox, TbTrendingDown, TbTrendingUp, TbX } from "react-icons/tb";
 import styles from "./index.module.scss";
 import { trend as fmtTrend } from "../../utils/format";
+import { lockScroll } from "../../utils/scrollLock";
 
 /**
  * Panelning qayta ishlatiladigan bo'laklari.
@@ -133,23 +135,37 @@ export function Loading({ rows = 3 }) {
    o'sha joyiga qaytadi. */
 export function Modal({ open, title, onClose, actions, children }) {
   // Escape bilan yopiladi va varaq ortidagi sahifa surilmaydi.
-  // Ikkalasi ham "modal" degan so'zning ma'nosiga kiradi: u ochiq
-  // ekan, diqqat faqat unda bo'lishi kerak.
   useEffect(() => {
     if (!open) return;
     const onKey = (e) => e.key === "Escape" && onClose?.();
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     window.addEventListener("keydown", onKey);
+    const unlock = lockScroll();
     return () => {
-      document.body.style.overflow = previous;
+      unlock();
       window.removeEventListener("keydown", onKey);
     };
   }, [open, onClose]);
 
   if (!open) return null;
 
-  return (
+  /**
+   * PORTAL — sahifa ichida emas, <body> ga.
+   *
+   * Router har bir sahifani `.page-transition` ichiga o'raydi va unda
+   * transform ishlatadigan animatsiya bor. Transformli element o'zining
+   * ichidagi `position: fixed` elementlar uchun YANGI KOORDINATA
+   * BOSHLANG'ICHI yasaydi — ya'ni "ekran bo'ylab" degan qoida "shu blok
+   * bo'ylab" ga aylanadi.
+   *
+   * Aynan shu sababdan oyna sahifaning ichida, ko'rinmas joyda
+   * chizilardi: ekranda faqat qoraytiruvchi qatlam ko'rinib, oynaning
+   * o'zi topilmasdi — va sahifa qulflangani uchun uni izlab pastga
+   * ham tushib bo'lmasdi.
+   *
+   * Portal bu butun muammolar sinfini yopadi: <body> ning ustida hech
+   * qanday transform yo'q va bo'lishi ham mumkin emas.
+   */
+  return createPortal(
     <div className={styles.modalWrap} role="dialog" aria-modal="true" aria-label={title}>
       <div className={styles.modalOverlay} onClick={onClose} role="presentation" />
 
@@ -165,7 +181,35 @@ export function Modal({ open, title, onClose, actions, children }) {
 
         {actions && <footer className={styles.modalFoot}>{actions}</footer>}
       </div>
-    </div>
+    </div>,
+    document.body
+  );
+}
+
+/* ── Switch ───────────────────────────────────
+   Ha/yo'q sozlamasi uchun. Ilgari bu `<select>` edi: "Yoqilgan /
+   O'chirilgan" ro'yxatini ochib, o'qib, tanlash kerak bo'lardi —
+   ikki holatli narsa uchun uch qadam. Kalit esa holatini o'zi
+   ko'rsatib turadi va bir tegish bilan almashadi. */
+export function Switch({ checked, onChange, label, hint, disabled = false }) {
+  return (
+    <label className={`${styles.switchRow} ${disabled ? styles.switchOff : ""}`}>
+      <span className={styles.switchText}>
+        <span className={styles.switchLabel}>{label}</span>
+        {hint && <small>{hint}</small>}
+      </span>
+
+      <input
+        type="checkbox"
+        className={styles.switchInput}
+        checked={Boolean(checked)}
+        disabled={disabled}
+        onChange={(e) => onChange?.(e.target.checked)}
+      />
+      <span className={styles.switchTrack} aria-hidden="true">
+        <span className={styles.switchKnob} />
+      </span>
+    </label>
   );
 }
 

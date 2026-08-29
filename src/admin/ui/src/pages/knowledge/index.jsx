@@ -242,7 +242,7 @@ export default function Knowledge() {
         icon={tab === "skills" ? TbStar : tab === "prompt" ? TbUser : TbBook2}
         actions={
           <>
-            <div className={styles.tabs}>
+            <div className={`${styles.tabs} swipe`}>
               {[
                 ["docs", "Hujjatlar"],
                 ["skills", "Koʻnikmalar"],

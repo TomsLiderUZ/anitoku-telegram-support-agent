@@ -27,6 +27,7 @@
 
 .range {
   display: inline-flex;
+  max-width: 100%;
   padding: 3px;
   border: 1px solid var(--color-border-secondary);
   border-radius: var(--border-radius-8);
@@ -271,18 +272,6 @@
 /* ── Juda tor ekran (≤400px) ─────────────────
    250px gacha tushganda ham hech narsa kesilmasligi kerak. */
 @media (max-width: 400px) {
-  /* Beshta oraliq tugmasi bir qatorga sigʻmaydi — oʻraladi.
-     Yon tomonga surish emas: sahifada ikkita surilish yoʻnalishi
-     boʻlsa foydalanuvchi qaysi biri qayerdaligini yoʻqotadi. */
-  .range {
-    flex-wrap: wrap;
-  }
-
-  .rangeBtn {
-    flex: 1 0 auto;
-    min-width: 62px;
-  }
-
   /* Jurnal qatori ustunlarga sigʻmaydi — xabar oʻz qatoriga tushadi.
      Vaqt, daraja va boʻlim tepada yonma-yon qoladi. */
   .line {

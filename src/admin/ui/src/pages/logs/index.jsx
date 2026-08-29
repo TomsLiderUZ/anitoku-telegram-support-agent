@@ -183,7 +183,7 @@ export default function Logs() {
         }
       >
         <div className={styles.filters}>
-          <div className={styles.range} role="group" aria-label="Vaqt oraligʻi">
+          <div className={`${styles.range} swipe`} role="group" aria-label="Vaqt oraligʻi">
             {RANGES.map(([value, label]) => (
               <button
                 key={value}

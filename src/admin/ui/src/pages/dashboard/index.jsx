@@ -59,7 +59,7 @@ export default function Dashboard() {
   return (
     <>
       <PageHead>
-        <div className={styles.range} role="group" aria-label="Vaqt oraligʻi">
+        <div className={`${styles.range} swipe`} role="group" aria-label="Vaqt oraligʻi">
           {RANGES.map(([value, label]) => (
             <button
               key={value}
@@ -182,28 +182,29 @@ export default function Dashboard() {
           )
         }
       >
+        {/*
+          Jadval EMAS, ro'yxat.
+
+          Jadvalda to'rtinchi ustun — xato matni — eng muhimi, lekin u
+          eng uzuni ham. Telefonda unga 20 piksel qolib, matn har
+          qatorga bittadan harf bo'lib tushib ketardi va o'qib
+          bo'lmasdi. Ro'yxatda esa meta ma'lumot tepada bir qatorda,
+          xato matni esa butun kenglikni oladi.
+        */}
         {data?.errors?.length ? (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Vaqt</th>
-                  <th>Provayder</th>
-                  <th>Ish turi</th>
-                  <th>Xabar</th>
-                </tr>
-              </thead>
-              <tbody className="anim-stagger">
-                {data.errors.map((e, i) => (
-                  <tr key={i} style={{ "--i": i }}>
-                    <td className="hint">{ago(e.created_at)}</td>
-                    <td>{e.provider}</td>
-                    <td className="mono">{e.purpose}</td>
-                    <td className={styles.errorText}>{e.error}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className={`${styles.errors} anim-stagger`}>
+            {data.errors.map((e, i) => (
+              <div key={i} className={styles.errorRow} style={{ "--i": i }}>
+                <div className={styles.errorMeta}>
+                  <Badge tone="danger">{e.provider}</Badge>
+                  <span className="mono">{e.purpose}</span>
+                  {e.model && <span className="mono">{e.model}</span>}
+                  <span className="spacer" />
+                  <span>{ago(e.created_at)}</span>
+                </div>
+                <p className={styles.errorText}>{e.error}</p>
+              </div>
+            ))}
           </div>
         ) : (
           <Empty>Xato qayd etilmagan — hammasi joyida</Empty>

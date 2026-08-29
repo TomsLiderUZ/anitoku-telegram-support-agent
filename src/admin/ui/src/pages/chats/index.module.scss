@@ -495,3 +495,204 @@
     max-width: 92%;
   }
 }
+
+/* ── Sarlavhadagi dumaloq tugmalar ──────────── */
+.headBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: var(--border-radius-circle);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+
+  &:hover {
+    background-color: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+}
+
+.headBtnOn {
+  background-color: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+/* ── Yozishma ichidagi qidiruv ──────────────── */
+.msgSearch {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-8);
+  padding: var(--padding-8) var(--padding-12);
+  border-bottom: 1px solid var(--color-border-secondary);
+  background-color: var(--color-bg-secondary);
+  animation: fade-up var(--duration-fast) var(--ease-out) both;
+
+  > svg {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    padding: var(--padding-6-10);
+    border-radius: var(--border-radius-pill);
+  }
+
+  .hint {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 400px) {
+  // Topilgan soni sarlavhadan joy o'g'irlaydi — maydonning o'zi muhimroq
+  .msgSearch .hint {
+    display: none;
+  }
+}
+
+/* ── Chat ma'lumotlari ──────────────────────── */
+.infoTop {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-12);
+  padding-bottom: var(--gap-14);
+  border-bottom: 1px solid var(--color-border-secondary);
+}
+
+.avatarLg {
+  width: 54px;
+  height: 54px;
+  font-size: var(--font-size-16);
+}
+
+.infoName {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  strong {
+    color: var(--color-text-primary);
+    font-size: var(--font-size-16);
+    word-break: break-word;
+  }
+}
+
+.about {
+  margin: var(--gap-14) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-13);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Nom-qiymat ro'yxati: chapda yorliq, o'ngda qiymat. Ikki ustunli
+   grid — qiymatlar bir vertikal chiziqda tekislanadi. */
+.facts {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  gap: var(--gap-6) var(--gap-16);
+  margin: var(--gap-14) 0 0;
+
+  dt {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-12);
+    white-space: nowrap;
+  }
+
+  dd {
+    margin: 0;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-13);
+    word-break: break-word;
+  }
+}
+
+@media (max-width: 400px) {
+  .facts {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0 0;
+
+    dd {
+      margin-bottom: var(--gap-8);
+    }
+  }
+}
+
+/* ── A'zolar ────────────────────────────────── */
+.membersBox {
+  margin-top: var(--gap-16);
+  padding-top: var(--gap-14);
+  border-top: 1px solid var(--color-border-secondary);
+}
+
+.membersHead {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-8);
+  flex-wrap: wrap;
+  margin-bottom: var(--gap-10);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-13);
+}
+
+.memberSearch {
+  width: 180px;
+  max-width: 100%;
+  padding: var(--padding-6-10);
+  border-radius: var(--border-radius-pill);
+}
+
+.members {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.member {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-10);
+  padding: var(--padding-6) var(--padding-8);
+  border-radius: var(--border-radius-8);
+
+  &:hover {
+    background-color: var(--color-bg-hover);
+  }
+
+  .avatar {
+    width: 30px;
+    height: 30px;
+    font-size: 10px;
+  }
+}
+
+.memberBody {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.memberName {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-6);
+  flex-wrap: wrap;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-13);
+  word-break: break-word;
+}
