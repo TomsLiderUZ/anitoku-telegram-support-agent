@@ -201,7 +201,75 @@ function modelsFor(providerId) {
  * "extra_forbidden" and the whole fallback chain died mid-task. Only the
  * fields the OpenAI schema defines survive.
  */
-function normalizeMessages(messages) {
+/**
+ * Rewrite a tool-calling history as plain text.
+ *
+ * Gemini 3.x refuses a `tool_calls` history it did not produce itself:
+ *
+ *   400 — "Function call is missing a thought_signature in functionCall
+ *          parts. This is required for tools to work correctly"
+ *
+ * That signature is Gemini's own opaque token, attached to calls IT made.
+ * Our history comes from whichever provider answered the previous round —
+ * usually a different one — so the request is rejected outright. And it is
+ * rejected on the FIRST fallback, meaning Gemini's remaining capacity is
+ * unreachable exactly when the others have run out. That is what happened:
+ * mistral and openrouter were rate-limited, gemini 400'd on the history,
+ * and the founder was told "AI unavailable" while a working key sat idle.
+ *
+ * So the exchange is flattened. The model loses the structured link but
+ * keeps the only thing it needs to continue: which tool was called, with
+ * what, and what came back. New calls it makes are structured as normal —
+ * this touches history only.
+ */
+function flattenToolHistory(messages) {
+  const out = [];
+
+  const push = (role, content) => {
+    if (!content) return;
+    const last = out[out.length - 1];
+    // Ketma-ket bir xil rol — Gemini buni yoqtirmaydi, birlashtiramiz
+    if (last && last.role === role) last.content += `\n${content}`;
+    else out.push({ role, content });
+  };
+
+  for (const m of messages) {
+    if (m.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.length) {
+      const calls = m.tool_calls
+        .map((c) => {
+          const name = c.function?.name || 'tool';
+          const args =
+            typeof c.function?.arguments === 'string'
+              ? c.function.arguments
+              : JSON.stringify(c.function?.arguments || {});
+          return `${name}(${String(args).slice(0, 600)})`;
+        })
+        .join(', ');
+      push('assistant', `${m.content ? m.content + '\n' : ''}[Called: ${calls}]`);
+      continue;
+    }
+
+    if (m.role === 'tool') {
+      // Natija foydalanuvchi roli bilan qaytadi: "mana nima qaytdi" —
+      // Gemini uchun bu tabiiy o'qiladi va tool_call_id talab qilmaydi.
+      push('user', `[Result of ${m.name || 'tool'}]: ${String(m.content ?? '').slice(0, 4000)}`);
+      continue;
+    }
+
+    push(m.role, typeof m.content === 'string' ? m.content : JSON.stringify(m.content ?? ''));
+  }
+
+  return out;
+}
+
+/** Providers that cannot take a foreign tool-calling history. */
+const FLATTENS_TOOL_HISTORY = new Set(['gemini']);
+
+function normalizeMessages(messages, provider = null) {
+  if (provider && FLATTENS_TOOL_HISTORY.has(provider) && messages.some((m) => m.role === 'tool' || m.tool_calls)) {
+    return flattenToolHistory(messages);
+  }
+
   return messages.map((m) => {
     const out = { role: m.role };
     if (m.content !== undefined && m.content !== null) out.content = m.content;
@@ -298,7 +366,7 @@ async function chat({
       attempts++;
 
       const body = {
-        messages: normalizeMessages(messages),
+        messages: normalizeMessages(messages, step.provider),
         temperature: temp,
         max_tokens: mt,
         stream: false,
@@ -610,4 +678,4 @@ function usageStats() {
   };
 }
 
-module.exports = { chat, chatJSON, testKey, discoverModels, modelsFor, parseLooseJSON, usageStats, tokenStats, AIError };
+module.exports = { chat, chatJSON, testKey, discoverModels, modelsFor, parseLooseJSON, usageStats, tokenStats, normalizeMessages, AIError };

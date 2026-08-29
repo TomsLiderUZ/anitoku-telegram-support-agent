@@ -185,6 +185,14 @@
   gap: var(--gap-4);
   max-height: 52vh;
   overflow-y: auto;
+
+  /* Bolalar kichraymaydi — konteyner suriladi.
+     Flex bolasining standart "flex-shrink: 1" qiymati max-height bilan
+     birga kelganda ular surish oʻrniga SIQILADI: qatorlar bir-birining
+     ustiga chiqib, matn kesilib qoladi. */
+  > * {
+    flex-shrink: 0;
+  }
 }
 
 .cmd {
