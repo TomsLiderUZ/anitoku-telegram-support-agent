@@ -12,6 +12,7 @@ const telegramOps = require('./telegramOps');
 const watches = require('./watches');
 const projects = require('./projects');
 const coder = require('./coder');
+const sites = require('./sites');
 const servers = require('./servers');
 const shell = require('./shell');
 const routines = require('./routines');
@@ -105,6 +106,9 @@ const definitions = [
 
   // ── projects, code, servers ───────────────────────────────────────────
   fn('create_project', "Yangi dastur/loyiha yaratish (bot, API, sayt, skript — har qanday). Papka ochiladi; keyin code_task bilan kod yoziladi. Telegram bot boʻlsa kind='telegram-bot' va env'ga BOT_TOKEN oʻzi tushadi (username bering).", { name: S('nomi'), kind: { type: 'string', enum: ['node', 'telegram-bot', 'python', 'static', 'other'] }, spec: S('nima qilishi kerak'), run_cmd: S("doimiy ishga tushirish buyrugʻi, masalan 'node index.js' (ixtiyoriy)"), bot_username: S('telegram-bot uchun @username') }, ['name']),
+  fn('build_site', "SAYT / veb-ilova yasash va ISHGA TUSHIRISH. Toms 'sayt yasa', 'veb sayt qil' desa — SHU vosita. Lokalda oʻz portida ishga tushadi va ochiladigan havola qaytadi. Mavjudini oʻzgartirish uchun `fix` bilan. REJA SOʻRAMA — darhol bajar.", { name: S('Sayt nomi, masalan "anitoku-anime"'), spec: S('Sayt nima qilishi, qanday sahifalar boʻlishi — toʻliq tavsif'), fix: S('Mavjud saytni oʻzgartirish uchun') }, ['name']),
+  fn('publish_site', "Saytni SERVERGA joylash va subdomenga ulash. 'serverga joyla', 'subdomenga ula' desa ishlat. pm2, nginx va HTTPS avtomatik sozlanadi. DNS yozuvi hali boʻlmasa ham joylaydi va nima qoʻshish kerakligini aytadi.", { project: S('Loyiha nomi'), domain: S('Subdomen, masalan anime.anitoku.uz') }, ['project', 'domain']),
+  fn('secure_site', 'DNS tarqalgach saytga HTTPS sertifikatini ulash.', { domain: S('') }, ['domain']),
   fn('code_task', "KOD YOZISH / OʻZGARTIRISH / TUZATISH — Claude Code kabi ishlaydi: reja tuzadi, fayllarni oʻqiydi, yozadi, terminalda ishga tushirib TEKSHIRADI, xato boʻlsa tuzatadi. `project` bersang oʻsha loyihada, bermasang alohida sinov muhitida (sandbox) ishlaydi. Har qanday dastur: bot, sayt, API, skript. Natija — hisobot, kod chatga yozilmaydi.", { project: S('loyiha nomi — doimiy ish uchun; boʻsh qoldirsa sinov muhiti'), task: S('vazifa, toʻliq va aniq'), name: S('sinov muhiti uchun qisqa nom') }, ['task']),
   fn('list_projects', "Loyihalar. Standart holda faqat ishlab turgan/deploy qilinganlar; hammasi kerak boʻlsa all=true.", { all: B('sinov loyihalarini ham koʻrsatish') }),
   fn('project_files', 'Loyiha fayllari roʻyxati.', { project: S('') }, ['project']),
@@ -148,8 +152,8 @@ const GROUPS = {
   messaging: ['schedule_message', 'schedule_task', 'watch_reply', 'list_watches', 'forward_message', 'delete_message', 'add_alias'],
   chats: ['join_chat', 'leave_chat', 'delete_chat', 'create_chat', 'chat_info', 'list_members', 'promote_admin', 'demote_admin', 'ban_user', 'kick_user', 'unban_user', 'add_members', 'invite_link', 'edit_chat', 'pin_message'],
   bots: ['create_bot', 'configure_bot', 'build_and_run_bot', 'bot_send_message', 'bot_whoami', 'my_bots', 'list_my_bots', 'get_bot_token', 'revoke_bot_token', 'delete_bot', 'stop_bot', 'start_bot', 'bot_logs', 'talk_to_bot', 'press_button', 'read_bot'],
-  code: ['code_task', 'create_project', 'list_projects', 'project_files', 'read_project_file', 'write_project_file', 'run_command', 'start_project', 'stop_project', 'restart_project', 'project_logs', 'set_project_env', 'delete_project'],
-  servers: ['ssh_connect', 'ssh', 'list_servers', 'upload_to_server', 'add_server', 'ssh_public_key'],
+  code: ['build_site', 'publish_site', 'secure_site', 'code_task', 'create_project', 'list_projects', 'project_files', 'read_project_file', 'write_project_file', 'run_command', 'start_project', 'stop_project', 'restart_project', 'project_logs', 'set_project_env', 'delete_project'],
+  servers: ['publish_site', 'secure_site', 'ssh_connect', 'ssh', 'list_servers', 'upload_to_server', 'add_server', 'ssh_public_key'],
   routines: ['add_routine', 'list_routines', 'remove_routine', 'list_tasks', 'cancel_task'],
   knowledge: ['add_knowledge', 'search_knowledge', 'run_training', 'set_setting'],
 };
@@ -576,6 +580,15 @@ function createExecutor(ctx) {
 
       case 'list_servers':
         return { servers: shell.listHosts(), sessions: shell.listSessions(), publicKey: shell.publicKey() };
+
+      case 'build_site':
+        return sites.build({ name: args.name, spec: args.spec || null, fix: args.fix || null });
+
+      case 'publish_site':
+        return sites.publish({ project: args.project, domain: args.domain });
+
+      case 'secure_site':
+        return sites.secure(args.domain);
 
       case 'code_task': {
         const founderIds = String(settings.get('founder_ids', '')).split(/[,\s]+/).filter(Boolean);
