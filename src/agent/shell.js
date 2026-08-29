@@ -127,8 +127,9 @@ function parseHostSpec(text) {
     (t.match(/\b((?:[a-z0-9-]+\.)+[a-z]{2,})\b/i) || [])[1];
   if (!host) return null;
 
-  // `user@` only counts when the host follows it — a password containing "@"
-  // once turned "AndroGenda909_@OX" into the username.
+  // `user@` only counts when the host follows it. A password containing "@"
+  // (e.g. "Secret123_@OX") was once read as the username, and the connection
+  // was attempted as that user with no password at all.
   const at = t.match(new RegExp(`([a-z_][\\w.-]*)@${host.replace(/\./g, '\\.')}`, 'i'));
   const tokens = t.split(/[\s,;"'\n]+/).filter(Boolean);
   const bareUser = tokens.find((x) => COMMON_USERS.test(x));
