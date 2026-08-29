@@ -61,8 +61,26 @@ const TOOLS = [
   fn('finish', 'Call ONLY when every checklist item is done and verified. Report what was built and how it was verified.', { summary: S('2-5 sentences, Uzbek, no code'), success: { type: 'boolean' } }, ['summary', 'success']),
 ];
 
+/**
+ * Per-project standing instructions, the way CLAUDE.md works.
+ *
+ * Conventions a project needs every time — "this bot uses long polling, never
+ * webhooks", "run npm test before finishing" — belong with the project, not
+ * repeated in each request. The agent reads it at the start of every task and
+ * appends to it when it learns something durable.
+ */
+const MEMORY_FILE = 'AGENT.md';
+
+function projectMemory(dir) {
+  const f = path.join(dir, MEMORY_FILE);
+  if (!fs.existsSync(f)) return '';
+  const text = fs.readFileSync(f, 'utf8').trim();
+  return text ? text.slice(0, 6000) : '';
+}
+
 function systemPrompt(ctx) {
   return `You are an elite senior software engineer working autonomously, in the style of Claude Code. You have a real terminal and a real filesystem. You finish tasks completely — you never hand back a half-done job or a plan instead of working code.
+${ctx.memory ? `\n# PROJECT RULES (${MEMORY_FILE} — written by you or the owner, follow it)\n${ctx.memory}\n` : ''}
 
 # WORKSPACE
 Working directory: ${ctx.dir}
@@ -100,6 +118,9 @@ Platform: ${process.platform}, Node ${process.versions.node}. npm is available. 
 - Handle errors: log them with context, tell the user something useful, never crash the process on a bad input.
 - If something is impossible, say so plainly in finish() with success:false — do not fake it.
 
+# PROJECT MEMORY
+If you learn something that will matter next time — a convention, a gotcha, how to run the tests — append it to ${MEMORY_FILE} with edit_file or write_file. Keep it short and factual.
+
 # REPORTING
 The final summary goes to a non-technical reader in Uzbek: what now works, how you verified it, anything left. No code, no file dumps.`;
 }
@@ -126,6 +147,7 @@ async function runTask({ project = null, task, extraContext = null, sandboxName 
     spec: p ? p.spec : null,
     envKeys: p ? p.envKeys : [],
     founderIds: require('../core/db').settings.get('founder_ids', ''),
+    memory: projectMemory(dir),
   };
   // Point the shell session at the working directory for this task.
   shell.session(sessionId, { target: 'local', cwd: dir });

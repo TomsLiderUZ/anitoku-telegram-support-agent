@@ -249,6 +249,37 @@ function runCommand(command, { slug = null, cwd = null, timeoutMs = 120_000, max
 
 // ── long-running process ─────────────────────────────────────────────────────
 
+/**
+ * Kill a process this project left behind.
+ *
+ * The in-memory pid map is lost whenever the agent restarts, and a Telegram
+ * bot that keeps polling after we forget about it competes with the new
+ * instance for the same updates — three copies of one bot were answering at
+ * random. A pidfile survives restarts, so the previous instance can always be
+ * found and stopped before a new one starts.
+ */
+function killStray(slug) {
+  const f = path.join(dirOf(slug), '.pid');
+  if (!fs.existsSync(f)) return false;
+  const pid = Number(fs.readFileSync(f, 'utf8').trim());
+  fs.rmSync(f, { force: true });
+  if (!pid || pid === process.pid) return false;
+  try {
+    process.kill(pid, 0); // does it still exist?
+  } catch {
+    return false; // already gone
+  }
+  try {
+    if (process.platform === 'win32') spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { windowsHide: true });
+    else process.kill(pid, 'SIGKILL');
+    log.warn('eski jarayon toʻxtatildi', { slug, pid });
+    return true;
+  } catch (err) {
+    log.debug('stray kill failed', { slug, pid, error: err.message });
+    return false;
+  }
+}
+
 function start(slug) {
   const r = record(slug);
   if (!r) throw new Error(`loyiha topilmadi: ${slug}`);
@@ -256,18 +287,25 @@ function start(slug) {
   if (r.alive) return { ok: true, already: true, pid: r.pid };
 
   const dir = dirOf(r.slug);
+  killStray(r.slug);
   const out = fs.openSync(path.join(dir, 'project.log'), 'a');
   const isWin = process.platform === 'win32';
   const child = isWin
     ? spawn('cmd.exe', ['/d', '/s', '/c', r.run_cmd], { cwd: dir, env: { ...process.env, ...envOf(r.slug), NODE_ENV: 'production' }, stdio: ['ignore', out, out], windowsHide: true })
     : spawn('/bin/sh', ['-c', r.run_cmd], { cwd: dir, env: { ...process.env, ...envOf(r.slug), NODE_ENV: 'production' }, stdio: ['ignore', out, out] });
   procs.set(r.slug, child);
+  fs.writeFileSync(path.join(dir, '.pid'), String(child.pid), 'utf8');
   // Starting it is what makes it a real project rather than an experiment.
   db.prepare("UPDATE projects SET status = 'running', deployed = 1, pid = ?, last_error = NULL, updated_at = datetime('now') WHERE slug = ?").run(child.pid, r.slug);
   log.info('loyiha ishga tushdi', { slug: r.slug, pid: child.pid, cmd: r.run_cmd });
 
   child.on('exit', (code, signal) => {
     procs.delete(r.slug);
+    try {
+      fs.rmSync(path.join(dir, '.pid'), { force: true });
+    } catch {
+      /* best effort */
+    }
     const cur = db.prepare('SELECT status, restarts FROM projects WHERE slug = ?').get(r.slug);
     if (!cur || cur.status !== 'running') return;
     const restarts = (cur.restarts || 0) + 1;
@@ -292,6 +330,7 @@ function start(slug) {
 
 function stop(slug) {
   const s = String(slug);
+  killStray(s);
   db.prepare("UPDATE projects SET status = 'stopped', pid = NULL, updated_at = datetime('now') WHERE slug = ?").run(s);
   const p = procs.get(s);
   if (p) {
@@ -343,7 +382,7 @@ function stopAll() {
 }
 
 module.exports = {
-  ROOT, create, update, find, record, list, remove, slugify, dirOf, safePath, setDeployed,
+  ROOT, create, update, find, record, list, remove, slugify, dirOf, safePath, setDeployed, killStray,
   listFiles, readFile, writeFile, editFile, deleteFile, runCommand,
   start, stop, restart, logs, resumeAll, stopAll, envOf, setEnv,
 };
