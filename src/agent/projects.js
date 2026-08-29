@@ -78,16 +78,38 @@ function setEnv(slug, patch) {
   return Object.keys(env);
 }
 
+/**
+ * Is this project's process actually running?
+ *
+ * The in-memory child map only knows about processes this run started, so a
+ * project that survived an agent restart looked "stopped" while happily
+ * serving traffic. The pidfile is the durable answer.
+ */
+function isAlive(slug) {
+  const p = procs.get(slug);
+  if (p && !p.killed && p.exitCode === null) return true;
+  const f = path.join(dirOf(slug), '.pid');
+  if (!fs.existsSync(f)) return false;
+  const pid = Number(fs.readFileSync(f, 'utf8').trim());
+  if (!pid) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    fs.rmSync(f, { force: true });
+    return false;
+  }
+}
+
 function record(slug) {
   const r = db.prepare('SELECT * FROM projects WHERE slug = ?').get(String(slug));
   if (!r) return null;
-  const p = procs.get(r.slug);
   return {
     ...r,
     env_enc: undefined,
     envKeys: Object.keys(envOf(r.slug)),
     dir: dirOf(r.slug),
-    alive: !!(p && !p.killed && p.exitCode === null),
+    alive: isAlive(r.slug),
     files: fs.existsSync(dirOf(r.slug)) ? fs.readdirSync(dirOf(r.slug)).filter((f) => !SKIP_DIRS.has(f)).length : 0,
   };
 }

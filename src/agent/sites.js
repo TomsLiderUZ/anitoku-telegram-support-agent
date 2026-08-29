@@ -6,6 +6,7 @@ const { db, recordEvent } = require('../core/db');
 const { createLogger } = require('../core/logger');
 const projects = require('./projects');
 const shell = require('./shell');
+const { shq } = shell;
 
 const log = createLogger('sites');
 
@@ -81,7 +82,68 @@ function detectRunCmd(dir) {
   for (const f of ['index.js', 'server.js', 'app.js', 'main.js']) {
     if (fs.existsSync(path.join(dir, f))) return `node ${f}`;
   }
+  // A pure static site — HTML and assets, no server. It still needs something
+  // to serve it, so we drop in a small one rather than leave the project
+  // unrunnable.
+  if (fs.existsSync(path.join(dir, 'index.html')) || fs.existsSync(path.join(dir, 'public', 'index.html'))) {
+    writeStaticServer(dir);
+    return 'node serve.js';
+  }
   return 'node index.js';
+}
+
+/**
+ * A minimal static file server, written into the project so a hand-built HTML
+ * site can be started and published like any other.
+ */
+function writeStaticServer(dir) {
+  const target = path.join(dir, 'serve.js');
+  if (fs.existsSync(target)) return target;
+  const root = fs.existsSync(path.join(dir, 'public', 'index.html')) ? 'public' : '.';
+  fs.writeFileSync(
+    target,
+    `'use strict';
+// Static file server for this site. Generated because the project is plain
+// HTML with no server of its own.
+const http = require('node:http');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const ROOT = path.join(__dirname, ${JSON.stringify(root)});
+const PORT = Number(process.env.PORT) || 3000;
+const TYPES = {
+  '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
+  '.svg': 'image/svg+xml', '.webp': 'image/webp', '.ico': 'image/x-icon',
+  '.woff': 'font/woff', '.woff2': 'font/woff2', '.mp4': 'video/mp4',
+};
+
+http
+  .createServer((req, res) => {
+    const url = decodeURIComponent((req.url || '/').split('?')[0]);
+    let file = path.join(ROOT, url === '/' ? 'index.html' : url);
+    // Never serve anything outside the site directory.
+    if (!path.resolve(file).startsWith(path.resolve(ROOT))) {
+      res.writeHead(403).end('Ruxsat yoʻq');
+      return;
+    }
+    if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, 'index.html');
+    console.log(new Date().toISOString(), req.method, url);
+    if (!fs.existsSync(file)) {
+      res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end('<h1>404</h1><p>Sahifa topilmadi.</p>');
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream' });
+    fs.createReadStream(file).on('error', () => res.end()).pipe(res);
+  })
+  .listen(PORT, '0.0.0.0', () => console.log('Sayt ishlamoqda: http://0.0.0.0:' + PORT));
+`,
+    'utf8'
+  );
+  log.info('statik sayt uchun server yozildi', { dir: path.basename(dir), root });
+  return target;
 }
 
 const SITE_BRIEF = (port) => `This is a web project. Requirements:
@@ -156,6 +218,24 @@ async function build({ name, spec, fix = null, slug = null, onStep = null }) {
 
 // ── publishing to the server ─────────────────────────────────────────────────
 
+const NODE_BIN = '/root/.nvm/versions/node/v22.23.2/bin';
+
+/**
+ * Turn a run command into a pm2 invocation.
+ *
+ * `pm2 start "node serve.js"` treats the whole string as a script path and
+ * ends up launching bash — the process errored on every restart. A plain
+ * `node <file>` becomes a real script entry; anything else (npm scripts,
+ * chained build steps) is handed to a shell on purpose.
+ */
+function pm2Command(runCmd, name) {
+  const cmd = String(runCmd || 'node index.js').trim();
+  const simple = cmd.match(/^node\s+([\w./-]+)$/);
+  if (simple) return `pm2 start ${simple[1]} --name ${name} --interpreter ${NODE_BIN}/node --update-env`;
+  // npm and compound commands need a shell; PATH must include our node.
+  return `PATH=${NODE_BIN}:$PATH pm2 start bash --name ${name} --update-env -- -lc ${JSON.stringify(cmd)}`;
+}
+
 const NGINX = (domain, port) => `server {
     listen 80;
     listen [::]:80;
@@ -202,7 +282,7 @@ async function publish({ project, domain, host = null, remotePort = null }) {
   // 1. Ship the code (node_modules is rebuilt on the far side).
   const tar = path.join(require('../config').dataDir, `${slug}-publish.tgz`);
   const packed = await shell.run(
-    `cd ${JSON.stringify(p.dir)} && tar czf ${JSON.stringify(tar)} --exclude=node_modules --exclude=.git --exclude='*.log' --exclude=.pid .`,
+    `cd ${shq(p.dir)} && tar czf ${shq(tar)} --exclude=node_modules --exclude=.git --exclude='*.log' --exclude=.pid . && ls -l ${shq(tar)}`,
     { sessionId: sid, timeoutMs: 120_000 }
   );
   step('paketlash', packed);
@@ -211,7 +291,7 @@ async function publish({ project, domain, host = null, remotePort = null }) {
   const h = shell.getHost(target);
   const keyFile = path.join(require('../config').dataDir, 'ssh', 'id_ed25519');
   const scp = await shell.run(
-    `scp -o BatchMode=yes -o StrictHostKeyChecking=accept-new -P ${h.port || 22} -i ${JSON.stringify(keyFile)} ${JSON.stringify(tar)} ${h.user}@${h.host}:/tmp/${slug}.tgz`,
+    `scp -o BatchMode=yes -o StrictHostKeyChecking=accept-new -P ${h.port || 22} -i ${shq(keyFile)} ${shq(tar)} ${h.user}@${h.host}:/tmp/${slug}.tgz`,
     { sessionId: sid, timeoutMs: 300_000 }
   );
   step('yuborish', scp);
@@ -233,7 +313,7 @@ async function publish({ project, domain, host = null, remotePort = null }) {
       `export PATH=/root/.nvm/versions/node/v22.23.2/bin:$PATH`,
       `[ -f package.json ] && npm install --omit=dev --no-audit --no-fund >/dev/null 2>&1 || true`,
       `pm2 delete ${slug} >/dev/null 2>&1 || true`,
-      `${envLine} pm2 start ${JSON.stringify(p.run_cmd || 'node index.js')} --name ${slug} --interpreter /root/.nvm/versions/node/v22.23.2/bin/node --update-env`,
+      `${envLine} ${pm2Command(p.run_cmd || 'node index.js', slug)}`,
       `pm2 save >/dev/null 2>&1 || true`,
       `sleep 2 && curl -s -o /dev/null -w "app:%{http_code}" http://127.0.0.1:${port}/ || true`,
     ].join(' && '),
@@ -243,15 +323,17 @@ async function publish({ project, domain, host = null, remotePort = null }) {
 
   // 3. nginx vhost.
   const conf = `/etc/nginx/sites-available/${domain}`;
+  // A heredoc terminator has to sit alone on its line — joining these with
+  // "&&" swallowed the ln and reload commands into the config file, so the
+  // vhost was written but never enabled and nginx answered 404.
   const nginx = await shell.run(
-    [
-      `cat > ${conf} <<'NGINXCONF'\n${NGINX(domain, port)}NGINXCONF`,
-      `ln -sf ${conf} /etc/nginx/sites-enabled/${domain}`,
-      `nginx -t && systemctl reload nginx && echo NGINX_OK`,
-    ].join(' && '),
+    `cat > ${conf} <<'NGINXCONF'\n${NGINX(domain, port)}NGINXCONF\n` +
+      `ln -sf ${conf} /etc/nginx/sites-enabled/${domain}\n` +
+      `nginx -t && systemctl reload nginx && echo NGINX_OK\n`,
     { sessionId: sid, timeoutMs: 90_000 }
   );
-  step('nginx', nginx);
+  step('nginx', { ...nginx, ok: /NGINX_OK/.test(nginx.output) });
+  if (!/NGINX_OK/.test(nginx.output)) throw new Error(`nginx sozlanmadi: ${String(nginx.output).slice(-300)}`);
 
   // 4. HTTPS, but only once DNS actually points at this machine.
   const dns = await shell.run(`getent hosts ${domain} | awk '{print $1}' | head -1`, { sessionId: sid, timeoutMs: 30_000 });

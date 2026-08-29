@@ -66,6 +66,26 @@ function toNativePath(p) {
   return s.replace(/\//g, '\\');
 }
 
+/**
+ * The reverse of `toNativePath`: a Windows path written for a POSIX shell.
+ *
+ * `C:\ItzToms\All Codes\x` quoted into a bash command loses its backslashes to
+ * escape processing and becomes `C:ItzTomsAll Codesx` — which is how an
+ * archive ended up somewhere nobody looked and an upload silently shipped
+ * nothing. Commands that name a local path must pass it through here.
+ */
+function toPosixPath(p) {
+  if (!p) return p;
+  const s = String(p);
+  if (process.platform !== 'win32') return s;
+  const m = s.match(/^([a-zA-Z]):[\\/](.*)$/);
+  if (m) return `/${m[1].toLowerCase()}/${m[2].replace(/\\/g, '/')}`;
+  return s.replace(/\\/g, '/');
+}
+
+/** Quote a local path for use inside a shell command. */
+const shq = (p) => `'${toPosixPath(p).replace(/'/g, `'\\''`)}'`;
+
 // ── hosts ────────────────────────────────────────────────────────────────────
 
 function saveHost({ name, host, port = 22, user = 'root', password = null, keyPath = null, note = null }) {
@@ -417,6 +437,6 @@ async function run(command, { sessionId = 'default', target = null, host = null,
 
 module.exports = {
   run, runLocal, runRemote, session, listSessions, closeSession,
-  saveHost, getHost, listHosts, removeHost, parseHostSpec, installKey, publicKey,
+  saveHost, getHost, listHosts, removeHost, parseHostSpec, installKey, publicKey, toPosixPath, shq,
   sandbox, sweepSandboxes, SANDBOX_ROOT,
 };
