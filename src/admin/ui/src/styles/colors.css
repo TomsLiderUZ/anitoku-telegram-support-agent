@@ -1,0 +1,120 @@
+/**
+ * ============================================
+ * ANITOKU AGENT — Rang tokenlari
+ * ============================================
+ *
+ * SHKALA: sovuq-neytral (hue ~230, to'yinganlik 8-14%). Bu panel kechasi,
+ * uzoq vaqt ochiq turadi — shuning uchun asos sof qora emas, biroz ko'kish
+ * grafit (#0e1117). Sof qora fon oq matn bilan "vibratsiya" beradi va ko'zni
+ * charchatadi; grafit esa chuqurlikni saqlab, yumshoqroq ko'rinadi.
+ *
+ * Qatlamlar YORUG'LIK bilan ajratiladi (base → raised → overlay), chegara
+ * bilan emas. Shuning uchun panelda ramka kam: karta o'z foni bilan ajralib
+ * turadi.
+ *
+ * ACCENT — siyohrang-binafsha (#7c6cff). ANITOKU anime platformasi, va bu
+ * rang neon bo'lmasdan yosh va zamonaviy ko'rinadi. Grafik ranglar shu
+ * ohangdan boshlanadi va bir-biridan yetarlicha uzoq (rangni ajratib
+ * bo'lmaydigan foydalanuvchilar uchun ham).
+ *
+ * QOIDA: komponentda hech qachon to'g'ridan-to'g'ri hex yozilmasin —
+ * shu yerdagi tokenlardan foydalanilsin.
+ */
+
+:root,
+:root[data-theme='dark'] {
+  /* ── Fon ──────────────────────────────────── */
+  --bg-base: #0e1117;        /* Sahifaning eng tashqi foni — <body>, app wrapper */
+  --bg-sunken: #0a0d12;      /* Botiq hudud — sidebar, kod bloki, jadval sarlavhasi */
+  --bg-raised: #161b24;      /* Ko'tarilgan qatlam — karta, panel, input foni */
+  --bg-overlay: #1c2230;     /* Eng yuqori qatlam — modal, dropdown, tooltip, hover */
+  --bg-hover: #ffffff0a;     /* Interaktiv element ustiga sichqoncha kelganda */
+
+  /* ── Matn ─────────────────────────────────── */
+  --text-primary: #e8ecf4;   /* Sarlavha va asosiy matn. Kontrast 14.2:1 */
+  --text-secondary: #9aa4b8; /* Tavsif, subtitle, meta ma'lumot. Kontrast 6.8:1 */
+  --text-muted: #6b7488;     /* Placeholder, disabled, bo'sh holat izohi. 4.6:1 */
+  --text-on-accent: #0b0d14; /* Faqat accent fon ustidagi matn uchun */
+
+  /* ── Chegara ──────────────────────────────── */
+  --border: #232a36;         /* Input, select, karta chegarasi (kerak bo'lganda) */
+  --border-soft: #1a202a;    /* Ajratuvchi chiziq — divider, jadval qatorlari */
+
+  /* ── Accent ───────────────────────────────── */
+  --accent: #7c6cff;         /* Asosiy CTA — primary tugma, aktiv menyu, fokus */
+  --accent-hover: #8f81ff;   /* Accent hover holati */
+  --accent-soft: #7c6cff26;  /* ~15% shaffoflik — tanlangan qator, badge foni */
+  --accent-dim: #7c6cff14;   /* ~8% — juda yengil urg'u, grafik maydoni */
+
+  /* ── Holat ranglari ───────────────────────── */
+  --ok: #3ddc97;             /* Muvaffaqiyat — ishlayapti, ulangan, bajarildi */
+  --ok-soft: #3ddc9722;
+  --warn: #ffb340;           /* Ogohlantirish — kutilmoqda, limit yaqin */
+  --warn-soft: #ffb34022;
+  --danger: #ff6b6b;         /* Xato — yiqilgan, uzilgan, o'chirish */
+  --danger-soft: #ff6b6b22;
+  --info: #4cc2ff;           /* Neytral ma'lumot */
+  --info-soft: #4cc2ff22;
+
+  /* ── Grafik palitrasi ─────────────────────── */
+  /* Bir-biridan ohang va yorqinlik bo'yicha ajraladi, ketma-ket ishlatiladi */
+  --chart-1: #7c6cff;
+  --chart-2: #3ddc97;
+  --chart-3: #4cc2ff;
+  --chart-4: #ffb340;
+  --chart-5: #ff6b9d;
+  --chart-6: #a78bfa;
+  --chart-grid: #232a36;     /* Grafik to'r chiziqlari — deyarli ko'rinmas */
+
+  /* ── Soya ─────────────────────────────────── */
+  --shadow-sm: 0 1px 2px #00000059;
+  --shadow-md: 0 4px 16px #0000006b;
+  --shadow-lg: 0 12px 40px #00000080;
+}
+
+/**
+ * Kunduzgi rejim. Asosiy rejim tungi, lekin yorug' xonada ishlash uchun
+ * mavjud — tokenlar bir xil nomda, faqat qiymati almashadi, shuning uchun
+ * birorta komponentni o'zgartirish shart emas.
+ */
+:root[data-theme='light'] {
+  --bg-base: #f7f8fa;
+  --bg-sunken: #eef0f4;
+  --bg-raised: #ffffff;
+  --bg-overlay: #ffffff;
+  --bg-hover: #0000000a;
+
+  --text-primary: #131720;
+  --text-secondary: #515a6e;
+  --text-muted: #79839a;
+  --text-on-accent: #ffffff;
+
+  --border: #dfe3ea;
+  --border-soft: #eaedf2;
+
+  --accent: #5b4bdb;
+  --accent-hover: #4c3dc4;
+  --accent-soft: #5b4bdb1f;
+  --accent-dim: #5b4bdb0f;
+
+  --ok: #12a06a;
+  --ok-soft: #12a06a1f;
+  --warn: #c2740a;
+  --warn-soft: #c2740a1f;
+  --danger: #d63b3b;
+  --danger-soft: #d63b3b1f;
+  --info: #0d7fb8;
+  --info-soft: #0d7fb81f;
+
+  --chart-1: #5b4bdb;
+  --chart-2: #12a06a;
+  --chart-3: #0d7fb8;
+  --chart-4: #c2740a;
+  --chart-5: #d6407a;
+  --chart-6: #7c5cf0;
+  --chart-grid: #e3e7ee;
+
+  --shadow-sm: 0 1px 2px #1015231a;
+  --shadow-md: 0 4px 16px #10152314;
+  --shadow-lg: 0 12px 40px #1015231f;
+}

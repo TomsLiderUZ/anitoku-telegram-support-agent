@@ -1,0 +1,1 @@
+import{j as a,P as s,d as i,a1 as t,a2 as e}from"./index-D6UtMGMl.js";function o(){return a.jsxs(a.Fragment,{children:[a.jsx(s,{title:"Sahifa topilmadi"}),a.jsx("div",{className:"card",children:a.jsxs(i,{icon:t,children:["Bunday sahifa yoʻq. ",a.jsx(e,{to:"/",children:"Boshqaruvga qaytish"})]})})]})}export{o as default};

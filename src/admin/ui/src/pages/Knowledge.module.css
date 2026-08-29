@@ -1,0 +1,20 @@
+.big { font-size: var(--text-2xl); font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; }
+
+.tabs { display: inline-flex; gap: 2px; padding: 3px; background: var(--bg-sunken); border-radius: var(--r-md); }
+.tab {
+  padding: 5px 11px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.tab:hover { color: var(--text-primary); }
+.tabOn { background: var(--bg-overlay); color: var(--accent); }
+
+.skills { display: flex; flex-direction: column; gap: var(--sp-3); }
+.skill { padding: var(--sp-3); background: var(--bg-sunken); border-radius: var(--r-md); }

@@ -1,4 +1,5 @@
 'use strict';
+const fs = require('node:fs');
 const path = require('node:path');
 const express = require('express');
 const config = require('../config');
@@ -73,7 +74,30 @@ function createServer() {
   // ── protected ─────────────────────────────────────────────────────────────
   app.use('/api', auth.requireAuth, apiRouter);
 
+  // The React panel. Its assets are content-hashed, so they cache for a year
+  // while index.html never does — a stale shell would load a build that no
+  // longer exists.
+  const uiDir = path.join(__dirname, 'public-ui');
+  const hasUi = fs.existsSync(path.join(uiDir, 'index.html'));
+
+  if (hasUi) {
+    app.use(
+      '/ui/assets',
+      auth.requireAuth,
+      express.static(path.join(uiDir, 'assets'), {
+        immutable: true,
+        maxAge: '365d',
+      })
+    );
+    // Client-side routing: every /ui path serves the same shell.
+    app.get(/^\/ui(\/.*)?$/, auth.requireAuth, (req, res) => {
+      res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+      res.sendFile(path.join(uiDir, 'index.html'));
+    });
+  }
+
   app.get('/', auth.requireAuth, (req, res) => {
+    if (hasUi) return res.redirect('/ui/');
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
   });
 

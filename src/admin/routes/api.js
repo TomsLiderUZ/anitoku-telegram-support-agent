@@ -29,6 +29,7 @@ const watches = require('../../agent/watches');
 const routines = require('../../agent/routines');
 const shell = require('../../agent/shell');
 const { fmtTashkent } = require('../../agent/timeparse');
+const stats = require('../stats');
 const auth = require('../auth');
 
 const log = createLogger('admin:api');
@@ -72,6 +73,9 @@ router.get(
     });
   })
 );
+
+/** Chart-ready aggregates for the dashboard. */
+router.get('/stats', (req, res) => res.json(stats.all(Math.min(168, Number(req.query.hours) || 24))));
 
 router.get('/logs', (req, res) => {
   res.json(recentLogs(Number(req.query.limit) || 200, req.query.level || null));

@@ -1,0 +1,17 @@
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-navbar);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: var(--navbar-h);
+  padding: 0 var(--sp-6);
+  background: color-mix(in srgb, var(--bg-base) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+@media (max-width: 900px) {
+  .navbar { padding: 0 var(--sp-4); }
+}

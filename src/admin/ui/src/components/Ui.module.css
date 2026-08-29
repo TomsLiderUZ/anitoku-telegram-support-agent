@@ -1,0 +1,122 @@
+/* Building blocks shared by every page. */
+
+.pageHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-5);
+  flex-wrap: wrap;
+}
+.pageTitle {
+  font-size: var(--text-2xl);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.pageDesc {
+  margin-top: 4px;
+  max-width: 68ch;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/* ── Stat card ──────────────────────────────── */
+.stat {
+  position: relative;
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--bg-raised);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+/* A hairline of colour instead of a full border: it reads as a category
+   marker without boxing the card in. */
+.stat::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--accent);
+  opacity: 0.9;
+}
+.stat.ok::before { background: var(--ok); }
+.stat.warn::before { background: var(--warn); }
+.stat.danger::before { background: var(--danger); }
+.stat.info::before { background: var(--info); }
+
+.statLabel {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.statValue {
+  margin-top: 6px;
+  font-size: var(--text-3xl);
+  font-weight: 650;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.statSub {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: 6px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: var(--r-full);
+  font-weight: 600;
+  background: var(--bg-overlay);
+}
+.trend.up { background: var(--ok-soft); color: var(--ok); }
+.trend.down { background: var(--danger-soft); color: var(--danger); }
+
+/* ── Meter ──────────────────────────────────── */
+.meter + .meter { margin-top: var(--sp-3); }
+.meterTop {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-sm);
+  margin-bottom: 5px;
+}
+.meterVal { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.meterTrack {
+  height: 6px;
+  background: var(--bg-sunken);
+  border-radius: var(--r-full);
+  overflow: hidden;
+}
+.meterFill {
+  height: 100%;
+  border-radius: var(--r-full);
+  transition: width var(--t-base);
+}
+.meterFill.accent { background: var(--accent); }
+.meterFill.ok { background: var(--ok); }
+.meterFill.warn { background: var(--warn); }
+.meterFill.danger { background: var(--danger); }
+
+/* ── States ─────────────────────────────────── */
+.error {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-4);
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-radius: var(--r-md);
+  font-size: var(--text-sm);
+}
+.error span { flex: 1; }
+
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }

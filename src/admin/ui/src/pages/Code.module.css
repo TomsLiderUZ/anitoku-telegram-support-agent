@@ -1,0 +1,16 @@
+.out {
+  max-height: 520px;
+  margin-top: var(--sp-4);
+}
+.todos { margin-top: var(--sp-3); }
+.todo {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: 5px 0;
+  font-size: var(--text-sm);
+}
+.todo svg { flex: none; margin-top: 3px; }
+.done { color: var(--text-muted); text-decoration: line-through; }
+.doing { color: var(--accent); font-weight: 600; }
+.blocked { color: var(--danger); }

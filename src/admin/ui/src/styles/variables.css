@@ -1,0 +1,59 @@
+/**
+ * ============================================
+ * ANITOKU AGENT — Dizayn tokenlari
+ * ============================================
+ *
+ * Takrorlanadigan o'lchamlar, oraliqlar, radiuslar va animatsiya
+ * davomiyliklari shu yerda. Komponent CSS'ida "sehrli raqam" yozilmasin —
+ * avval shu fayldan mos token qidiriladi.
+ *
+ * Oraliqlar 4px shkalasida: har bir qadam ko'z ilg'aydigan darajada farq
+ * qiladi, lekin tizim bir butun bo'lib qoladi.
+ */
+
+:root {
+  /* ── Shrift ───────────────────────────────── */
+  --font-ui: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+
+  --text-xs: 11.5px;
+  --text-sm: 12.5px;
+  --text-base: 13.5px;
+  --text-lg: 15px;
+  --text-xl: 18px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+
+  /* ── Oraliq ───────────────────────────────── */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+
+  /* ── Radius ───────────────────────────────── */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-full: 999px;
+
+  /* ── Tuzilma ──────────────────────────────── */
+  --sidebar-w: 232px;
+  --navbar-h: 56px;
+  --content-max: 1440px;
+
+  /* ── Harakat ──────────────────────────────── */
+  /* Tez, lekin sezilarli: 120ms holat o'zgarishi, 220ms qatlam ochilishi */
+  --t-fast: 120ms cubic-bezier(0.4, 0, 0.2, 1);
+  --t-base: 220ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ── Qatlamlar ────────────────────────────── */
+  --z-sidebar: 20;
+  --z-navbar: 30;
+  --z-dropdown: 40;
+  --z-modal: 50;
+  --z-toast: 60;
+}
