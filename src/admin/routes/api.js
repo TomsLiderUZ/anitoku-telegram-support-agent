@@ -400,6 +400,27 @@ router.post('/knowledge/search', (req, res) => {
   res.json({ results: store.search(q, Number((req.body && req.body.limit) || 8)) });
 });
 
+/**
+ * One document, in full, and editing it.
+ *
+ * `:id(\d+)` is not decoration: a bare `:id` declared here would match
+ * "/knowledge/qa" too and hand the QA endpoint's traffic to this handler.
+ * Constraining it to digits keeps the two apart no matter what order the
+ * routes end up in.
+ */
+router.get('/knowledge/:id(\\d+)', (req, res) => {
+  const item = store.get(Number(req.params.id));
+  if (!item) return res.status(404).json({ error: 'Hujjat topilmadi' });
+  res.json(item);
+});
+
+router.post('/knowledge/:id(\\d+)', (req, res) => {
+  const { title, content, tags, weight } = req.body || {};
+  const out = store.update(Number(req.params.id), { title, content, tags, weight });
+  if (!out.ok) return res.status(400).json(out);
+  res.json({ ...out, stats: store.stats() });
+});
+
 router.get('/knowledge/qa', (req, res) => {
   res.json(db.prepare('SELECT id, question, answer, source, score, created_at FROM qa_pairs ORDER BY id DESC LIMIT ?').all(Number(req.query.limit) || 100));
 });

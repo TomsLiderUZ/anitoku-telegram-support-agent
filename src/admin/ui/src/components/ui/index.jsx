@@ -1,4 +1,5 @@
-import { TbAlertTriangle, TbInbox, TbTrendingDown, TbTrendingUp } from "react-icons/tb";
+import { useEffect } from "react";
+import { TbAlertTriangle, TbInbox, TbTrendingDown, TbTrendingUp, TbX } from "react-icons/tb";
 import styles from "./index.module.scss";
 import { trend as fmtTrend } from "../../utils/format";
 
@@ -122,6 +123,48 @@ export function Loading({ rows = 3 }) {
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className={`skeleton ${styles.loadingRow}`} style={{ "--i": i }} />
       ))}
+    </div>
+  );
+}
+
+/* ── Modal ────────────────────────────────────
+   Bitta narsani to'liq ko'rish yoki tahrirlash uchun. Ro'yxat orqada
+   turadi — foydalanuvchi qayerdan kelganini unutmaydi va yopgach
+   o'sha joyiga qaytadi. */
+export function Modal({ open, title, onClose, actions, children }) {
+  // Escape bilan yopiladi va varaq ortidagi sahifa surilmaydi.
+  // Ikkalasi ham "modal" degan so'zning ma'nosiga kiradi: u ochiq
+  // ekan, diqqat faqat unda bo'lishi kerak.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => e.key === "Escape" && onClose?.();
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = previous;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <div className={styles.modalWrap} role="dialog" aria-modal="true" aria-label={title}>
+      <div className={styles.modalOverlay} onClick={onClose} role="presentation" />
+
+      <div className={styles.modal}>
+        <header className={styles.modalHead}>
+          <h2 className={styles.modalTitle}>{title}</h2>
+          <button type="button" className="btn ghost sm" onClick={onClose} aria-label="Yopish">
+            <TbX size={15} />
+          </button>
+        </header>
+
+        <div className={styles.modalBody}>{children}</div>
+
+        {actions && <footer className={styles.modalFoot}>{actions}</footer>}
+      </div>
     </div>
   );
 }

@@ -253,3 +253,108 @@
     flex-shrink: 0;
   }
 }
+
+/* ── Modal ───────────────────────────────────
+   Kompyuterda markazda suzuvchi kartochka, telefonda pastdan
+   ko'tariladigan varaq — chunki tor ekranda markazlashtirilgan oyna
+   chetlarida foydasiz bo'shliq qoladi va barmoq yuqoriga yetmaydi. */
+.modalWrap {
+  position: fixed;
+  z-index: var(--z-modal);
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--padding-16);
+}
+
+.modalOverlay {
+  position: absolute;
+  inset: 0;
+  background-color: var(--color-overlay);
+  animation: fade-in var(--duration-fast) var(--ease-out) both;
+}
+
+.modal {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: var(--width-100-percent);
+  max-width: 760px;
+  max-height: 88vh;
+  max-height: 88dvh;
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-16);
+  background-color: var(--color-bg-surface);
+  box-shadow: var(--shadow-lg);
+  animation: modal-in var(--duration-base) var(--ease-spring) both;
+  overflow: hidden;
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+.modalHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-10);
+  padding: var(--padding-14-18);
+  border-bottom: 1px solid var(--color-border-secondary);
+}
+
+.modalTitle {
+  min-width: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-15);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Uzun matn modal ICHIDA suriladi — sarlavha va tugmalar doim
+   ko'rinib turadi, ya'ni "Saqlash" ni qidirib pastga tushish
+   kerak bo'lmaydi. */
+.modalBody {
+  flex: 1;
+  min-height: 0;
+  padding: var(--padding-16) var(--padding-20);
+  overflow-y: auto;
+}
+
+.modalFoot {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-8);
+  flex-wrap: wrap;
+  padding: var(--padding-12) var(--padding-20);
+  border-top: 1px solid var(--color-border-secondary);
+  background-color: var(--color-bg-secondary);
+}
+
+@media (max-width: 768px) {
+  .modalWrap {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal {
+    max-width: none;
+    max-height: 94dvh;
+    // Faqat yuqori burchaklar — varaq ekranning pastidan "chiqadi"
+    border-right: none;
+    border-bottom: none;
+    border-left: none;
+    border-radius: var(--border-radius-20) var(--border-radius-20) 0 0;
+    // iPhone "home indicator" chizig'i ustiga tugma tushib qolmasin
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  @keyframes modal-in {
+    from { opacity: 0; transform: translateY(100%); }
+    to   { opacity: 1; transform: none; }
+  }
+}

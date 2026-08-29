@@ -1,7 +1,10 @@
 /* ── Filtrlar ───────────────────────────────── */
 .filters {
   display: grid;
-  grid-template-columns: auto minmax(140px, 0.8fr) minmax(140px, 0.8fr) minmax(180px, 1.4fr);
+  /* min() — bu qoida 768px dan keng ekranlarda amal qiladi, lekin
+     qatʼiy 180px trekni qoldirish keyinchalik tuzoqqa aylanardi:
+     kimdir media queryni oʻzgartirsa sahifa jimgina toshib ketardi. */
+  grid-template-columns: auto minmax(min(140px, 100%), 0.8fr) minmax(min(140px, 100%), 0.8fr) minmax(min(180px, 100%), 1.4fr);
   gap: var(--gap-10);
   align-items: center;
 }
@@ -263,4 +266,52 @@
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* ── Juda tor ekran (≤400px) ─────────────────
+   250px gacha tushganda ham hech narsa kesilmasligi kerak. */
+@media (max-width: 400px) {
+  /* Beshta oraliq tugmasi bir qatorga sigʻmaydi — oʻraladi.
+     Yon tomonga surish emas: sahifada ikkita surilish yoʻnalishi
+     boʻlsa foydalanuvchi qaysi biri qayerdaligini yoʻqotadi. */
+  .range {
+    flex-wrap: wrap;
+  }
+
+  .rangeBtn {
+    flex: 1 0 auto;
+    min-width: 62px;
+  }
+
+  /* Jurnal qatori ustunlarga sigʻmaydi — xabar oʻz qatoriga tushadi.
+     Vaqt, daraja va boʻlim tepada yonma-yon qoladi. */
+  .line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--gap-6);
+  }
+
+  .lineScope {
+    display: inline;
+    max-width: 40%;
+  }
+
+  .lineMsg {
+    flex-basis: 100%;
+  }
+
+  /* Terminal buyrugʻi ham: matn tepada, vaqt/kod pastda */
+  .cmdHead {
+    flex-wrap: wrap;
+  }
+
+  .cmdText {
+    flex-basis: calc(100% - 24px);
+    white-space: normal;
+    word-break: break-all;
+  }
+
+  .cmdMeta {
+    flex-basis: 100%;
+  }
 }

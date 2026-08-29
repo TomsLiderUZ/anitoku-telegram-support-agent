@@ -8,12 +8,14 @@ import {
   TbStar,
   TbTrash,
   TbUser,
+  TbPencil,
+  TbDeviceFloppy,
 } from "react-icons/tb";
 import styles from "./index.module.scss";
 import client from "../../api/client";
 import { ENDPOINTS } from "../../api/endpoints";
 import { DonutChart } from "../../components/charts";
-import { Badge, Card, Empty, ErrorBox, Meter, PageHead, Stat } from "../../components/ui";
+import { Badge, Card, Empty, ErrorBox, Meter, Modal, PageHead, Stat } from "../../components/ui";
 import { ago, num } from "../../utils/format";
 
 /**
@@ -33,6 +35,15 @@ export default function Knowledge() {
   const [q, setQ] = useState("");
   const [add, setAdd] = useState({ title: "", content: "" });
   const [error, setError] = useState(null);
+
+  // Tahrirlanayotgan hujjat: `editing` — serverdagi holati, `draft` —
+  // ekrandagi. Ikkalasi alohida turadi, shunda "nimadir o'zgardimi?"
+  // degan savolga aniq javob bor va o'zgarmagan holda "Saqlash"
+  // bosilmaydi.
+  const [editing, setEditing] = useState(null);
+  const [draft, setDraft] = useState({ title: "", content: "" });
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState(null);
 
   const load = useCallback(
     async (silent = false) => {
@@ -72,6 +83,47 @@ export default function Knowledge() {
     const t = setInterval(() => load(true), 4000);
     return () => clearInterval(t);
   }, [status?.training?.running, load]);
+
+  /**
+   * Hujjatni to'liq matni bilan ochish.
+   *
+   * Ro'yxatda faqat 300 belgilik parcha keladi — yuzta hujjatning to'liq
+   * matnini har safar tashish ma'nosiz. To'liq matn aynan shu yerda,
+   * ochilganda so'raladi.
+   */
+  const openDoc = async (id) => {
+    setEditError(null);
+    try {
+      const item = await client.get(ENDPOINTS.KNOWLEDGE_ITEM(id));
+      setEditing(item);
+      setDraft({ title: item.title || "", content: item.content || "" });
+    } catch (e) {
+      setError(e);
+    }
+  };
+
+  const saveDoc = async () => {
+    setSaving(true);
+    setEditError(null);
+    try {
+      await client.post(ENDPOINTS.KNOWLEDGE_ITEM(editing.id), {
+        title: draft.title,
+        content: draft.content,
+      });
+      setEditing(null);
+      load();
+    } catch (e) {
+      // Server takrorlanish yoki qisqa matn haqida aytadi — oynani
+      // yopmaymiz, aks holda yozilgan matn yo'qolardi.
+      setEditError(e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const changed =
+    Boolean(editing) &&
+    (draft.title !== (editing.title || "") || draft.content !== (editing.content || ""));
 
   const training = status?.training || {};
   const kn = status?.knowledge || {};
@@ -174,7 +226,7 @@ export default function Knowledge() {
               className="btn"
               disabled={!add.content.trim()}
               onClick={async () => {
-                await client.post(ENDPOINTS.KNOWLEDGE(), add);
+                await client.post(ENDPOINTS.KNOWLEDGE_ADD, add);
                 setAdd({ title: "", content: "" });
                 load();
               }}
@@ -212,7 +264,7 @@ export default function Knowledge() {
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Qidirish…"
-                style={{ width: 180 }}
+                className={styles.search}
               />
             )}
           </>
@@ -220,44 +272,29 @@ export default function Knowledge() {
       >
         {tab === "docs" &&
           (docs.length ? (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Sarlavha</th>
-                    <th>Matn</th>
-                    <th>Manba</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody className="anim-stagger">
-                  {docs.map((d, i) => (
-                    <tr key={d.id} style={{ "--i": i }}>
-                      <td>{d.title || "—"}</td>
-                      <td style={{ maxWidth: 460 }}>
-                        <div className="hint">{String(d.content || "").slice(0, 200)}</div>
-                      </td>
-                      <td>
-                        <Badge>{d.source}</Badge>
-                      </td>
-                      <td>
-                        <div className="row end">
-                          <button
-                            type="button"
-                            className="btn danger sm"
-                            onClick={async () => {
-                              await client.delete(ENDPOINTS.KNOWLEDGE_ITEM(d.id));
-                              load();
-                            }}
-                          >
-                            <TbTrash size={13} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            /* Jadval emas, ro'yxat: tor ekranda jadval yon tomonga
+               suriladi va matn ustunini o'qib bo'lmaydi. Bandning
+               o'ziga bosilsa to'liq matn ochiladi. */
+            <div className={`${styles.docs} anim-stagger`}>
+              {docs.map((d, i) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  className={styles.doc}
+                  style={{ "--i": i }}
+                  onClick={() => openDoc(d.id)}
+                >
+                  <div className={styles.docTop}>
+                    <strong className={styles.docTitle}>{d.title || "Sarlavhasiz"}</strong>
+                    <Badge>{d.source}</Badge>
+                    {!d.enabled && <Badge tone="warn">oʻchiq</Badge>}
+                  </div>
+                  <p className={styles.docPreview}>{d.preview || d.content}</p>
+                  <div className={styles.docMeta}>
+                    <TbPencil size={12} /> tahrirlash uchun bosing · {ago(d.updated_at)}
+                  </div>
+                </button>
+              ))}
             </div>
           ) : (
             <Empty>Hujjat topilmadi</Empty>
@@ -297,6 +334,80 @@ export default function Knowledge() {
           </pre>
         )}
       </Card>
+
+      {/* ── Hujjatni to'liq o'qish va tahrirlash ───────────────── */}
+      <Modal
+        open={Boolean(editing)}
+        title={editing?.title || `Hujjat #${editing?.id}`}
+        onClose={() => setEditing(null)}
+        actions={
+          <>
+            <button
+              type="button"
+              className="btn danger sm"
+              onClick={async () => {
+                if (!window.confirm("Hujjat butunlay oʻchirilsinmi?")) return;
+                await client.delete(ENDPOINTS.KNOWLEDGE_ITEM(editing.id));
+                setEditing(null);
+                load();
+              }}
+            >
+              <TbTrash size={13} /> Oʻchirish
+            </button>
+
+            <span className="spacer" />
+
+            <span className="hint">{(draft.content || "").length} belgi</span>
+            <button type="button" className="btn ghost sm" onClick={() => setEditing(null)}>
+              Bekor qilish
+            </button>
+            <button type="button" className="btn" onClick={saveDoc} disabled={saving || !changed}>
+              <TbDeviceFloppy size={14} /> {saving ? "Saqlanmoqda…" : "Saqlash"}
+            </button>
+          </>
+        }
+      >
+        {editing && (
+          <>
+            <ErrorBox error={editError} />
+
+            <div className={styles.docInfo}>
+              <Badge>{editing.source}</Badge>
+              {editing.source_ref && <span className="hint mono">{editing.source_ref}</span>}
+              <span className="spacer" />
+              <span className="hint">
+                #{editing.id} · yangilangan {ago(editing.updated_at)}
+              </span>
+            </div>
+
+            <label className="field">
+              <span>Sarlavha</span>
+              <input
+                type="text"
+                value={draft.title}
+                onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                placeholder="Sarlavhasiz"
+              />
+            </label>
+
+            <label className="field">
+              <span>Matn</span>
+              {/* Balandligi oynaga qarab — uzun hujjatni 4 qatorlik
+                  darchadan tahrirlash iloji yo'q */}
+              <textarea
+                className={styles.docEditor}
+                value={draft.content}
+                onChange={(e) => setDraft({ ...draft, content: e.target.value })}
+                spellCheck={false}
+              />
+              <small>
+                Shu matn mijozlarga javob berishda ishlatiladi. Oʻzgartirilgach agent uni
+                qaytadan indekslaydi.
+              </small>
+            </label>
+          </>
+        )}
+      </Modal>
     </>
   );
 }

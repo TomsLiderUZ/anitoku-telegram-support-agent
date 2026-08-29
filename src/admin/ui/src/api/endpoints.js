@@ -90,6 +90,9 @@ export const ENDPOINTS = {
   // ─── Bilim va o'qitish ────────────────────────────────────────
   KNOWLEDGE: (limit = 100, q = "") =>
     `/knowledge?limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ""}`,
+  /** Qoʻshish uchun — soʻrov qatorisiz toza yoʻl. */
+  KNOWLEDGE_ADD: "/knowledge",
+  /** Bittasini toʻliq oʻqish (GET), tahrirlash (POST), oʻchirish (DELETE). */
   KNOWLEDGE_ITEM: (id) => `/knowledge/${id}`,
   SKILLS: "/skills",
   SKILL: (slug) => `/skills/${slug}`,

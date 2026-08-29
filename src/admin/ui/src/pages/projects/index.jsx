@@ -376,8 +376,7 @@ function ProjectDetail({ slug }) {
             value={runCmd}
             onChange={(e) => setRunCmd(e.target.value)}
             placeholder="node index.js"
-            className="mono"
-            style={{ flex: 1, minWidth: 220 }}
+            className="mono grow"
           />
           <button
             type="button"

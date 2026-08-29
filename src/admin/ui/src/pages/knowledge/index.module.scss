@@ -43,7 +43,8 @@
 /* ── Ko'nikmalar ────────────────────────────── */
 .skills {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  /* min() shart — izoh loyihalar sahifasida */
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
   gap: var(--gap-12);
 }
 
@@ -60,5 +61,114 @@
   strong {
     color: var(--color-text-primary);
     font-size: var(--font-size-13);
+  }
+}
+
+/* ── Bilim bazasi ro'yxati ───────────────────
+   Jadval emas: tor ekranda jadval yon tomonga suriladi va aynan
+   MATN ustuni ko'rinmay qoladi — ya'ni eng kerakli qismi. */
+.docs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-8);
+}
+
+.doc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-6);
+  width: var(--width-100-percent);
+  padding: var(--padding-12);
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-12);
+  background-color: var(--color-bg-secondary);
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+
+  &:hover {
+    border-color: var(--color-accent);
+    background-color: var(--color-bg-hover);
+  }
+}
+
+.docTop {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-8);
+  flex-wrap: wrap;
+}
+
+.docTitle {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-13);
+  font-weight: 600;
+}
+
+/* Uch qatordan ko'pi ro'yxatda kerak emas — to'lig'i ochilganda */
+.docPreview {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-12);
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.docMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-4);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-11);
+}
+
+/* ── Tahrirlash oynasi ─────────────────────── */
+.docInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-8);
+  flex-wrap: wrap;
+  margin-bottom: var(--gap-14);
+  padding-bottom: var(--gap-12);
+  border-bottom: 1px solid var(--color-border-secondary);
+}
+
+/* Uzun hujjatni to'rt qatorlik darchadan tahrirlab bo'lmaydi —
+   maydon oynaga qarab o'sadi. */
+.docEditor {
+  min-height: 46vh;
+  min-height: 46dvh;
+  font-size: var(--font-size-13);
+  line-height: 1.65;
+}
+
+/* Kartochka sarlavhasidagi qidiruv — 180px qat'iy edi va 250px li
+   ekranda kartochkadan chiqib ketardi. */
+.search {
+  width: 180px;
+  max-width: 100%;
+}
+
+/* ── Juda tor ekran (≤400px) ─────────────────
+   Yorliqlar bir qatorga sigʻmasa oʻralsin, oʻralganda ham ular
+   kartochkadan chiqib ketmasin. */
+@media (max-width: 400px) {
+  .tabs {
+    width: var(--width-100-percent);
+    flex-wrap: wrap;
+  }
+
+  .tab {
+    flex: 1 0 auto;
+  }
+
+  .search {
+    width: var(--width-100-percent);
   }
 }

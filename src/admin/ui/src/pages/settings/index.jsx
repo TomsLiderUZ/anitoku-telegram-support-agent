@@ -219,7 +219,7 @@ export default function Settings() {
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
                     placeholder="Telegramdan kelgan kod"
-                    style={{ flex: 1, minWidth: 160 }}
+                    className="grow"
                   />
                   <button
                     type="button"
@@ -242,7 +242,7 @@ export default function Settings() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="2FA parol"
-                    style={{ flex: 1, minWidth: 160 }}
+                    className="grow"
                   />
                   <button
                     type="button"

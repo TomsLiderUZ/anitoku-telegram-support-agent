@@ -106,7 +106,7 @@ export default function Chats() {
                   value={answers[e.id] || ""}
                   onChange={(ev) => setAnswers({ ...answers, [e.id]: ev.target.value })}
                   placeholder="Javobingizni yozing — agent uni foydalanuvchiga yetkazadi"
-                  style={{ flex: 1, minWidth: 220 }}
+                  className="grow"
                 />
                 <button
                   type="button"
@@ -211,7 +211,7 @@ export default function Chats() {
                   onChange={(e) => setReply(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && send()}
                   placeholder="Oʻzingiz javob yozish…"
-                  style={{ flex: 1, minWidth: 200 }}
+                  className="grow"
                 />
                 <button type="button" className="btn" onClick={send} disabled={!reply.trim()}>
                   <TbSend size={14} />

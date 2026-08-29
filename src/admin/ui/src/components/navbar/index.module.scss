@@ -129,3 +129,21 @@
     font-size: var(--font-size-16);
   }
 }
+
+/* ── Juda tor ekran (≤400px) ─────────────────
+   Holat koʻrsatkichi navbardan chiqib ketardi. U ikkinchi darajali —
+   xuddi shu maʼlumot pastdagi footerda ham bor, shuning uchun bu
+   yerda olib tashlanadi va tugmalarga joy qoladi. */
+@media (max-width: 400px) {
+  .pill {
+    display: none;
+  }
+
+  .inner {
+    gap: var(--gap-8);
+  }
+
+  .title {
+    font-size: var(--font-size-15);
+  }
+}

@@ -168,6 +168,7 @@
   --tabbar-height: 58px;
   --tabbar-inset: 12px;          /* Kapsulaning ekran chetidan masofasi */
   --tabbar-pad: 5px;             /* Kapsula ichidagi bandlar atrofidagi joy */
+  --tabbar-inset-tiny: 8px;      /* 340px dan tor ekranda — har piksel hisobda */
 
   --z-tabbar: 300;               /* Sticky'dan yuqori, modaldan past */
 

@@ -300,10 +300,74 @@ function list({ q = '', source = '', limit = 100, offset = 0 } = {}) {
   return db.prepare(sql).all(...params, limit, offset);
 }
 
+/**
+ * One document with its FULL text.
+ *
+ * `list` deliberately returns a 300-character preview — sending every body
+ * for a hundred rows would be megabytes for a table nobody reads in full.
+ * Reading or editing one document is a separate, explicit request.
+ */
+const get = (id) =>
+  db
+    .prepare(
+      'SELECT id, source, source_ref, title, content, tags, weight, enabled, created_at, updated_at FROM knowledge WHERE id = ?'
+    )
+    .get(Number(id)) || null;
+
+/**
+ * Edit a document in place.
+ *
+ * Three things have to move together or the entry quietly rots:
+ *
+ *  - `hash` is UNIQUE and is what `upsert` checks to avoid storing the same
+ *    fact twice. Leaving the old hash on edited text would let an identical
+ *    document be inserted again later.
+ *  - the embedding was built from the OLD wording. Left alone, semantic
+ *    search keeps matching the text that is no longer there — the worst kind
+ *    of stale, because the answer looks retrieved rather than invented.
+ *  - `updated_at` is what the list sorts by.
+ *
+ * A rewrite that collides with another entry is refused rather than merged:
+ * merging would silently destroy whichever version the founder did not have
+ * open.
+ */
+function update(id, { title, content, tags, weight } = {}) {
+  const row = get(id);
+  if (!row) return { ok: false, error: 'Hujjat topilmadi' };
+
+  const body = content === undefined ? row.content : String(content || '').trim();
+  if (body.length < 8) return { ok: false, error: 'Matn juda qisqa' };
+
+  const hash = sha256(normalize(body).slice(0, 600));
+  const clash = db.prepare('SELECT id FROM knowledge WHERE hash = ? AND id != ?').get(hash, row.id);
+  if (clash) return { ok: false, error: `Aynan shunday matn allaqachon bor (#${clash.id})` };
+
+  const next = {
+    title: title === undefined ? row.title : title || null,
+    tags: tags === undefined ? row.tags : tags || null,
+    weight: weight === undefined ? row.weight : Number(weight) || row.weight,
+  };
+
+  db.prepare(
+    "UPDATE knowledge SET title = ?, content = ?, tags = ?, weight = ?, hash = ?, updated_at = datetime('now') WHERE id = ?"
+  ).run(next.title, body, next.tags, next.weight, hash, row.id);
+
+  // Re-embed only when the wording actually changed; a title-only edit does
+  // not need the local model spun up.
+  if (body !== row.content && vectors.ready()) {
+    vectors
+      .index(row.id, `${next.title ? next.title + '. ' : ''}${body}`)
+      .catch((err) => log.debug('re-embed failed', { id: row.id, error: err.message }));
+  }
+
+  log.info('bilim hujjati tahrirlandi', { id: row.id, chars: body.length });
+  return { ok: true, item: get(row.id) };
+}
+
 const remove = (id) => {
   vectors.remove(id);
   return db.prepare('DELETE FROM knowledge WHERE id = ?').run(id).changes;
 };
 const setEnabled = (id, on) => db.prepare('UPDATE knowledge SET enabled = ? WHERE id = ?').run(on ? 1 : 0, id).changes;
 
-module.exports = { normalize, tokens, upsert, addQA, search, searchSemantic, buildContext, stats, list, remove, setEnabled };
+module.exports = { normalize, tokens, upsert, addQA, search, searchSemantic, buildContext, stats, list, get, update, remove, setEnabled };

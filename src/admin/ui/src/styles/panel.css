@@ -230,6 +230,21 @@ textarea {
   flex: 1;
 }
 
+/**
+ * Qatordagi "cho'ziladigan" maydon — odatda input.
+ *
+ * `flex: 1` yetarli emas edi: har bir joyda qo'lda `minWidth: 220`
+ * yozilgandi va 250px li ekranda maydon konteynerdan kengroq bo'lib,
+ * butun sahifani yon tomonga surib yuborardi. Bu yerda eng kichik
+ * kenglik 120px, `min-width: 0` esa flex bolasining standart
+ * "matnimdan kichrayaman emas" xatti-harakatini bekor qiladi.
+ */
+.grow {
+  flex: 1 1 120px;
+  min-width: 0;
+  max-width: 100%;
+}
+
 .grid {
   display: grid;
   /* 16px da qoʻshni kartochkalarning yuqori rangli chiziqlari deyarli

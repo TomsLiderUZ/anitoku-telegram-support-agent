@@ -96,6 +96,29 @@ function ChartTooltip({ active, payload, label }) {
 const AXIS = { fontSize: 11, tickLine: false, axisLine: false };
 
 /**
+ * Ekran tor ekanini kuzatadi.
+ *
+ * Recharts o'lchamlarni JS qiymati sifatida oladi — media query unga
+ * yetib bormaydi. 132px lik nom ustuni 250px li ekranda diagramma
+ * uchun 40px joy qoldirardi: ustunlar chiziqqa aylanib, grafik
+ * ma'nosini yo'qotardi.
+ */
+function useNarrow(maxWidth = 480) {
+  const query = `(max-width: ${maxWidth}px)`;
+  const [narrow, setNarrow] = useState(() => window.matchMedia(query).matches);
+
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const onChange = (e) => setNarrow(e.matches);
+    mq.addEventListener("change", onChange);
+    setNarrow(mq.matches);
+    return () => mq.removeEventListener("change", onChange);
+  }, [query]);
+
+  return narrow;
+}
+
+/**
  * TrendChart — vaqt bo'yicha o'zgarish.
  *
  * `series`: [{ key, name }] — bir nechta chiziq bo'lishi mumkin.
@@ -104,12 +127,13 @@ const AXIS = { fontSize: 11, tickLine: false, axisLine: false };
  */
 export function TrendChart({ data = [], series = [], xKey = "label", height = 260 }) {
   const palette = usePalette();
+  const narrow = useNarrow();
   const gradientId = `grad-${series.map((s) => s.key).join("-")}`;
 
   return (
     <div className={styles.chart} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+        <AreaChart data={data} margin={{ top: 8, right: 8, left: narrow ? -26 : -18, bottom: 0 }}>
           <defs>
             {series.map((s, i) => (
               <linearGradient key={s.key} id={`${gradientId}-${i}`} x1="0" y1="0" x2="0" y2="1">
@@ -121,7 +145,7 @@ export function TrendChart({ data = [], series = [], xKey = "label", height = 26
 
           <CartesianGrid stroke={palette.grid} vertical={false} />
           <XAxis dataKey={xKey} stroke={palette.muted} {...AXIS} />
-          <YAxis stroke={palette.muted} tickFormatter={compact} width={52} {...AXIS} />
+          <YAxis stroke={palette.muted} tickFormatter={compact} width={narrow ? 34 : 52} {...AXIS} />
           <Tooltip content={<ChartTooltip />} cursor={{ stroke: palette.border }} />
 
           {series.map((s, i) => (
@@ -162,6 +186,7 @@ export function TrendChart({ data = [], series = [], xKey = "label", height = 26
  */
 export function RankChart({ data = [], nameKey = "name", valueKey = "value", height = 260 }) {
   const palette = usePalette();
+  const narrow = useNarrow();
 
   return (
     <div className={styles.chart} style={{ height }}>
@@ -173,10 +198,13 @@ export function RankChart({ data = [], nameKey = "name", valueKey = "value", hei
             type="category"
             dataKey={nameKey}
             stroke={palette.muted}
-            width={132}
+            width={narrow ? 76 : 132}
             {...AXIS}
             // Uzun nomni kesamiz: to'liq nomi tooltipda ko'rinadi
-            tickFormatter={(v) => (String(v).length > 18 ? `${String(v).slice(0, 17)}…` : v)}
+            tickFormatter={(v) => {
+              const max = narrow ? 9 : 18;
+              return String(v).length > max ? `${String(v).slice(0, max - 1)}…` : v;
+            }}
           />
           <Tooltip content={<ChartTooltip />} cursor={{ fill: palette.grid, fillOpacity: 0.4 }} />
           <Bar dataKey={valueKey} radius={[0, 6, 6, 0]} animationDuration={600}>
@@ -198,6 +226,7 @@ export function RankChart({ data = [], nameKey = "name", valueKey = "value", hei
  */
 export function DonutChart({ data = [], height = 240, center }) {
   const palette = usePalette();
+  const narrow = useNarrow();
 
   return (
     <div className={styles.donut} style={{ height }}>
@@ -207,8 +236,8 @@ export function DonutChart({ data = [], height = 240, center }) {
             data={data}
             dataKey="value"
             nameKey="name"
-            innerRadius="58%"
-            outerRadius="86%"
+            innerRadius={narrow ? "50%" : "58%"}
+            outerRadius={narrow ? "74%" : "86%"}
             paddingAngle={2}
             stroke="none"
             animationDuration={600}

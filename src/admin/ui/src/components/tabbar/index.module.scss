@@ -208,3 +208,30 @@
     }
   }
 }
+
+/**
+ * ── Juda tor ekran (≤340px) ─────────────────
+ *
+ * 250px li ekranda kapsulaga oltita band sigʻmaydi: har biriga ~37px
+ * qoladi, ya'ni barmoq uchidan kichik. Beshinchi band yashiriladi va
+ * beshta joy qoladi — har biri 44px dan katta. Yoʻqolgan boʻlim
+ * "Yana" varagʻida turibdi, ya'ni hech qayerga yoʻqolmaydi.
+ */
+@media (max-width: 340px) {
+  .wrapper {
+    right: var(--tabbar-inset-tiny);
+    left: var(--tabbar-inset-tiny);
+    padding: 3px;
+    gap: 0;
+  }
+
+  // Beshinchi band (oxirgi NavLink) — "Yana" tugmasi qoladi
+  .tab:nth-of-type(5) {
+    display: none;
+  }
+
+  .tab {
+    min-width: 40px;
+    font-size: 9px;
+  }
+}

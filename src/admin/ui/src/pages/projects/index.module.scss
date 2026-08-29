@@ -30,7 +30,9 @@
 /* ── Loyihalar to'ri ────────────────────────── */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  /* min() shart: sof minmax(260px, 1fr) 250px li ekranda 260px lik trek
+     yasab, butun sahifani yon tomonga surib yuborardi. */
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
   gap: var(--gap-12);
 }
 
