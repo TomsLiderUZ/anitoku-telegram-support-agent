@@ -352,7 +352,12 @@ function looksLikeReasoningLeak(text) {
   const head = String(text || '').trim().slice(0, 220);
   return (
     /^(we need to|we should|we must|the user (is |wants|asks|said)|okay,? (so )?the user|first,? i need|let me (think|see|analyz)|i should (answer|respond|reply)|thinking:|<think>|analysis:)/i.test(head) ||
-    /^(so,? )?the question is asking/i.test(head)
+    /^(so,? )?the question is asking/i.test(head) ||
+    // The same monologue in Uzbek: "Salomlashish + savol birga kelgan, demak
+    // qisqa salomlashib darhol javob beraman." reached a real customer.
+    /^(foydalanuvchi|user|mijoz)\s+(so['‘’ʻ]?ra|savol|yoz|xohla|de)/i.test(head) ||
+    /\b(demak|shuning uchun|shunday qilib)\s+(qisqa|darhol|men)\b.*\b(javob\s*bera(man|y)|yozaman)\b/i.test(head) ||
+    /^[^.!?\n]{0,120}\bdemak\b[^.!?\n]{0,80}\bjavob\s*bera(man|y)\b/i.test(head)
   );
 }
 
