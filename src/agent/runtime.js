@@ -437,24 +437,56 @@ class Runtime extends EventEmitter {
       preview: text.slice(0, 80),
     });
 
-    const result = assistantMode
-      ? await assistant.handle({
-          chatId,
-          text,
-          chatType: meta.chatType,
-          chatTitle: meta.chatTitle,
-          msgId: meta.msgId,
-          senderId: meta.senderId,
-        })
-      : await brain.respond({
-          chatId,
-          text,
-          chatTitle: meta.chatTitle,
-          chatType: meta.chatType,
-          userName: meta.userName,
-          senderId: meta.senderId,
-          senderUsername: meta.senderUsername,
-        });
+    /**
+     * Ishni tugatmasdan to'xtash — YO'Q.
+     *
+     * Ilgari barcha provayderlar band bo'lsa, ish yarmida to'xtardi va
+     * rahbarga UMUMAN hech narsa yozilmasdi: "yozmoqda" o'chardi, javob
+     * kelmasdi, vazifa bajarilmay qolardi. Buyruq bergan odam uchun bu
+     * eng yomon holat — u nima bo'lganini bilmaydi ham.
+     *
+     * Endi bandlik sabab to'xtash yakuniy javob emas: kutib, boshidan
+     * qayta uriniladi. Vosita chaqiruvlari takrorlanishi mumkin, lekin
+     * ular o'qish amallari (ls, cat, ssh) va agent qayta boshlaganda
+     * bir xil xulosaga keladi — ishni yarmida tashlab ketishdan ko'ra
+     * yaxshiroq.
+     */
+    const RETRY_WAITS_MS = [20_000, 60_000];
+    let result;
+
+    for (let attempt = 0; ; attempt++) {
+      result = assistantMode
+        ? await assistant.handle({
+            chatId,
+            text,
+            chatType: meta.chatType,
+            chatTitle: meta.chatTitle,
+            msgId: meta.msgId,
+            senderId: meta.senderId,
+          })
+        : await brain.respond({
+            chatId,
+            text,
+            chatTitle: meta.chatTitle,
+            chatType: meta.chatType,
+            userName: meta.userName,
+            senderId: meta.senderId,
+            senderUsername: meta.senderUsername,
+          });
+
+      // Faqat "modellar band" holati qayta uriniladi. Boshqa xato —
+      // masalan vosita ishlamadi — takrorlansa ham o'zgarmaydi.
+      const busy = !result.ok && result.silent;
+      if (!busy || attempt >= RETRY_WAITS_MS.length) break;
+
+      const wait = RETRY_WAITS_MS[attempt];
+      log.warn('modellar band — ishni tashlamay qayta urinamiz', {
+        chatId,
+        attempt: attempt + 1,
+        waitMs: wait,
+      });
+      await new Promise((r) => setTimeout(r, wait));
+    }
 
     // Model va provayder `meta` ichida keladi (assistant), yoki yuqori
     // darajada (brain) — ikkalasidan ham o'qiymiz, aks holda jurnalda
@@ -471,9 +503,26 @@ class Runtime extends EventEmitter {
     if (!result.ok) {
       stopTyping();
       if (result.silent) {
-        // AI was unavailable mid-flight — leave the chat untouched.
         this.stats.skipped++;
         log.warn('javob yuborilmadi (AI mavjud emas)', { chatId });
+
+        /**
+         * Mijozga jim qolamiz, RAHBARGA — yo'q.
+         *
+         * Mijoz uchun jimlik to'g'ri: u agent borligini bilmaydi va
+         * "texnik nosozlik" xabari faqat tashvish tug'diradi. Lekin
+         * rahbar aniq vazifa bergan va uni kutib turibdi. Unga hech
+         * narsa demaslik — vazifani jimgina tashlab ketish demak.
+         */
+        if (assistantMode) {
+          await tg
+            .sendMessage(
+              chatId,
+              'Toms aka, hamma AI provayderlar hozir band (limit tugagan) — bir necha marta urinib koʻrdim, ' +
+                'ishni oxiriga yetkaza olmadim. Bir necha daqiqadan keyin qaytadan yozing yoki kalitlarni tekshiring.'
+            )
+            .catch((err) => log.warn('bandlik xabari yuborilmadi', { chatId, error: err.message }));
+        }
       } else {
         this.stats.failed++;
         log.warn('no reply produced', { chatId, error: result.error });

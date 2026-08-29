@@ -156,6 +156,39 @@ async function callOnce({ provider, key, model, body, timeoutMs = 90_000 }) {
  * configured providers does not mean six wasted round trips when five of them
  * have no keys. The preferred provider goes first; the rest follow as fallbacks.
  */
+/**
+ * Models that just refused this size of request.
+ *
+ * Groq answers "Request too large … tokens per minute" for every round of a
+ * tool conversation once the history has grown. That is a 400, so the key is
+ * not punished and the model stays in the plan — and it was retried on EVERY
+ * round, burning three or four of the ten allowed attempts before anything
+ * useful was tried. Then the real providers hit their rate limits, the budget
+ * was gone, and the whole request failed.
+ *
+ * A model that cannot take this payload will not take the next one either:
+ * the history only grows. So it steps out for a while.
+ */
+const oversized = new Map(); // "provider/model" -> qachongacha chetda
+
+const OVERSIZED_COOLDOWN_MS = 10 * 60_000;
+
+function markOversized(provider, model) {
+  oversized.set(`${provider}/${model}`, Date.now() + OVERSIZED_COOLDOWN_MS);
+}
+
+const isOversized = (provider, model) => {
+  const until = oversized.get(`${provider}/${model}`);
+  if (!until) return false;
+  if (until > Date.now()) return true;
+  oversized.delete(`${provider}/${model}`);
+  return false;
+};
+
+/** "Request too large", "tokens per minute" — hajm muammosi, xato emas. */
+const looksOversized = (text) =>
+  /request too large|too many tokens|context length|maximum context|tokens per minute|reduce the length/i.test(String(text || ''));
+
 function buildPlan({ provider, model }) {
   const primary = provider || settings.get('primary_provider', 'groq');
   const health = keyPool.health();
@@ -174,7 +207,8 @@ function buildPlan({ provider, model }) {
   for (const p of order) {
     const chain = modelsFor(p);
     const models = model && p === primary ? [model, ...chain.filter((m) => m !== model)] : chain;
-    for (const m of models) plan.push({ provider: p, model: m });
+    // Hajm sabab rad etgan modellar vaqtincha rejadan chiqariladi
+    for (const m of models) if (!isOversized(p, m)) plan.push({ provider: p, model: m });
   }
   return plan;
 }
@@ -334,6 +368,54 @@ async function chat({
   const errors = [];
   let attempts = 0;
 
+  /**
+   * Rate limits are a WAIT, not a failure.
+   *
+   * When every provider answered 429 the request used to be abandoned and
+   * the founder got nothing — his job stopped halfway through a tool loop
+   * with no message at all. But a per-minute limit clears in seconds: the
+   * only correct response is to wait and go round again.
+   *
+   * So the plan is walked in waves. A wave that fails for a transient
+   * reason (rate limit, provider hiccup, network) sleeps for as long as
+   * the provider asked — its own Retry-After when it gave one — and tries
+   * the whole plan again. A wave that fails for a permanent reason (no
+   * keys, bad request everywhere) stops immediately: waiting would change
+   * nothing.
+   */
+  const MAX_WAVES = 4;
+  const WAVE_MIN_WAIT_MS = 3_000;
+  const WAVE_MAX_WAIT_MS = 45_000;
+  let waveRetryAfterMs = 0;   // provayder aytgan eng qisqa kutish
+  let waveTransient = false;  // shu to'lqindagi xatolar vaqtinchalikmi
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  for (let wave = 0; wave < MAX_WAVES; wave++) {
+    if (wave > 0) {
+      const wait = Math.min(
+        WAVE_MAX_WAIT_MS,
+        Math.max(WAVE_MIN_WAIT_MS, waveRetryAfterMs || WAVE_MIN_WAIT_MS * wave)
+      );
+      log.warn('barcha provayderlar band — kutib qayta urinamiz', {
+        purpose,
+        wave,
+        waitMs: wait,
+      });
+      await sleep(wait);
+      // Yangi to'lqin — yangi hisob. Kalitlar sovish muddatini o'tagan
+      // bo'lishi mumkin, shuning uchun reja ham qaytadan quriladi.
+      attempts = 0;
+      waveRetryAfterMs = 0;
+      waveTransient = false;
+      plan = buildPlan({ provider, model });
+      if (Array.isArray(preferred) && preferred.length) {
+        const health = keyPool.health();
+        const head = preferred.filter((s) => s && health[s.provider] && health[s.provider].total > 0);
+        const seen = new Set(head.map((s) => `${s.provider}/${s.model}`));
+        plan = preferredOnly ? head : [...head, ...plan.filter((s) => !seen.has(`${s.provider}/${s.model}`))];
+      }
+    }
+
   // Local model first for the purposes it is allowed to serve (support replies
   // by default). No tools, no JSON mode — those stay on the cloud. Any failure
   // simply falls through to the provider plan below.
@@ -341,7 +423,7 @@ async function chat({
   // odam kutayotgan ish uchun yaramaydi va ketma-ket sekinlashsa o'zini
   // tez yo'ldan chetga oladi; sozlamada nima yozilganidan qat'i nazar.
   const localPurposes = String(settings.get('local_purposes', 'reply,reply:retry,memory:summary')).split(',').map((s) => s.trim());
-  if (!provider && !json && local.available(purpose) && localPurposes.includes(purpose)) {
+  if (wave === 0 && !provider && !json && local.available(purpose) && localPurposes.includes(purpose)) {
     const started = Date.now();
     try {
       const out = await local.chat({ messages, maxTokens: mt, temperature: temp });
@@ -400,15 +482,37 @@ async function chat({
         if (kind === 'client') {
           // Bad request for this model (unsupported tools, bad params) — do not
           // punish the key, just move to the next model.
-          log.debug('model rejected request', { provider: step.provider, model: step.model, err: err.message.slice(0, 160) });
+          if (looksOversized(err.message)) {
+            markOversized(step.provider, step.model);
+            log.debug('model bu hajmni koʻtarmadi — vaqtincha chetga', { provider: step.provider, model: step.model });
+          } else {
+            log.debug('model rejected request', { provider: step.provider, model: step.model, err: err.message.slice(0, 160) });
+          }
           break;
         }
         keyPool.markFailure(cred.id, kind, err.message, err.retryAfterMs || 0);
+
+        // Vaqtinchalik: kutsak o'tib ketadi. Shuni belgilab qo'yamiz —
+        // butun reja shu sabab tugasa, taslim bo'lmay kutib qayta uramiz.
+        if (kind === 'rate_limit' || kind === 'server' || kind === 'network') {
+          waveTransient = true;
+          if (err.retryAfterMs) {
+            waveRetryAfterMs = waveRetryAfterMs
+              ? Math.min(waveRetryAfterMs, err.retryAfterMs)
+              : err.retryAfterMs;
+          }
+        }
+
         if (kind === 'quota' || kind === 'quota_daily' || kind === 'invalid') continue; // try another key
         if (kind === 'rate_limit') continue;
         if (kind === 'server' || kind === 'network') continue;
       }
     }
+  }
+
+    // Reja tugadi. Sabab vaqtinchalik bo'lsa — keyingi to'lqin kutib
+    // qaytadan uradi; aks holda kutishning ma'nosi yo'q.
+    if (!waveTransient) break;
   }
 
   const summary = errors.slice(-6).join(' | ') || 'no usable API keys';
