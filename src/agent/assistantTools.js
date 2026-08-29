@@ -79,6 +79,8 @@ const definitions = [
   fn('create_bot', "BotFather orqali yangi bot yaratish va tokenini olish. Username lotin, kamida 5 belgi, 'bot' bilan tugaydi. AVVAL list_my_bots bilan borlarini tekshir — xuddi shunday bot boʻlsa yangisini yaratma.", { name: S('Koʻrinadigan nomi'), username: S("@username, 'bot' bilan tugaydi"), description: S(''), about: S('') }, ['name', 'username']),
   fn('configure_bot', "FAQAT BotFather'dagi koʻrinish: nom, tavsif, about, menyudagi buyruqlar roʻyxati. KODGA TAʼSIR QILMAYDI — buyruq ishlashi uchun code_task/build_and_run_bot kerak.", { username: S(''), name: S(''), description: S(''), about: S(''), commands: S("Har qatorda 'buyruq - tavsif'") }, ['username']),
   fn('build_and_run_bot', "Bot uchun KOD YOZIB (yoki mavjudini OʻZGARTIRIB) shu kompyuterda ISHGA TUSHIRISH: 'kod yozib run qil', 'buyruq qoʻsh', 'tuzat', 'admin panel qoʻsh'. Bot BotFather'da bor boʻlishi kerak. Spec bermasa oʻzing mantiqiy funksiyalar tanla. Mavjud botga oʻzgartirish — `fix` maydonida. Natijadagi `commands` roʻyxatini hisobotda ayt. Kod chatga YOZILMAYDI.", { username: S('@username'), spec: S('Bot nima qilishi kerak, 3-8 jumla'), name: S(''), fix: S("Mavjud botni tuzatish/kengaytirish: nima kerak") }, ['username']),
+  fn('bot_send_message', "BOTNING OʻZI nomidan xabar yuborish. Toms '@botim menga hello yozsin', 'bot falonchiga xabar bersin' desa — SHU vosita. Bu botga yozish EMAS, bot oʻz nomidan yozadi. 'menga' = Tomsning oʻzi.", { bot: S('@username'), to: S("Kimga: 'menga', @username yoki chat ID"), text: S('Bot yuboradigan matn') }, ['bot', 'to', 'text']),
+  fn('bot_whoami', 'Bot tokeni ishlayotganini va u kimligini tekshirish.', { bot: S('@username') }, ['bot']),
   fn('my_bots', "Agent oʻzi yozgan va boshqarayotgan botlar: holati, tokeni, spec'i.", {}),
   fn('list_my_bots', 'Shu akkauntga tegishli barcha botlar (BotFather /mybots).', {}),
   fn('get_bot_token', "Bot tokenini olish. Toms soʻrasa BER — u egasi. Guruhda boʻlsang natijani send_private bilan yubor.", { username: S('') }, ['username']),
@@ -145,7 +147,7 @@ const GROUPS = {
   core: ['plan', 'plan_step_done', 'send_message', 'send_private', 'read_chat', 'find_contact', 'remember', 'forget', 'list_memory', 'bash', 'agent_status', 'inbox_digest', 'my_chats'],
   messaging: ['schedule_message', 'schedule_task', 'watch_reply', 'list_watches', 'forward_message', 'delete_message', 'add_alias'],
   chats: ['join_chat', 'leave_chat', 'delete_chat', 'create_chat', 'chat_info', 'list_members', 'promote_admin', 'demote_admin', 'ban_user', 'kick_user', 'unban_user', 'add_members', 'invite_link', 'edit_chat', 'pin_message'],
-  bots: ['create_bot', 'configure_bot', 'build_and_run_bot', 'my_bots', 'list_my_bots', 'get_bot_token', 'revoke_bot_token', 'delete_bot', 'stop_bot', 'start_bot', 'bot_logs', 'talk_to_bot', 'press_button', 'read_bot'],
+  bots: ['create_bot', 'configure_bot', 'build_and_run_bot', 'bot_send_message', 'bot_whoami', 'my_bots', 'list_my_bots', 'get_bot_token', 'revoke_bot_token', 'delete_bot', 'stop_bot', 'start_bot', 'bot_logs', 'talk_to_bot', 'press_button', 'read_bot'],
   code: ['code_task', 'create_project', 'list_projects', 'project_files', 'read_project_file', 'write_project_file', 'run_command', 'start_project', 'stop_project', 'restart_project', 'project_logs', 'set_project_env', 'delete_project'],
   servers: ['ssh_connect', 'ssh', 'list_servers', 'upload_to_server', 'add_server', 'ssh_public_key'],
   routines: ['add_routine', 'list_routines', 'remove_routine', 'list_tasks', 'cancel_task'],
@@ -433,6 +435,24 @@ function createExecutor(ctx) {
         return botfather.configureBot({ username: args.username, name: args.name || null, description: args.description || null, about: args.about || null, commands: args.commands || null });
       case 'build_and_run_bot':
         return bots.build({ username: args.username, name: args.name || null, spec: args.spec || null, fix: args.fix || null });
+
+      case 'bot_send_message': {
+        // Who should receive it — resolved through the same rules as our own
+        // messages, so "menga" reaches Toms and a name reaches that person.
+        let chatId;
+        const ref = String(args.to || '').trim();
+        if (SELF_REF.test(ref) && founderDm) chatId = founderDm;
+        else if (HERE_REF.test(ref) && ctx.chatId) chatId = ctx.chatId;
+        else if (/^-?\d{5,}$/.test(ref)) chatId = ref;
+        else {
+          const r = await contacts.resolve(ref);
+          chatId = String(r.entity.id);
+        }
+        return bots.sendAs(args.bot, chatId, args.text);
+      }
+
+      case 'bot_whoami':
+        return bots.whoAmI(args.bot);
 
       case 'my_bots':
         return {

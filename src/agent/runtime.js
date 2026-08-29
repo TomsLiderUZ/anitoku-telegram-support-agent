@@ -289,7 +289,10 @@ class Runtime extends EventEmitter {
    * recognised in busy groups.
    */
   enqueue(item) {
-    const wait = settings.int('debounce_ms', 2500);
+    // The founder is usually mid-conversation and waiting; a customer often
+    // sends two or three fragments in a row. Waiting the same three seconds
+    // for both made every reply to him feel slow.
+    const wait = item.mode === 'assistant' ? Math.min(1200, settings.int('debounce_ms', 2500)) : settings.int('debounce_ms', 2500);
     const cur = this.pending.get(item.chatId);
 
     if (cur) {
@@ -337,6 +340,25 @@ class Runtime extends EventEmitter {
     }
   }
 
+  /**
+   * Hold the "typing…" indicator up for as long as we are working.
+   * Returns the function that takes it down again.
+   */
+  keepTyping(chatId) {
+    let stopped = false;
+    const push = () => {
+      if (!stopped) tg.setTyping(chatId, true).catch(() => {});
+    };
+    push();
+    const timer = setInterval(push, 4000);
+    return () => {
+      if (stopped) return;
+      stopped = true;
+      clearInterval(timer);
+      tg.setTyping(chatId, false).catch(() => {});
+    };
+  }
+
   async process(chatId, entry) {
     const text = entry.texts.join('\n').trim();
     if (!text) return;
@@ -367,8 +389,13 @@ class Runtime extends EventEmitter {
 
     await tg.markRead(chatId).catch(() => {});
 
+    // Telegram drops the "typing…" indicator about five seconds after each
+    // update, but composing a reply takes longer than that — so it appeared,
+    // vanished, and the answer arrived out of nowhere. Refreshing it keeps the
+    // cue visible for the whole time we are actually working, the way a person
+    // typing looks.
     const typing = settings.bool('typing_simulation', true);
-    if (typing) tg.setTyping(chatId, true).catch(() => {});
+    const stopTyping = typing ? this.keepTyping(chatId) : () => {};
 
     const result = assistantMode
       ? await assistant.handle({
@@ -390,7 +417,7 @@ class Runtime extends EventEmitter {
         });
 
     if (!result.ok) {
-      if (typing) tg.setTyping(chatId, false).catch(() => {});
+      stopTyping();
       if (result.silent) {
         // AI was unavailable mid-flight — leave the chat untouched.
         this.stats.skipped++;
@@ -405,11 +432,13 @@ class Runtime extends EventEmitter {
     // Human-plausible pacing for customers. The founder gets the answer as
     // soon as it exists — a delayed "done" on a command feels like a stall.
     if (!assistantMode) {
+      // Composing already took real time; only top it up to a human-looking
+      // minimum instead of adding a fixed wait on top of it.
       const min = settings.int('min_delay_ms', 1200);
       const max = settings.int('max_delay_ms', 4200);
-      const typingMs = typing ? Math.min(6000, result.text.length * 22) : 0;
-      const delay = Math.max(0, min + Math.random() * Math.max(0, max - min) + typingMs - (result.meta.latencyMs || 0));
-      if (delay > 0) await sleep(delay);
+      const target = min + Math.random() * Math.max(0, max - min);
+      const delay = Math.max(0, Math.min(target, target - (result.meta.latencyMs || 0)));
+      if (delay > 250) await sleep(delay);
     }
 
     // Secrets and "write to my private chat" answers go to the founder's DM;
@@ -424,7 +453,7 @@ class Runtime extends EventEmitter {
         result.text = `Toms aka, shaxsiy chatingizga yozolmadim (${err.message}). Avval menga shaxsiy xabar yozing.`;
       }
       if (!result.text) {
-        if (typing) tg.setTyping(chatId, false).catch(() => {});
+        stopTyping();
         return;
       }
     }
@@ -451,7 +480,7 @@ class Runtime extends EventEmitter {
       log.error('send failed', { chatId, error: err.message });
       recordEvent('agent', 'Send failed', { chatId, error: err.message }, 'error');
     } finally {
-      if (typing) tg.setTyping(chatId, false).catch(() => {});
+      stopTyping();
     }
 
     if (result.meta.escalated) {

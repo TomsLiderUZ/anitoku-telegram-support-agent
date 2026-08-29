@@ -144,6 +144,47 @@ async function build({ username, name = null, spec = null, fix = null, onStep = 
   };
 }
 
+/**
+ * Send a message AS the bot, using its own token.
+ *
+ * "@mybot should write hello to me" means the bot sends it, not that we send
+ * "hello" to the bot — the agent got that backwards. With the token in hand
+ * this is a plain Bot API call.
+ *
+ * Telegram will not let a bot open a conversation: the recipient must have
+ * pressed Start at least once, which the error message explains.
+ */
+async function sendAs(username, chatId, text, extra = {}) {
+  const u = clean(username);
+  const token = await tokenFor(u);
+  if (!token) throw new Error(`@${u} uchun token yoʻq`);
+
+  const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: String(chatId), text: String(text), ...extra }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!json.ok) {
+    const d = String(json.description || `HTTP ${res.status}`);
+    if (/bot can't initiate conversation|chat not found|blocked/i.test(d)) {
+      throw new Error(`@${u} bu odamga birinchi boʻlib yoza olmaydi — u avval botga /start bosishi kerak (Telegram qoidasi). Sabab: ${d}`);
+    }
+    throw new Error(`@${u} yubora olmadi: ${d}`);
+  }
+  log.info('bot oʻz nomidan xabar yubordi', { bot: u, chatId });
+  return { ok: true, from: '@' + u, chatId: String(chatId), messageId: json.result && json.result.message_id };
+}
+
+/** Who the bot is, straight from Telegram — also proves the token works. */
+async function whoAmI(username) {
+  const token = await tokenFor(clean(username));
+  if (!token) throw new Error('token yoʻq');
+  const r = await fetch(`https://api.telegram.org/bot${token}/getMe`).then((x) => x.json()).catch(() => ({}));
+  if (!r.ok) throw new Error(String(r.description || 'getMe failed'));
+  return { ok: true, id: r.result.id, username: '@' + r.result.username, name: r.result.first_name };
+}
+
 /** Slash commands the code actually handles — reported instead of guessed. */
 function detectCommands(file) {
   if (!fs.existsSync(file)) return [];
@@ -203,4 +244,4 @@ function migrateLegacy() {
   return moved;
 }
 
-module.exports = { list, find, build, ensureProject, tokenFor, start, stop, logs, code, remove, detectCommands, migrateLegacy, slugOf };
+module.exports = { list, find, build, ensureProject, tokenFor, sendAs, whoAmI, start, stop, logs, code, remove, detectCommands, migrateLegacy, slugOf };

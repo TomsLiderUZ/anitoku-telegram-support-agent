@@ -74,15 +74,25 @@ function startWatchdog() {
  * minute, so it is refreshed on a shorter interval.
  */
 function startPresence() {
+  // Telegram clears the online flag roughly a minute after the last update,
+  // and a single missed tick (a slow request, a busy event loop) is enough for
+  // the account to look offline. 25 s leaves room for one failure without the
+  // status ever dropping.
+  const INTERVAL = 25_000;
+  let failures = 0;
+
   const push = async () => {
     if (shuttingDown || !tg.isConnected()) return;
     if (!settings.bool('keep_online', true)) return;
     const live = !settings.bool('agent_paused', false) && settings.bool('auto_reply', true);
-    await tg.setOnline(live);
+    const ok = await tg.setOnline(live);
+    if (ok) failures = 0;
+    else if (++failures % 8 === 0) log.warn('online holatini yangilab boʻlmayapti', { failures });
   };
+
   push().catch(() => {});
-  timers.push(setInterval(() => push().catch(() => {}), 45_000));
-  log.info('Presence yangilash faol (45s)');
+  timers.push(setInterval(() => push().catch(() => {}), INTERVAL));
+  log.info(`Presence yangilash faol (${INTERVAL / 1000}s)`);
 }
 
 /**

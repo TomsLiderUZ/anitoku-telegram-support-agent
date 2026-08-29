@@ -36,10 +36,11 @@ const MODELS_DIR = path.join(config.dataDir, 'models');
  */
 const PROFILES = {
   gpu: {
-    // Qwen3 8B replaced Gemma 3 12B as the default: it speaks Uzbek at least
-    // as well, supports tool calling (Gemma does not), and at ~5 GB it leaves
-    // room on a 12 GB card — the 12B build was the one aborting under Vulkan.
-    chat: { repo: 'Qwen/Qwen3-8B-GGUF', remote: 'Qwen3-8B-Q4_K_M.gguf', file: 'Qwen3-8B-Q4_K_M.gguf', label: 'Qwen3 8B (Q4_K_M)', sizeGb: 5.0, contextSize: 8192, minRamGb: 8 },
+    // Qwen2.5, not Qwen3: the Qwen3 build aborts inside llama.cpp's sampler
+    // ("Assertion failed … llama-sampler.cpp") on both Vulkan and CPU, because
+    // of its thinking-mode tokens. Qwen2.5 of the same size is stable on both
+    // backends — verified — speaks Uzbek well and calls tools.
+    chat: { repo: 'bartowski/Qwen2.5-7B-Instruct-GGUF', remote: 'Qwen2.5-7B-Instruct-Q4_K_M.gguf', file: 'Qwen2.5-7B-Instruct-Q4_K_M.gguf', label: 'Qwen2.5 7B Instruct (Q4_K_M)', sizeGb: 4.4, contextSize: 8192, minRamGb: 8 },
     code: { repo: 'Qwen/Qwen2.5-Coder-7B-Instruct-GGUF', remote: 'qwen2.5-coder-7b-instruct-q4_k_m.gguf', file: 'qwen2.5-coder-7b-instruct-q4_k_m.gguf', label: 'Qwen2.5 Coder 7B (Q4_K_M)', sizeGb: 4.7, contextSize: 16384, minRamGb: 8 },
   },
   'cpu-small': {

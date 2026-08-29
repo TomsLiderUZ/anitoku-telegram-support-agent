@@ -25,7 +25,11 @@ async function init() {
   const lib = await import('node-llama-cpp');
   LlamaChatSession = lib.LlamaChatSession;
   let lastErr = null;
-  for (const gpu of cfg.gpuOrder || ['vulkan', 'auto']) {
+  // "cpu" must become the boolean `false` that node-llama-cpp expects —
+  // passing the string silently selects a GPU backend instead, which is how a
+  // CPU-only run kept ending in the Vulkan assertion dialog.
+  for (const want of cfg.gpuOrder || ['vulkan', 'auto']) {
+    const gpu = want === 'cpu' || want === false || want === 'false' ? false : want;
     try {
       llama = await lib.getLlama({ gpu, build: 'never', logLevel: lib.LlamaLogLevel.error });
       break;
