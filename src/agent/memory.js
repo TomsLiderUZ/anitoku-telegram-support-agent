@@ -177,10 +177,20 @@ function listConversations({ limit = 60, state = null } = {}) {
   const params = state ? [state, limit] : [limit];
   // INNER JOIN, not LEFT: once a chat is pruned (left group, deleted
   // conversation) its row is gone and the panel must not keep listing it.
+  // The last line of each conversation comes along for the ride. A chat list
+  // without it is just names: you cannot tell which conversation needs you
+  // without opening every one of them.
   return db
     .prepare(
       `SELECT c.tg_chat_id, c.state, c.summary, c.last_user_at, c.last_agent_at, c.replies_count, c.escalated,
-              ch.title, ch.type, ch.username, ch.msg_count
+              ch.title, ch.type, ch.username, ch.msg_count,
+              (SELECT substr(COALESCE(m.text, '[' || COALESCE(m.media_type, 'media') || ']'), 1, 160)
+                 FROM messages m WHERE m.tg_chat_id = c.tg_chat_id
+                ORDER BY m.date DESC, m.tg_msg_id DESC LIMIT 1) AS last_text,
+              (SELECT m.is_outgoing FROM messages m WHERE m.tg_chat_id = c.tg_chat_id
+                ORDER BY m.date DESC, m.tg_msg_id DESC LIMIT 1) AS last_outgoing,
+              (SELECT m.date FROM messages m WHERE m.tg_chat_id = c.tg_chat_id
+                ORDER BY m.date DESC, m.tg_msg_id DESC LIMIT 1) AS last_at
        FROM conversations c JOIN chats ch ON ch.tg_chat_id = c.tg_chat_id
        ${where}
        ORDER BY COALESCE(c.last_user_at, 0) DESC LIMIT ?`

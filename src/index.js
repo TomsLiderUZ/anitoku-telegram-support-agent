@@ -176,16 +176,28 @@ async function main() {
   console.log(BANNER);
   log.info('Ishga tushmoqda…', { node: process.versions.node, dataDir: config.dataDir, tz: config.tz });
 
-  // 1. Baseline data
+  // 1. The admin panel goes FIRST — before seeding, before keys, before
+  //    anything else that takes time.
+  //
+  //    While the port is closed nginx has nothing to talk to and answers 502.
+  //    That window used to be the whole of steps 1-2 (seeding the knowledge
+  //    base, ensuring skills, importing keys) — several seconds on every
+  //    restart, and every restart produced a burst of 502s in the log.
+  //    Opening the socket first shrinks it to the module-loading time we
+  //    cannot avoid.
+  //
+  //    Nothing below is required to SERVE: every endpoint reads the database,
+  //    which is ready as soon as core/db is imported. `ensureAdmin` runs a
+  //    moment later, and it only matters for the first-ever login.
+  httpServer = await adminServer.start();
+
+  // 2. Baseline data
   seed.run();
   skills.ensureBaseSkills();
   importEnvKeys();
 
-  // 2. Admin credentials
+  // 3. Admin credentials
   adminAuth.ensureAdmin();
-
-  // 3. Admin panel (always starts — it is how you configure everything else)
-  httpServer = await adminServer.start();
 
   // 4. Agent runtime + background task queue
   runtime.attach();

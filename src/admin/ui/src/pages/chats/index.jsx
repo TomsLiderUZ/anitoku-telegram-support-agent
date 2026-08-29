@@ -1,5 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
-import { TbAlertCircle, TbMessage2, TbRefresh, TbSend } from "react-icons/tb";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  TbAlertCircle,
+  TbArrowLeft,
+  TbMessage2,
+  TbRefresh,
+  TbSearch,
+  TbSend,
+  TbX,
+} from "react-icons/tb";
 import styles from "./index.module.scss";
 import client from "../../api/client";
 import { ENDPOINTS } from "../../api/endpoints";
@@ -7,12 +15,18 @@ import { Badge, Card, Empty, ErrorBox, Loading, PageHead } from "../../component
 import { ago, time } from "../../utils/format";
 
 /**
- * Suhbatlar — agent yuritayotgan yozishmalar va u javob berolmay
- * sizga uzatgan savollar.
+ * Suhbatlar — Telegram Desktop kabi ikki panel, panel dizaynida.
  *
- * Savollar aynan shu sahifada, chunki ular alohida mavzu emas: bu —
- * SIZNI kutayotgan suhbatlar. Ularni boshqa bo'limga ajratsak,
- * odam ikkita joyni navbatma-navbat tekshirib yurishi kerak bo'lardi.
+ * Chapda roʻyxat, oʻngda yozishma, ikkalasi bitta kapsula ichida va
+ * ekran balandligi boʻyicha. Ilgari ular ikkita alohida kartochka edi
+ * va oʻng tomon deyarli boʻsh turardi — ekranning yarmi behuda ketardi,
+ * yozishma esa kichkina darchaga tiqilib qolardi.
+ *
+ * MOBILDA — pastdan chiqadigan varaq EMAS. Chatga bosilsa roʻyxat
+ * oʻrnini yozishma oladi, xuddi Telegramdagidek: oʻngdan surilib
+ * kiradi, sarlavhada orqaga tugmasi. Pastdan chiqadigan varaq bu
+ * yerda notoʻgʻri boʻlardi — bu vaqtinchalik oyna emas, siz kirgan
+ * ikkinchi ekran.
  */
 
 const STATE = {
@@ -21,6 +35,28 @@ const STATE = {
   paused: ["Toʻxtatilgan", ""],
 };
 
+/** Ism yoki sarlavhadan ikki harfli belgi — avatar oʻrniga. */
+function initials(name) {
+  const words = String(name || "?").trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return "?";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+/**
+ * Avatar rangi nomdan hosil qilinadi.
+ *
+ * Bir xil chat har doim bir xil rangda boʻladi, ya'ni roʻyxatni koʻz
+ * bilan tez skanerlash mumkin — nomni oʻqimasdan ham "u yashil edi"
+ * deb topiladi. Tasodifiy rang buni buzardi.
+ */
+const AVATAR_TONES = 6;
+function toneOf(name) {
+  let sum = 0;
+  for (const ch of String(name || "")) sum = (sum + ch.charCodeAt(0)) % 997;
+  return sum % AVATAR_TONES;
+}
+
 export default function Chats() {
   const [chats, setChats] = useState([]);
   const [escalations, setEscalations] = useState([]);
@@ -28,13 +64,17 @@ export default function Chats() {
   const [messages, setMessages] = useState([]);
   const [reply, setReply] = useState("");
   const [answers, setAnswers] = useState({});
+  const [q, setQ] = useState("");
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+
+  const feedRef = useRef(null);
 
   const load = useCallback(async (silent = false) => {
     try {
       const [c, e] = await Promise.all([
-        client.get(ENDPOINTS.CHATS(60), { silent }),
+        client.get(ENDPOINTS.CHATS(80), { silent }),
         client.get(ENDPOINTS.ESCALATIONS("open"), { silent }),
       ]);
       setChats(c || []);
@@ -53,26 +93,44 @@ export default function Chats() {
     return () => clearInterval(t);
   }, [load]);
 
-  const open = async (chat) => {
+  // Yangi xabar kelganda pastga tushamiz — yozishma oxiri koʻrinib tursin
+  useEffect(() => {
+    const el = feedRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages]);
+
+  const openChat = async (chat) => {
     setSel(chat);
     setMessages([]);
     try {
-      setMessages(await client.get(ENDPOINTS.CHAT_MESSAGES(chat.tg_chat_id, 60)));
+      setMessages(await client.get(ENDPOINTS.CHAT_MESSAGES(chat.tg_chat_id, 80)));
     } catch (e) {
       setError(e);
     }
   };
 
   const send = async () => {
-    if (!reply.trim() || !sel) return;
+    const text = reply.trim();
+    if (!text || !sel || sending) return;
+    setSending(true);
     try {
-      await client.post(ENDPOINTS.CHAT_REPLY(sel.tg_chat_id), { text: reply });
+      await client.post(ENDPOINTS.CHAT_REPLY(sel.tg_chat_id), { text });
       setReply("");
-      open(sel);
+      setMessages(await client.get(ENDPOINTS.CHAT_MESSAGES(sel.tg_chat_id, 80)));
     } catch (e) {
       setError(e);
+    } finally {
+      setSending(false);
     }
   };
+
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return chats;
+    return chats.filter((c) =>
+      `${c.title || ""} ${c.username || ""} ${c.tg_chat_id}`.toLowerCase().includes(needle)
+    );
+  }, [chats, q]);
 
   if (loading) return <Loading rows={4} />;
 
@@ -127,101 +185,169 @@ export default function Chats() {
         </Card>
       )}
 
-      <div className={styles.split}>
-        <Card title="Chatlar" icon={TbMessage2}>
-          <div className={`${styles.list} anim-stagger`}>
-            {chats.length ? (
-              chats.map((c, i) => {
+      {/*
+        Bitta kapsula, ichida ikki panel. `data-open` — mobil uchun:
+        chat tanlanganda roʻyxat chapga chiqib, yozishma oʻrnini oladi.
+      */}
+      <div className={styles.shell} data-open={sel ? "chat" : "list"}>
+        {/* ── Chapdagi roʻyxat ──────────────────────────────────── */}
+        <aside className={styles.list}>
+          <div className={styles.listHead}>
+            <label className={styles.search}>
+              <TbSearch size={15} />
+              <input
+                type="search"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Qidirish…"
+              />
+              {q && (
+                <button type="button" className={styles.clear} onClick={() => setQ("")} aria-label="Tozalash">
+                  <TbX size={13} />
+                </button>
+              )}
+            </label>
+          </div>
+
+          <div className={styles.listBody}>
+            {filtered.length ? (
+              filtered.map((c) => {
                 const [label, tone] = STATE[c.state] || [c.state, ""];
+                const active = sel?.tg_chat_id === c.tg_chat_id;
                 return (
                   <button
                     key={c.tg_chat_id}
                     type="button"
-                    style={{ "--i": i }}
-                    className={`${styles.chat} ${sel?.tg_chat_id === c.tg_chat_id ? styles.chatOn : ""}`}
-                    onClick={() => open(c)}
+                    className={`${styles.item} ${active ? styles.itemOn : ""}`}
+                    onClick={() => openChat(c)}
                   >
-                    <div className="row">
-                      <strong className={styles.chatTitle}>{c.title || c.tg_chat_id}</strong>
-                      {c.escalated ? <Badge tone="warn">savol</Badge> : null}
-                    </div>
-                    <div className={styles.chatMeta}>
-                      <Badge tone={tone}>{label}</Badge>
-                      <span>{c.replies_count || 0} javob</span>
-                      <span className="spacer" />
-                      <span>{ago(c.last_user_at)}</span>
-                    </div>
+                    <span className={styles.avatar} data-tone={toneOf(c.title || c.tg_chat_id)} aria-hidden="true">
+                      {initials(c.title || c.tg_chat_id)}
+                    </span>
+
+                    <span className={styles.itemBody}>
+                      <span className={styles.itemTop}>
+                        <span className={styles.itemName}>{c.title || c.tg_chat_id}</span>
+                        <span className={styles.itemTime}>{c.last_at ? time(c.last_at) : ""}</span>
+                      </span>
+
+                      <span className={styles.itemBottom}>
+                        <span className={styles.itemPreview}>
+                          {c.last_outgoing ? <em className={styles.you}>Siz: </em> : null}
+                          {c.last_text || "—"}
+                        </span>
+                        {c.escalated ? (
+                          <span className={styles.dot} title="Javob kutmoqda" />
+                        ) : (
+                          <span className={`${styles.state} ${styles[`state_${c.state}`]}`} title={label} />
+                        )}
+                      </span>
+                    </span>
                   </button>
                 );
               })
             ) : (
-              <Empty>Suhbat yoʻq</Empty>
+              <Empty icon={TbMessage2}>{q ? "Topilmadi" : "Suhbat yoʻq"}</Empty>
             )}
           </div>
-        </Card>
+        </aside>
 
-        <Card
-          title={sel ? sel.title || sel.tg_chat_id : "Chat tanlang"}
-          icon={TbMessage2}
-          actions={
-            sel && (
-              <>
+        {/* ── Oʻngdagi yozishma ─────────────────────────────────── */}
+        <section className={styles.pane}>
+          {sel ? (
+            <>
+              <header className={styles.paneHead}>
+                {/* Faqat mobilda koʻrinadi — roʻyxatga qaytish */}
+                <button
+                  type="button"
+                  className={styles.back}
+                  onClick={() => setSel(null)}
+                  aria-label="Roʻyxatga qaytish"
+                >
+                  <TbArrowLeft size={18} />
+                </button>
+
+                <span className={styles.avatar} data-tone={toneOf(sel.title || sel.tg_chat_id)} aria-hidden="true">
+                  {initials(sel.title || sel.tg_chat_id)}
+                </span>
+
+                <span className={styles.paneTitle}>
+                  <strong>{sel.title || sel.tg_chat_id}</strong>
+                  <small>
+                    {sel.type || "chat"} · {sel.replies_count || 0} javob
+                    {sel.last_user_at ? ` · ${ago(sel.last_user_at)}` : ""}
+                  </small>
+                </span>
+
                 <select
+                  className={styles.stateSelect}
                   value={sel.state}
                   onChange={async (e) => {
                     await client.post(ENDPOINTS.CHAT_STATE(sel.tg_chat_id), { state: e.target.value });
                     setSel({ ...sel, state: e.target.value });
                     load(true);
                   }}
-                  style={{ width: "auto" }}
                 >
-                  <option value="auto">Avtomatik javob</option>
+                  <option value="auto">Avtomatik</option>
                   <option value="human">Operator</option>
                   <option value="paused">Toʻxtatilgan</option>
                 </select>
-                <button type="button" className="btn ghost sm" onClick={() => open(sel)}>
-                  <TbRefresh size={13} />
-                </button>
-              </>
-            )
-          }
-        >
-          {sel ? (
-            <>
-              <div className={styles.messages}>
+              </header>
+
+              <div className={styles.feed} ref={feedRef}>
                 {messages.length ? (
-                  messages.map((m, i) => (
-                    <div key={i} className={`${styles.msg} ${m.is_outgoing ? styles.out : styles.in}`}>
-                      <div className={styles.msgWho}>
-                        {m.is_outgoing ? (m.is_agent ? "Agent" : "Siz") : m.sender_name || "Foydalanuvchi"}
-                        <span className={styles.msgTime}>{time(m.date)}</span>
+                  messages.map((m, i) => {
+                    const prev = messages[i - 1];
+                    // Ketma-ket kelgan bir xil tomonli xabarlar guruhlanadi:
+                    // har biriga ism yozilsa yozishma "kim-kim" bilan toʻlib
+                    // ketadi va oʻqish qiyinlashadi.
+                    const grouped = prev && !!prev.is_outgoing === !!m.is_outgoing && prev.is_agent === m.is_agent;
+                    return (
+                      <div
+                        key={i}
+                        className={`${styles.msg} ${m.is_outgoing ? styles.out : styles.in} ${grouped ? styles.grouped : ""}`}
+                      >
+                        {!grouped && (
+                          <span className={styles.who}>
+                            {m.is_outgoing ? (m.is_agent ? "Agent" : "Siz") : m.sender_name || "Foydalanuvchi"}
+                          </span>
+                        )}
+                        <span className={styles.text}>{m.text || `[${m.media_type || "media"}]`}</span>
+                        <span className={styles.stamp}>{time(m.date)}</span>
                       </div>
-                      <div className={styles.msgText}>{m.text || `[${m.media_type || "media"}]`}</div>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
-                  <Empty>Xabar yoʻq</Empty>
+                  <Empty icon={TbMessage2}>Xabar yoʻq</Empty>
                 )}
               </div>
 
-              <div className="row" style={{ marginTop: "var(--gap-12)" }}>
+              <footer className={styles.composer}>
                 <input
                   type="text"
                   value={reply}
                   onChange={(e) => setReply(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && send()}
-                  placeholder="Oʻzingiz javob yozish…"
+                  placeholder="Xabar yozing…"
                   className="grow"
                 />
-                <button type="button" className="btn" onClick={send} disabled={!reply.trim()}>
-                  <TbSend size={14} />
+                <button
+                  type="button"
+                  className={styles.sendBtn}
+                  onClick={send}
+                  disabled={sending || !reply.trim()}
+                  aria-label="Yuborish"
+                >
+                  <TbSend size={16} />
                 </button>
-              </div>
+              </footer>
             </>
           ) : (
-            <Empty icon={TbMessage2}>Chapdagi roʻyxatdan chat tanlang</Empty>
+            <div className={styles.blank}>
+              <Empty icon={TbMessage2}>Chapdagi roʻyxatdan chat tanlang</Empty>
+            </div>
           )}
-        </Card>
+        </section>
       </div>
     </>
   );

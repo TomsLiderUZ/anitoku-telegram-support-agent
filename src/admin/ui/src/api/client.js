@@ -62,6 +62,33 @@ client.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+/**
+ * Vaqtinchalik uzilishda qayta urinish.
+ *
+ * Agent qayta ishga tushganda port bir necha soniya yopiq boʻladi va
+ * nginx 502 qaytaradi. Foydalanuvchi uchun bu "panel buzildi" degani —
+ * aslida esa u yerda kutish kerak edi, xolos.
+ *
+ * Faqat OʻQISH soʻrovlari qaytariladi. POST ni qayta yuborish xavfli:
+ * xabar ikki marta joʻnab ketishi yoki loyiha ikki marta yaratilishi
+ * mumkin — server soʻrovni qabul qilib, javobi yoʻlda yoʻqolgan boʻlsa
+ * biz buni bila olmaymiz.
+ *
+ * Uch urinish, oʻsib boruvchi kutish: 0.6s, 1.5s — jami ~2 soniya,
+ * qayta ishga tushish oynasini qoplaydi, lekin haqiqiy nosozlikni
+ * uzoq yashirmaydi.
+ */
+const RETRY_DELAYS_MS = [600, 1500];
+
+const isTransient = (error) => {
+  const status = error.response?.status;
+  if (status === 502 || status === 503 || status === 504) return true;
+  // Javob umuman kelmadi — ulanish rad etildi yoki uzildi
+  return !error.response && error.code !== "ECONNABORTED";
+};
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 // ─── Response interceptor ───────────────────────────────────────
 client.interceptors.response.use(
   (response) => {
@@ -69,11 +96,29 @@ client.interceptors.response.use(
     return response.data;
   },
 
-  (error) => {
-    if (!isSilent(error.config)) progressDone();
-
+  async (error) => {
+    const config = error.config || {};
     const status = error.response?.status;
-    const url = error.config?.url || "";
+    const url = config.url || "";
+
+    // Hisobni MAJBURAN yopamiz: bu urinish `progressStart()` bilan
+    // ochilgan edi. Qayta urinish o'zining `progressStart()` ini
+    // chaqiradi, shuning uchun bu yerda yopilmasa hisoblagich o'sib
+    // ketib, yuklanish chizig'i abadiy ekranda qolardi.
+    if (!isSilent(config)) progressDone();
+
+    const method = String(config.method || "get").toLowerCase();
+    if (method === "get" && isTransient(error)) {
+      config.__retries = config.__retries || 0;
+      if (config.__retries < RETRY_DELAYS_MS.length) {
+        const wait = RETRY_DELAYS_MS[config.__retries];
+        config.__retries += 1;
+        await sleep(wait);
+        // `client(config)` yangi interceptor siklini boshlaydi, lekin
+        // `__retries` config'da qolgani uchun sanoq davom etadi.
+        return client(config);
+      }
+    }
 
     // 401 — sessiya yo'q yoki tugagan. Login so'rovining o'zi istisno:
     // u yerda 401 "parol xato" degani, tizimdan chiqarish emas.

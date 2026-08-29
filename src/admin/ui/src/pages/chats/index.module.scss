@@ -1,58 +1,158 @@
-/* Chap — ro'yxat, o'ng — yozishma. Tor ekranda ustma-ust. */
-.split {
+/**
+ * Telegram Desktop tartibi, panel kapsulasida.
+ *
+ * Ikkala panel BITTA konteyner ichida: chegara, radius va soya bir
+ * marta chiziladi, ular orasida esa faqat ingichka ajratuvchi qoladi.
+ * Ilgari ikkita alohida kartochka edi va ular orasidagi bo'shliq
+ * yozishmani ro'yxatdan uzib qo'yardi.
+ */
+
+.shell {
   display: grid;
-  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
-  gap: var(--gap-16);
-  align-items: start;
+  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  // Ekran balandligi bo'yicha: navbar, footer va bo'shliqlar chiqarib
+  // tashlanadi. Yozishma qancha baland bo'lsa, shuncha foydali.
+  height: calc(100vh - var(--navbar-height) - 150px);
+  height: calc(100dvh - var(--navbar-height) - 150px);
+  min-height: 420px;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-16);
+  background-color: var(--color-bg-surface);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
 
-@media (max-width: 1024px) {
-  .split {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-/* ── Chatlar ro'yxati ───────────────────────── */
+/* ── Chapdagi ro'yxat ───────────────────────── */
 .list {
   display: flex;
   flex-direction: column;
-  gap: var(--gap-4);
-  max-height: 560px;
-  overflow-y: auto;
-  // Kartochka ichidagi padding'ni "yeb" ro'yxat chekkagacha borsin
-  margin: calc(var(--padding-8) * -1) calc(var(--padding-12) * -1);
-  padding: var(--padding-8) var(--padding-12);
+  min-width: 0;
+  border-right: 1px solid var(--color-border-secondary);
+  background-color: var(--color-bg-secondary);
 }
 
-.chat {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-6);
-  width: var(--width-100-percent);
+.listHead {
   padding: var(--padding-10) var(--padding-12);
-  border: 1px solid transparent;
-  border-radius: var(--border-radius-8);
+  border-bottom: 1px solid var(--color-border-secondary);
+}
+
+.search {
+  position: relative;
+  display: flex;
+  align-items: center;
+
+  svg {
+    position: absolute;
+    left: var(--padding-10);
+    color: var(--color-text-muted);
+    pointer-events: none;
+  }
+
+  input {
+    padding-right: 32px;
+    padding-left: 32px;
+    border-radius: var(--border-radius-pill);
+    background-color: var(--color-bg-surface);
+  }
+}
+
+.clear {
+  position: absolute;
+  right: 6px;
+  display: inline-flex;
+  padding: 4px;
+  border: none;
+  border-radius: var(--border-radius-circle);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-text-primary);
+  }
+}
+
+.listBody {
+  flex: 1;
+  min-height: 0;
+  padding: var(--padding-6);
+  overflow-y: auto;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-10);
+  width: var(--width-100-percent);
+  padding: var(--padding-8) var(--padding-10);
+  border: none;
+  border-radius: var(--border-radius-12);
   background: transparent;
   color: inherit;
   font-family: inherit;
   text-align: left;
   cursor: pointer;
-  transition:
-    background-color var(--duration-fast) var(--ease-out),
-    border-color var(--duration-fast) var(--ease-out);
+  transition: background-color var(--duration-fast) var(--ease-out);
 
   &:hover {
     background-color: var(--color-bg-hover);
   }
 }
 
-.chatOn {
-  border-color: var(--color-accent);
+.itemOn {
   background-color: var(--color-accent-soft);
+
+  .itemName {
+    color: var(--color-text-primary);
+  }
 }
 
-.chatTitle {
-  color: var(--color-text-primary);
+/* ── Avatar ───────────────────────────────────
+   Rasm o'rniga bosh harflar: Telegram avatarlarini olib kelish uchun
+   har bir chat uchun alohida so'rov kerak bo'lardi va ro'yxat sekin
+   ochilardi. Rang nomdan hosil bo'ladi — bir xil chat doim bir xil
+   rangda, ya'ni ko'z uni nom o'qimasdan ham tanib oladi. */
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--border-radius-circle);
+  color: #0a0716;
+  font-size: var(--font-size-12);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.avatar[data-tone="0"] { background-color: var(--color-chart-1); }
+.avatar[data-tone="1"] { background-color: var(--color-chart-2); }
+.avatar[data-tone="2"] { background-color: var(--color-chart-3); }
+.avatar[data-tone="3"] { background-color: var(--color-chart-4); }
+.avatar[data-tone="4"] { background-color: var(--color-chart-5); }
+.avatar[data-tone="5"] { background-color: var(--color-chart-6); }
+
+.itemBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.itemTop,
+.itemBottom {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-8);
+  min-width: 0;
+}
+
+.itemName {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-text-secondary);
   font-size: var(--font-size-13);
   font-weight: 600;
   overflow: hidden;
@@ -60,27 +160,134 @@
   white-space: nowrap;
 }
 
-.chatMeta {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-8);
+.itemTime {
+  flex-shrink: 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-11);
 }
 
-/* ── Yozishma ───────────────────────────────── */
-.messages {
+.itemPreview {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-12);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.you {
+  color: var(--color-text-secondary);
+  font-style: normal;
+}
+
+/* Holat — yozuv emas, nuqta. Ro'yxatda "Avtomatik" so'zi har qatorda
+   takrorlanib, o'zi haqida hech narsa aytmasdan joy egallardi. */
+.state {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--border-radius-circle);
+}
+
+.state_auto { background-color: var(--color-ok); }
+.state_human { background-color: var(--color-warn); }
+.state_paused { background-color: var(--color-text-muted); }
+
+/* Javob kutayotgan chat — nafas oladigan nuqta */
+.dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--border-radius-circle);
+  background-color: var(--color-danger);
+  animation: soft-pulse 1.8s var(--ease-in-out) infinite;
+}
+
+/* ── O'ngdagi yozishma ──────────────────────── */
+.pane {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+}
+
+.paneHead {
+  display: flex;
+  align-items: center;
   gap: var(--gap-10);
-  min-height: 320px;
-  max-height: 520px;
-  padding-right: var(--padding-6);
+  padding: var(--padding-10) var(--padding-16);
+  border-bottom: 1px solid var(--color-border-secondary);
+  background-color: var(--color-bg-surface);
+}
+
+.paneTitle {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+
+  strong {
+    color: var(--color-text-primary);
+    font-size: var(--font-size-14);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  small {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-11);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.stateSelect {
+  width: auto;
+  flex-shrink: 0;
+  padding: var(--padding-6-10);
+  font-size: var(--font-size-12);
+}
+
+/* Faqat mobilda — kengida ro'yxat yonida turadi, qaytish kerak emas */
+.back {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: var(--border-radius-circle);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+
+  &:active {
+    background-color: var(--color-bg-hover);
+  }
+}
+
+/* ── Xabarlar ─────────────────────────────────
+   Fon bir oz to'qroq — yozishma maydoni sarlavha va yozish qatoridan
+   ajralib tursin, xuddi Telegramdagi kabi. */
+.feed {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-4);
+  padding: var(--padding-16);
+  background-color: var(--color-bg-primary);
   overflow-y: auto;
 }
 
 .msg {
-  max-width: 78%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  max-width: min(72%, 560px);
   padding: var(--padding-8) var(--padding-12);
   border-radius: var(--border-radius-12);
   animation: fade-up var(--duration-fast) var(--ease-out) both;
@@ -88,7 +295,7 @@
 
 .in {
   align-self: flex-start;
-  background-color: var(--color-bg-secondary);
+  background-color: var(--color-bg-surface);
   border-bottom-left-radius: var(--border-radius-6);
 }
 
@@ -98,26 +305,80 @@
   border-bottom-right-radius: var(--border-radius-6);
 }
 
-.msgWho {
-  display: flex;
-  align-items: baseline;
-  gap: var(--gap-8);
+/* Guruhlangan xabar — o'zidan oldingisiga yaqinroq turadi va
+   burchagi to'liq dumaloq: ular bitta "gap" ekani ko'rinadi. */
+.grouped {
+  margin-top: -2px;
+
+  &.in { border-bottom-left-radius: var(--border-radius-12); }
+  &.out { border-bottom-right-radius: var(--border-radius-12); }
+}
+
+.who {
   margin-bottom: 2px;
-  color: var(--color-text-muted);
+  color: var(--color-accent);
   font-size: var(--font-size-11);
-  font-weight: 600;
+  font-weight: 700;
 }
 
-.msgTime {
-  font-weight: 400;
-}
-
-.msgText {
+.text {
   color: var(--color-text-primary);
   font-size: var(--font-size-13);
   line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.stamp {
+  align-self: flex-end;
+  margin-top: 2px;
+  color: var(--color-text-muted);
+  font-size: 10px;
+  line-height: 1;
+}
+
+/* ── Yozish qatori ──────────────────────────── */
+.composer {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-8);
+  padding: var(--padding-10) var(--padding-12);
+  border-top: 1px solid var(--color-border-secondary);
+  background-color: var(--color-bg-surface);
+
+  input {
+    border-radius: var(--border-radius-pill);
+  }
+}
+
+.sendBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: var(--border-radius-circle);
+  background-color: var(--color-accent);
+  color: var(--color-text-on-accent);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
+
+  &:hover:not(:disabled) { background-color: var(--color-accent-hover); }
+  &:active:not(:disabled) { transform: scale(0.94); }
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+}
+
+.blank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--height-100-percent);
+  background-color: var(--color-bg-primary);
 }
 
 /* ── Javob kutayotgan savol ─────────────────── */
@@ -137,4 +398,100 @@
   color: var(--color-text-primary);
   font-size: var(--font-size-13);
   line-height: 1.55;
+}
+
+/* ══════════════════════════════════════════════
+   Mobil: bitta panel, ikkinchisi ustidan suriladi
+   ══════════════════════════════════════════════
+   Ikkala panel ham bitta ustunda, bir-birining ustida turadi va
+   `data-open` qaysi biri ko'rinishini hal qiladi. Yozishma o'ngdan
+   surilib kiradi — Telegramdagi kabi "ichkariga kirdim" degan his
+   beradi. Pastdan chiqadigan varaq bu yerda noto'g'ri bo'lardi: u
+   vaqtinchalik oyna uchun, bu esa siz kirgan ikkinchi ekran. */
+@media (max-width: 900px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    height: calc(100dvh - var(--navbar-height) - var(--tabbar-height) - 110px);
+    min-height: 380px;
+  }
+
+  .list,
+  .pane {
+    // Ikkalasi ham BIR XIL katakda — biri ikkinchisining ustida
+    grid-area: 1 / 1;
+    min-width: 0;
+    background-color: var(--color-bg-surface);
+  }
+
+  .list {
+    border-right: none;
+  }
+
+  .pane {
+    // Yopiq holatda o'ngda turadi va ko'rinmaydi
+    transform: translateX(100%);
+    visibility: hidden;
+    transition:
+      transform var(--duration-base) var(--ease-out),
+      visibility var(--duration-base);
+  }
+
+  .shell[data-open="chat"] {
+    .pane {
+      transform: none;
+      visibility: visible;
+    }
+
+    // Ro'yxat sal chapga suriladi — ikki qatlam ekani sezilsin
+    .list {
+      transform: translateX(-18%);
+    }
+  }
+
+  .list {
+    transition: transform var(--duration-base) var(--ease-out);
+  }
+
+  .back {
+    display: inline-flex;
+  }
+
+  .msg {
+    max-width: 86%;
+  }
+}
+
+/* ── Juda tor ekran (≤400px) ───────────────── */
+@media (max-width: 400px) {
+  .avatar {
+    width: 34px;
+    height: 34px;
+    font-size: var(--font-size-11);
+  }
+
+  .feed {
+    padding: var(--padding-10);
+  }
+
+  .paneHead {
+    padding: var(--padding-8) var(--padding-10);
+    gap: var(--gap-6);
+  }
+
+  // Holat tanlagichi sarlavhadan joy o'g'irlaydi — u yozishmadan
+  // muhimroq emas, shuning uchun ostiga tushadi
+  .stateSelect {
+    order: 3;
+    flex-basis: 100%;
+    width: var(--width-100-percent);
+  }
+
+  .paneHead {
+    flex-wrap: wrap;
+  }
+
+  .msg {
+    max-width: 92%;
+  }
 }
