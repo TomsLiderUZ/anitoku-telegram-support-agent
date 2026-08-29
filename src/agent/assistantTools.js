@@ -13,6 +13,8 @@ const watches = require('./watches');
 const projects = require('./projects');
 const coder = require('./coder');
 const servers = require('./servers');
+const shell = require('./shell');
+const routines = require('./routines');
 const { parseWhen, fmtTashkent } = require('./timeparse');
 const ingest = require('../knowledge/ingest');
 
@@ -55,8 +57,10 @@ const definitions = [
 
   // ── chats: membership, creation, moderation ───────────────────────────
   fn('join_chat', "Kanal yoki guruhga aʼzo boʻlish: taklif havolasi (t.me/+…, t.me/joinchat/…) yoki @username. Bot 'majburiy obuna' soʻrasa — havolalarini shu bilan ochib aʼzo boʻl, keyin botdagi 'Tekshirish' tugmasini bos.", { link: S('havola yoki @username') }, ['link']),
-  fn('leave_chat', 'Guruh yoki kanaldan chiqish.', { chat: S('') }, ['chat']),
-  fn('create_chat', "Yangi KANAL yoki GURUH yaratish. Ommaviy boʻlsa username beriladi va t.me havolasi qaytadi; maxfiy boʻlsa taklif havolasi. Toms 'guruh yarat', 'kanal och' desa ishlat; keyin kerak boʻlsa promote_admin bilan uni admin qil.", { kind: { type: 'string', enum: ['group', 'channel'] }, title: S('nomi'), about: S('tavsif'), public: B('ommaviy (username bilan)'), username: S('ommaviy boʻlsa @username, ixtiyoriy') }, ['kind', 'title']),
+  fn('leave_chat', 'Guruh yoki kanaldan chiqish (guruh oʻzi qoladi).', { chat: S('') }, ['chat']),
+  fn('delete_chat', "Guruh yoki kanalni BUTUNLAY oʻchirish. Toms 'guruhni oʻchir' desa — chiqish emas, shu.", { chat: S('') }, ['chat']),
+  fn('inbox_digest', "Bugun kimlar yozgan va nima boʻlgan — barcha chatlar boʻyicha xulosa. 'bugun kimlar yozdi', 'xatlarni koʻrib chiq', 'nima yangilik' desa ishlat.", { hours: I('standart 24') }),
+  fn('create_chat', "Yangi KANAL yoki GURUH yaratish. Toms 'guruh yarat, meni qoʻsh, admin qil' desa — hammasini SHU BITTA chaqiruvda qil: add_users va admins ga 'me' yoz. Ommaviy boʻlsa username, maxfiy boʻlsa taklif havolasi qaytadi.", { kind: { type: 'string', enum: ['group', 'channel'] }, title: S('nomi'), about: S('tavsif'), public: B('ommaviy (username bilan)'), username: S('ommaviy boʻlsa @username'), add_users: { type: 'array', items: { type: 'string' }, description: "Qoʻshiladiganlar; Tomsning oʻzi uchun 'me'" }, admins: { type: 'array', items: { type: 'string' }, description: "Admin qilinadiganlar; Tomsning oʻzi uchun 'me'" } }, ['kind', 'title']),
   fn('chat_info', 'Guruh/kanal/odam haqida maʼlumot: ID, username, aʼzolar soni, tavsif, mening huquqlarim, taklif havolasi.', { chat: S('') }, ['chat']),
   fn('list_members', "Guruh/kanal aʼzolari roʻyxati (ism, @username, ID, roli). Ism boʻyicha qidirish mumkin.", { chat: S(''), query: S('ism boʻyicha filtr'), admins_only: B(''), limit: I('standart 200') }, ['chat']),
   fn('promote_admin', "Odamni guruh/kanalda admin qilish (toʻliq huquqlar). 'menga admin ber' → user = Toms.", { chat: S(''), user: S(''), rank: S("lavozim nomi, masalan 'Rahbar'") }, ['chat', 'user']),
@@ -86,10 +90,16 @@ const definitions = [
   fn('press_button', "Botning soʻnggi xabaridagi tugmani bosish (inline yoki klaviatura).", { bot: S('@username'), button: S('Tugma matni (qisman ham boʻladi)'), wait_seconds: I('') }, ['bot', 'button']),
   fn('read_bot', 'Bot bilan soʻnggi yozishma va hozirgi tugmalar.', { bot: S(''), limit: I('') }, ['bot']),
 
-  // ── projects, code, terminal, servers ─────────────────────────────────
+  // ── terminal: the universal fallback ──────────────────────────────────
+  fn('bash', "Shu kompyuterda SHELL BUYRUQ bajarish. Bu sening universal vositang: alohida vosita YOʻQ boʻlgan HAR QANDAY ishni shu orqali qil (fayl, tarmoq, git, npm, curl, jarayonlar, tizim sozlamalari, hatto 'claude' CLI). POSIX shell — mkdir -p, ls, grep, pipe hammasi ishlaydi. Ish papkasi va `cd` sessiya davomida saqlanadi. Xatoni koʻrsang oʻzing tuzatib qayta urin.", { command: S('Shell buyrugʻi'), session: S("Sessiya nomi, standart 'main'"), timeout_seconds: I('standart 120, koʻpi 600') }, ['command']),
+  fn('ssh_connect', "Serverga ulanish maʼlumotlarini saqlash. Toms IP va parolni chatda bersa (masalan '206.189.157.53 root MyPass') shuni ishlat — matnni oʻzgartirmasdan `spec` ga ber. Bir marta ulangach kalit oʻrnatiladi va parol boshqa kerak boʻlmaydi.", { spec: S("IP/parol/user boʻlgan matn, xohlagan shaklda"), name: S('Serverga qisqa nom, ixtiyoriy') }, ['spec']),
+  fn('ssh', "SERVERDA buyruq bajarish. `host` — ssh_connect da bergan nom yoki IP. Serverdagi har qanday ish shu orqali: pm2, docker, nginx, fayl, deploy, log. `cd` sessiya davomida saqlanadi.", { host: S('Server nomi yoki IP'), command: S('Buyruq'), session: S('Sessiya nomi, ixtiyoriy'), timeout_seconds: I('') }, ['host', 'command']),
+  fn('list_servers', 'Saqlangan serverlar va terminal sessiyalari.', {}),
+
+  // ── projects, code, servers ───────────────────────────────────────────
   fn('create_project', "Yangi dastur/loyiha yaratish (bot, API, sayt, skript — har qanday). Papka ochiladi; keyin code_task bilan kod yoziladi. Telegram bot boʻlsa kind='telegram-bot' va env'ga BOT_TOKEN oʻzi tushadi (username bering).", { name: S('nomi'), kind: { type: 'string', enum: ['node', 'telegram-bot', 'python', 'static', 'other'] }, spec: S('nima qilishi kerak'), run_cmd: S("doimiy ishga tushirish buyrugʻi, masalan 'node index.js' (ixtiyoriy)"), bot_username: S('telegram-bot uchun @username') }, ['name']),
-  fn('code_task', "LOYIHA ICHIDA KOD YOZISH / OʻZGARTIRISH / TUZATISH — Claude Code kabi: fayllarni oʻqiydi, yozadi, buyruq bajaradi, tekshiradi. 'shu loyihaga X qoʻsh', 'xatoni tuzat', 'admin panel qoʻsh', 'sayt yoz'. Natija — hisobot (kod chatga yozilmaydi). Ishlayotgan loyiha avtomatik qayta ishga tushadi.", { project: S('loyiha nomi yoki slug'), task: S('vazifa, toʻliq va aniq') }, ['project', 'task']),
-  fn('list_projects', 'Barcha loyihalar va holati.', {}),
+  fn('code_task', "KOD YOZISH / OʻZGARTIRISH / TUZATISH — Claude Code kabi ishlaydi: reja tuzadi, fayllarni oʻqiydi, yozadi, terminalda ishga tushirib TEKSHIRADI, xato boʻlsa tuzatadi. `project` bersang oʻsha loyihada, bermasang alohida sinov muhitida (sandbox) ishlaydi. Har qanday dastur: bot, sayt, API, skript. Natija — hisobot, kod chatga yozilmaydi.", { project: S('loyiha nomi — doimiy ish uchun; boʻsh qoldirsa sinov muhiti'), task: S('vazifa, toʻliq va aniq'), name: S('sinov muhiti uchun qisqa nom') }, ['task']),
+  fn('list_projects', "Loyihalar. Standart holda faqat ishlab turgan/deploy qilinganlar; hammasi kerak boʻlsa all=true.", { all: B('sinov loyihalarini ham koʻrsatish') }),
   fn('project_files', 'Loyiha fayllari roʻyxati.', { project: S('') }, ['project']),
   fn('read_project_file', 'Loyiha faylini oʻqish.', { project: S(''), path: S('') }, ['project', 'path']),
   fn('write_project_file', 'Loyiha fayliga yozish (kichik fayllar uchun; katta ish — code_task).', { project: S(''), path: S(''), content: S('') }, ['project', 'path', 'content']),
@@ -107,12 +117,60 @@ const definitions = [
   fn('upload_to_server', 'Loyihani serverga yuklash (scp).', { server: S(''), project: S(''), remote_path: S("masalan /var/www/app") }, ['server', 'project', 'remote_path']),
 
   // ── agent itself ───────────────────────────────────────────────────────
+  fn('add_routine', "DOIMIY (takrorlanuvchi) vazifa qoʻshish — bir marta aytilsa, abadiy bajariladi. 'har kuni soat 9 da guruhlarni tekshir', 'har dushanba hisobot ber', 'har 2 soatda yangi xabarlarni koʻr'. Fonda oʻzi ishlaydi, boshqa ishlarga xalaqit bermaydi.", { instruction: S('Nima qilish kerak — toʻliq koʻrsatma'), schedule: S("Qachon: 'har kuni soat 9 da', 'har 2 soatda', 'har dushanba 10:00'"), title: S('Qisqa nom') }, ['instruction', 'schedule']),
+  fn('list_routines', 'Doimiy vazifalar roʻyxati va keyingi bajarilish vaqti.', {}),
+  fn('remove_routine', 'Doimiy vazifani oʻchirish yoki toʻxtatish.', { id: I('Vazifa raqami'), disable_only: B('faqat toʻxtatish, oʻchirmaslik') }, ['id']),
   fn('list_tasks', 'Rejalashtirilgan va bajarilgan vazifalar.', { status: S('pending | done | failed | cancelled | boʻsh') }),
   fn('cancel_task', 'Vazifani bekor qilish.', { id: I('') }, ['id']),
   fn('agent_status', 'Agent holati: Telegram, kalitlar, bilim, vazifalar, javoblar.', {}),
   fn('run_training', "Oʻz-oʻzini trening jarayonini boshlash.", {}),
   fn('set_setting', "Agent sozlamasi. Ruxsat etilgan: reply_in_groups, reply_to_private, typing_simulation, keep_online, quiet_hours, min_delay_ms, max_delay_ms, max_replies_per_chat_hour, temperature, primary_provider, founder_private_replies ('1' = Tomsga barcha javoblar shaxsiy chatga).", { key: S(''), value: S('') }, ['key', 'value']),
 ];
+
+/**
+ * Which tools to offer for a given request.
+ *
+ * Sending all ~77 schemas every time pushed requests past provider token
+ * limits ("Request too large") and buried the relevant tool among dozens of
+ * irrelevant ones. So a core set always goes, and topic groups are added when
+ * the message mentions them. `bash` is always present — it is the fallback
+ * that makes a missing group survivable.
+ */
+const GROUPS = {
+  core: ['send_message', 'send_private', 'read_chat', 'find_contact', 'remember', 'forget', 'list_memory', 'bash', 'agent_status', 'inbox_digest', 'my_chats'],
+  messaging: ['schedule_message', 'schedule_task', 'watch_reply', 'list_watches', 'forward_message', 'delete_message', 'add_alias'],
+  chats: ['join_chat', 'leave_chat', 'delete_chat', 'create_chat', 'chat_info', 'list_members', 'promote_admin', 'demote_admin', 'ban_user', 'kick_user', 'unban_user', 'add_members', 'invite_link', 'edit_chat', 'pin_message'],
+  bots: ['create_bot', 'configure_bot', 'build_and_run_bot', 'my_bots', 'list_my_bots', 'get_bot_token', 'revoke_bot_token', 'delete_bot', 'stop_bot', 'start_bot', 'bot_logs', 'talk_to_bot', 'press_button', 'read_bot'],
+  code: ['code_task', 'create_project', 'list_projects', 'project_files', 'read_project_file', 'write_project_file', 'run_command', 'start_project', 'stop_project', 'restart_project', 'project_logs', 'set_project_env', 'delete_project'],
+  servers: ['ssh_connect', 'ssh', 'list_servers', 'upload_to_server', 'add_server', 'ssh_public_key'],
+  routines: ['add_routine', 'list_routines', 'remove_routine', 'list_tasks', 'cancel_task'],
+  knowledge: ['add_knowledge', 'search_knowledge', 'run_training', 'set_setting'],
+};
+
+const TRIGGERS = {
+  messaging: /(rejalashtir|eslat|soat|ertaga|keyin|forward|o['‘’ʻ]?chir(ib)?\s*tashla|javob(i|ini)?\s*(kel|kut)|kuzat|esingda tursin|alias|schedule|remind)/i,
+  chats: /(guruh|kanal|group|channel|a['‘’ʻ]?zo|azo|admin|blok|ban|kick|chiqar|qo['‘’ʻ]?sh|taklif|invite|obuna|join|link|havola|t\.me|yarat|och\b|ochib)/i,
+  bots: /(bot|botfather|token|@\w+bot|majburiy|tugma|button)/i,
+  code: /(kod|code|dastur|loyiha|project|yoz\b.*\b(bot|sayt|api|skript)|sayt|api|skript|script|npm|node|python|dеploy|deploy|test|xato.*tuzat|tuzat.*kod)/i,
+  servers: /(server|ssh|vps|pm2|nginx|docker|deploy|206\.|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|parol.*server|host)/i,
+  routines: /(har\s*kuni|har\s*hafta|har\s*\d+\s*(soat|daqiqa)|doim|doimiy|ratsion|routine|vazifa(lar)?\s*ro['‘’ʻ]?yxat|rejalashtirilgan)/i,
+  knowledge: /(bilim|baza|knowledge|trening|o['‘’ʻ]?qit|sozlama|setting)/i,
+};
+
+const byName = new Map();
+
+/** Tool schemas relevant to one message. */
+function selectTools(text) {
+  if (!byName.size) for (const d of definitions) byName.set(d.function.name, d);
+  const t = String(text || '');
+  const picked = new Set(GROUPS.core);
+  for (const [group, re] of Object.entries(TRIGGERS)) {
+    if (re.test(t)) for (const n of GROUPS[group]) picked.add(n);
+  }
+  // A short or unclear message gets the common groups rather than nothing.
+  if (picked.size <= GROUPS.core.length + 2) for (const n of [...GROUPS.chats, ...GROUPS.bots, ...GROUPS.routines]) picked.add(n);
+  return definitions.filter((d) => picked.has(d.function.name));
+}
 
 const SETTABLE = new Set([
   'reply_in_groups', 'reply_to_private', 'typing_simulation', 'keep_online', 'quiet_hours',
@@ -297,9 +355,22 @@ function createExecutor(ctx) {
         return telegramOps.joinChat(args.link);
       case 'leave_chat':
         return telegramOps.leaveChat(args.chat);
+      case 'delete_chat':
+        return telegramOps.deleteChat(args.chat);
+      case 'inbox_digest':
+        return telegramOps.inboxDigest({ hours: Math.min(168, Number(args.hours) || 24) });
       case 'create_chat':
         try {
-          return await telegramOps.createChat({ kind: args.kind, title: args.title, about: args.about || '', isPublic: !!args.public, username: args.username || null });
+          const me = (x) => (SELF_REF.test(String(x)) ? founderDm : x);
+          return await telegramOps.createChat({
+            kind: args.kind,
+            title: args.title,
+            about: args.about || '',
+            isPublic: !!args.public,
+            username: args.username || null,
+            members: (args.add_users || []).map(me),
+            admins: (args.admins || []).map(me),
+          });
         } catch (err) {
           return { ok: false, error: err.message, chat: err.chat || null };
         }
@@ -416,11 +487,53 @@ function createExecutor(ctx) {
         const p = projects.create({ name: args.name, kind, spec: args.spec || null, runCmd: args.run_cmd || (kind === 'node' || kind === 'telegram-bot' ? 'node index.js' : null), env: Object.keys(env).length ? env : null });
         return { ok: true, project: { slug: p.slug, name: p.name, kind: p.kind, dir: p.dir, run_cmd: p.run_cmd, envKeys: p.envKeys } };
       }
+      // ── terminal ───────────────────────────────────────────────────────
+      case 'bash':
+        return shell.run(args.command, {
+          sessionId: `tg-${args.session || 'main'}`,
+          target: 'local',
+          timeoutMs: Math.min(600, Number(args.timeout_seconds) || 120) * 1000,
+        });
+
+      case 'ssh_connect': {
+        const spec = shell.parseHostSpec(args.spec);
+        if (!spec) return { ok: false, error: 'Matndan IP yoki domen topilmadi' };
+        // Models sometimes pass the tool's own name here; the host is a far
+        // better label than "ssh_connect" when it shows up in later commands.
+        const given = String(args.name || '').trim();
+        const name = given && !/^(ssh|ssh_connect|server|host)$/i.test(given) ? given : spec.host;
+        shell.saveHost({ name, ...spec });
+        const probe = await shell.run('hostname && uname -a 2>/dev/null || ver', { sessionId: `tg-ssh-${name}`, target: 'remote', host: name, timeoutMs: 45_000 });
+        if (!probe.ok) return { ok: false, host: name, error: probe.output, hint: spec.password ? 'Parol notoʻgʻri boʻlishi mumkin' : 'Parol berilmagan' };
+        return { ok: true, host: name, user: spec.user, connectedTo: probe.output.split('\n')[0], note: 'Kalit oʻrnatildi — bundan keyin parolsiz ishlaydi' };
+      }
+
+      case 'ssh': {
+        const known = shell.getHost(args.host);
+        if (!known) return { ok: false, error: `"${args.host}" serveri saqlanmagan. Avval ssh_connect bilan IP va parolni bering.` };
+        return shell.run(args.command, {
+          sessionId: `tg-ssh-${known.name}${args.session ? ':' + args.session : ''}`,
+          target: 'remote',
+          host: known.name,
+          timeoutMs: Math.min(600, Number(args.timeout_seconds) || 120) * 1000,
+        });
+      }
+
+      case 'list_servers':
+        return { servers: shell.listHosts(), sessions: shell.listSessions(), publicKey: shell.publicKey() };
+
       case 'code_task': {
+        const founderIds = String(settings.get('founder_ids', '')).split(/[,\s]+/).filter(Boolean);
+        const extraContext = `Owner: @${settings.get('founder_username', 'itz_toms')}, Telegram ID ${founderIds.join(', ')}.`;
+        // No project named → a sandbox run. Experiments must not clutter the
+        // project list, which is exactly what the founder complained about.
+        if (!args.project) {
+          const r = await coder.runTask({ task: args.task, sandboxName: args.name || null, extraContext });
+          return { ...r, mode: 'sandbox', note: 'Sinov muhitida bajarildi — doimiy loyiha emas' };
+        }
         const p = projectOf(args.project);
         const wasRunning = p.alive;
-        const founderIds = String(settings.get('founder_ids', '')).split(/[,\s]+/).filter(Boolean);
-        const r = await coder.runTask({ project: p, task: args.task, extraContext: `Rahbar (egasi): @${settings.get('founder_username', 'itz_toms')}, Telegram ID ${founderIds.join(', ')}.` });
+        const r = await coder.runTask({ project: p, task: args.task, extraContext });
         let restarted = null;
         if (wasRunning || (!p.alive && p.run_cmd && r.ok && p.kind !== 'static')) {
           try {
@@ -430,11 +543,12 @@ function createExecutor(ctx) {
             restarted = err.message;
           }
         }
-        return { ...r, restarted, logsTail: restarted === true ? await new Promise((res) => setTimeout(() => res(projects.logs(p.slug, 15)), 3000)) : undefined };
+        return { ...r, mode: 'project', restarted, logsTail: restarted === true ? await new Promise((res) => setTimeout(() => res(projects.logs(p.slug, 15)), 3000)) : undefined };
       }
+
       case 'list_projects':
         return {
-          projects: projects.list().map((p) => ({ slug: p.slug, name: p.name, kind: p.kind, status: p.alive ? 'running' : p.status, run_cmd: p.run_cmd, files: p.files, lastError: p.last_error })),
+          projects: projects.list({ all: !!args.all }).map((p) => ({ slug: p.slug, name: p.name, kind: p.kind, status: p.alive ? 'running' : p.status, deployed: !!p.deployed, run_cmd: p.run_cmd, files: p.files, lastError: p.last_error })),
           bots: managedBots.list().map((b) => ({ username: '@' + b.username, status: b.alive ? 'running' : b.status })),
         };
       case 'project_files':
@@ -471,6 +585,17 @@ function createExecutor(ctx) {
         return servers.upload(args.server, projectOf(args.project).dir, args.remote_path);
 
       // ── agent ──────────────────────────────────────────────────────────
+      case 'add_routine': {
+        const r = routines.create({ title: args.title || null, instruction: args.instruction, schedule: args.schedule, chatId: founderDm || ctx.chatId });
+        return { ok: true, id: r.id, schedule: routines.describe(r), nextRun: fmtTashkent(r.next_run), title: r.title };
+      }
+      case 'list_routines':
+        return {
+          routines: routines.list().map((r) => ({ id: r.id, title: r.title, schedule: routines.describe(r), enabled: !!r.enabled, nextRun: fmtTashkent(r.next_run), runs: r.runs, instruction: String(r.instruction).slice(0, 160) })),
+        };
+      case 'remove_routine':
+        return args.disable_only ? { ok: routines.setEnabled(args.id, false), disabled: true } : { ok: routines.remove(args.id), removed: true };
+
       case 'list_tasks':
         return { tasks: tasks.list({ status: args.status || null, limit: 40 }).map((t) => ({ id: t.id, kind: t.kind, title: t.title, status: t.status, runAt: fmtTashkent(t.run_at), error: t.error || undefined })) };
       case 'cancel_task':
@@ -511,4 +636,4 @@ function createExecutor(ctx) {
   return { execute, used, secrets };
 }
 
-module.exports = { definitions, createExecutor, isReadOnlyQuestion, SELF_REF };
+module.exports = { definitions, createExecutor, isReadOnlyQuestion, selectTools, SELF_REF };

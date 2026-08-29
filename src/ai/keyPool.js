@@ -31,6 +31,11 @@ const MAX_COOLDOWN_MS = 60 * 60_000;
  */
 function detectProvider(key) {
   const k = String(key || '').trim();
+  // Exact shape wins over prefix: DeepSeek and Kimi both issue "sk-…" keys,
+  // so only the full pattern tells them apart (and apart from OpenRouter).
+  for (const p of Object.values(PROVIDERS)) {
+    if (p.keyPattern && p.keyPattern.test(k)) return p.id;
+  }
   for (const p of Object.values(PROVIDERS)) {
     if (!p.keyPrefix) continue;
     const prefixes = Array.isArray(p.keyPrefix) ? p.keyPrefix : [p.keyPrefix];

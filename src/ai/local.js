@@ -36,10 +36,19 @@ const MODELS_DIR = path.join(config.dataDir, 'models');
  */
 const PROFILES = {
   gpu: {
-    chat: { repo: 'bartowski/google_gemma-3-12b-it-GGUF', remote: 'google_gemma-3-12b-it-Q4_K_M.gguf', file: 'gemma-3-12b-it-Q4_K_M.gguf', label: 'Gemma 3 12B (Q4_K_M)', sizeGb: 6.8, contextSize: 8192, minRamGb: 10 },
+    // Qwen3 8B replaced Gemma 3 12B as the default: it speaks Uzbek at least
+    // as well, supports tool calling (Gemma does not), and at ~5 GB it leaves
+    // room on a 12 GB card — the 12B build was the one aborting under Vulkan.
+    chat: { repo: 'Qwen/Qwen3-8B-GGUF', remote: 'Qwen3-8B-Q4_K_M.gguf', file: 'Qwen3-8B-Q4_K_M.gguf', label: 'Qwen3 8B (Q4_K_M)', sizeGb: 5.0, contextSize: 8192, minRamGb: 8 },
+    code: { repo: 'Qwen/Qwen2.5-Coder-7B-Instruct-GGUF', remote: 'qwen2.5-coder-7b-instruct-q4_k_m.gguf', file: 'qwen2.5-coder-7b-instruct-q4_k_m.gguf', label: 'Qwen2.5 Coder 7B (Q4_K_M)', sizeGb: 4.7, contextSize: 16384, minRamGb: 8 },
   },
   'cpu-small': {
     chat: { repo: 'bartowski/google_gemma-3-1b-it-GGUF', remote: 'google_gemma-3-1b-it-Q4_K_M.gguf', file: 'gemma-3-1b-it-Q4_K_M.gguf', label: 'Gemma 3 1B (Q4_K_M)', sizeGb: 0.8, contextSize: 4096, minRamGb: 2 },
+    code: { repo: 'Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF', remote: 'qwen2.5-coder-1.5b-instruct-q4_k_m.gguf', file: 'qwen2.5-coder-1.5b-instruct-q4_k_m.gguf', label: 'Qwen2.5 Coder 1.5B (Q4_K_M)', sizeGb: 1.1, contextSize: 8192, minRamGb: 3 },
+  },
+  // The previous default, kept so an existing download is not orphaned.
+  'gpu-gemma': {
+    chat: { repo: 'bartowski/google_gemma-3-12b-it-GGUF', remote: 'google_gemma-3-12b-it-Q4_K_M.gguf', file: 'gemma-3-12b-it-Q4_K_M.gguf', label: 'Gemma 3 12B (Q4_K_M)', sizeGb: 6.8, contextSize: 8192, minRamGb: 10 },
   },
 };
 const EMBED = { repo: 'gpustack/bge-m3-GGUF', remote: 'bge-m3-Q8_0.gguf', file: 'bge-m3-Q8_0.gguf', label: 'bge-m3 (Q8_0)', sizeGb: 0.6 };
@@ -55,7 +64,8 @@ function profileName() {
 
 /** Catalog for the active profile — the shape the rest of the module reads. */
 function catalog() {
-  return { chat: PROFILES[profileName()].chat, embed: EMBED };
+  const p = PROFILES[profileName()];
+  return { chat: p.chat, embed: EMBED, ...(p.code ? { code: p.code } : {}) };
 }
 
 // Kept as a property for callers that read `local.CATALOG.chat` — it always
@@ -386,6 +396,7 @@ function status() {
     loading: state.loading,
     error: state.error,
     chat: { ...c.chat, ...fileStatus('chat'), loaded: state.chatModel === true, workerPid: state.worker ? state.worker.pid : null, crashedAt: state.crashedAt || null },
+    code: c.code ? { ...c.code, ...fileStatus('code'), loaded: false } : null,
     embed: { ...c.embed, ...fileStatus('embed'), loaded: !!state.embedModel },
     vectors: vectors.stats(),
     calls: state.calls,

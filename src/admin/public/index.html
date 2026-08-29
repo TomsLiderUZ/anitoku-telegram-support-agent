@@ -29,6 +29,8 @@
     <div class="nav-item" data-page="tasks"><span class="ico">☰</span> Vazifalar <span class="badge" id="taskBadge" hidden>0</span></div>
     <div class="nav-item" data-page="memory"><span class="ico">✎</span> Xotira</div>
     <div class="nav-item" data-page="projects"><span class="ico">⌘</span> Loyihalar</div>
+    <div class="nav-item" data-page="code"><span class="ico">⟨⟩</span> Kod</div>
+    <div class="nav-item" data-page="routines"><span class="ico">🔁</span> Doimiy vazifalar</div>
 
     <div class="nav-group">Bilim</div>
     <div class="nav-item" data-page="training"><span class="ico">↻</span> O'qitish</div>
@@ -161,6 +163,31 @@
       </div>
     </section>
 
+    <!-- ═══ Doimiy vazifalar ═══ -->
+    <section class="page" id="page-routines">
+      <div class="page-head">
+        <div>
+          <div class="page-title">Doimiy vazifalar</div>
+          <div class="page-desc">Bir marta aytilgan, abadiy bajariladigan ishlar. Agent ularni fonda o'zi bajaradi va boshqa ishlarga xalaqit bermaydi</div>
+        </div>
+        <button class="btn ghost sm" id="rtRefresh">Yangilash</button>
+      </div>
+      <div class="card">
+        <div class="card-title">Yangi doimiy vazifa</div>
+        <div class="grid c2">
+          <label class="field"><span>Vaqti</span><input id="rtSchedule" placeholder="har kuni soat 9 da / har 2 soatda / har dushanba 10:00"></label>
+          <label class="field"><span>Nomi</span><input id="rtTitle" placeholder="Ertalabki hisobot"></label>
+        </div>
+        <label class="field"><span>Ko'rsatma</span><textarea id="rtInstruction" rows="3" placeholder="Barcha guruhlarni tekshirib, javobsiz qolgan savollar bo'lsa menga shaxsiy chatda hisobot ber"></textarea></label>
+        <div class="row end"><button class="btn" id="rtAdd">Qo'shish</button></div>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table><thead><tr><th>#</th><th>Nomi</th><th>Vaqti</th><th>Keyingi</th><th class="num">Bajarilgan</th><th></th></tr></thead><tbody id="rtTable"></tbody></table>
+        </div>
+      </div>
+    </section>
+
     <!-- ═══ Xotira ═══ -->
     <section class="page" id="page-memory">
       <div class="page-head">
@@ -242,20 +269,40 @@
       </div>
 
       <div class="card">
-        <div class="card-title">Serverlar (SSH)</div>
-        <div class="hint">Agent kalit bilan ulanadi. Quyidagi ochiq kalitni serverda <code>~/.ssh/authorized_keys</code> ga qo'shing, keyin "Tekshirish" bosing.</div>
-        <pre class="block" id="srvPubKey" style="margin:8px 0">—</pre>
-        <div class="grid c2">
-          <label class="field"><span>Nomi</span><input id="srvName" placeholder="anitoku"></label>
-          <label class="field"><span>Host</span><input id="srvHost" placeholder="206.189.157.53"></label>
-          <label class="field"><span>Foydalanuvchi</span><input id="srvUser" placeholder="root" value="root"></label>
-          <label class="field"><span>Port</span><input id="srvPort" placeholder="22" value="22"></label>
-        </div>
-        <div class="row end"><button class="btn ghost sm" id="srvAdd">Qo'shish</button></div>
+        <div class="card-title">Ulangan serverlar</div>
+        <div class="hint">Serverni bu yerdan qo'shish shart emas — Telegramda agentga IP va parolni yozsangiz, o'zi ulanadi va kalitini o'rnatib oladi. Bu ro'yxat faqat ko'rish uchun.</div>
         <div class="table-wrap" style="margin-top:10px">
-          <table><thead><tr><th>Nomi</th><th>Manzil</th><th>Oxirgi ulanish</th><th></th></tr></thead><tbody id="srvTable"></tbody></table>
+          <table><thead><tr><th>Nomi</th><th>Manzil</th><th>Kalit</th><th>Oxirgi ulanish</th></tr></thead><tbody id="srvTable"></tbody></table>
         </div>
-        <pre class="block" id="srvOut" hidden style="margin-top:8px">—</pre>
+      </div>
+    </section>
+
+    <!-- ═══ Kod ═══ -->
+    <section class="page" id="page-code">
+      <div class="page-head">
+        <div>
+          <div class="page-title">Kod</div>
+          <div class="page-desc">Claude Code kabi ishlaydigan kod agenti: reja tuzadi, fayllarni o'qiydi va yozadi, terminalda ishga tushirib tekshiradi, xatoni o'zi tuzatadi</div>
+        </div>
+        <button class="btn ghost sm" id="codeRefresh">Yangilash</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Yangi vazifa</div>
+        <div class="grid c2">
+          <label class="field"><span>Loyiha</span>
+            <select id="codeProject"><option value="">— sinov muhiti (vaqtinchalik) —</option></select>
+            <small>Loyiha tanlansa o'zgarishlar doimiy saqlanadi; sinov muhiti tajriba uchun, panelda ko'rinmaydi</small>
+          </label>
+          <label class="field"><span>Sinov muhiti nomi</span><input id="codeName" placeholder="masalan: parser-sinov"></label>
+        </div>
+        <label class="field"><span>Vazifa</span><textarea id="codeTask" rows="4" placeholder="Anime qidiruv API yoz: /search?q= so'rovi Jikan'dan natija qaytarsin, xatolarni ushlasin, portni PORT muhit o'zgaruvchisidan olsin. Yozib, ishga tushirib tekshir."></textarea></label>
+        <div class="row end"><button class="btn" id="codeRun">Boshlash</button></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Bajarilish <span class="pill" id="codeStatus" hidden>—</span></div>
+        <pre class="block" id="codeOut" style="max-height:560px">Vazifa bering — agent rejasini tuzib, bosqichma-bosqich bajaradi</pre>
       </div>
     </section>
 

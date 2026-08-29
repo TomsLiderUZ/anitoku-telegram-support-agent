@@ -22,6 +22,9 @@ class TaskRunner extends EventEmitter {
     this.executors = new Map();
     this.timer = null;
     this.busy = false;
+    // Several jobs at once: a long coding task must not hold up a reminder.
+    this.running = new Set();
+    this.maxConcurrent = 4;
   }
 
   register(kind, fn) {
@@ -79,14 +82,41 @@ class TaskRunner extends EventEmitter {
     this.timer = null;
   }
 
+  /**
+   * Pick up due work.
+   *
+   * Jobs run concurrently, not one after another: a coding task can take
+   * minutes and used to block every reminder queued behind it. The cap keeps
+   * the API providers from being hammered by a burst.
+   *
+   * Recurring routines are expanded here too, so a standing order ("every
+   * morning at 9…") becomes an ordinary task on the same queue.
+   */
   async tick() {
     if (this.busy) return;
     this.busy = true;
     try {
+      try {
+        require('./routines').tick();
+      } catch (err) {
+        log.warn('routine tick failed', { error: err.message });
+      }
+
+      const free = Math.max(0, this.maxConcurrent - this.running.size);
+      if (!free) return;
       const due = db
-        .prepare("SELECT id FROM tasks WHERE status = 'pending' AND run_at <= ? ORDER BY run_at ASC LIMIT 5")
-        .all(Date.now());
-      for (const { id } of due) await this.run(id);
+        .prepare("SELECT id FROM tasks WHERE status = 'pending' AND run_at <= ? ORDER BY run_at ASC LIMIT ?")
+        .all(Date.now(), free)
+        .filter(({ id }) => !this.running.has(id));
+
+      await Promise.all(
+        due.map(({ id }) => {
+          this.running.add(id);
+          return this.run(id)
+            .catch((err) => log.error('task failed', { id, error: err.message }))
+            .finally(() => this.running.delete(id));
+        })
+      );
     } finally {
       this.busy = false;
     }

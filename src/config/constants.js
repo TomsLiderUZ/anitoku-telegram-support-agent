@@ -36,6 +36,10 @@ const MODEL_CHAINS = {
     'google/gemma-4-31b-it:free',
   ],
   gemini: ['gemini-3.7-flash', 'gemini-3.1-flash-lite'],
+  // Strong tool callers, both paid-only. deepseek-chat is the best value for
+  // long agentic loops; kimi-k2 is the best of the two at multi-step planning.
+  deepseek: ['deepseek-chat', 'deepseek-reasoner'],
+  kimi: ['kimi-k2-0905-preview', 'kimi-k2-turbo-preview', 'moonshot-v1-32k'],
   cerebras: ['llama-3.3-70b', 'llama3.1-8b', 'qwen-3-32b'],
   // Measured on Uzbek support questions: medium gives the best spelling and
   // phrasing at ~2.8s; small is a fast, still-correct fallback. `large` was
@@ -103,6 +107,28 @@ const PROVIDERS = {
     keyPrefix: ['AIza', 'AQ.'],
     supportsTools: true,
     signup: 'https://aistudio.google.com/apikey',
+  },
+  // Both issue plain "sk-…" keys, which collides with other providers, so
+  // they are matched on the full key shape rather than a prefix.
+  deepseek: {
+    id: 'deepseek',
+    label: 'DeepSeek',
+    baseUrl: 'https://api.deepseek.com/v1',
+    keyPrefix: null,
+    keyPattern: /^sk-[a-f0-9]{32}$/,
+    supportsTools: true,
+    signup: 'https://platform.deepseek.com/api_keys',
+    paid: true,
+  },
+  kimi: {
+    id: 'kimi',
+    label: 'Kimi (Moonshot)',
+    baseUrl: 'https://api.moonshot.ai/v1',
+    keyPrefix: null,
+    keyPattern: /^sk-[A-Za-z0-9]{48}$/,
+    supportsTools: true,
+    signup: 'https://platform.kimi.ai/console/api-keys',
+    paid: true,
   },
   cerebras: {
     id: 'cerebras',

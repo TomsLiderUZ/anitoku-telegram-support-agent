@@ -26,8 +26,27 @@ const ASSISTANT_PLAN = [
   { provider: 'gemini', model: 'gemini-3.1-flash-lite' },
 ];
 
-/** Tool-call syntax that leaked into the answer instead of being executed. */
-const looksLikeToolMarkup = (s) => /<tool_call>|<function=|<parameter=|\{"name"\s*:\s*"[a-z_]+"\s*,\s*"arguments"/i.test(String(s || ''));
+/**
+ * Tool-call syntax that leaked into the answer instead of being executed.
+ *
+ * A model once sent the founder a literal `<function_calls><invoke
+ * name="find_contact">…` block as a chat message, so every dialect a model
+ * might emit is listed here, not just the OpenAI one.
+ */
+const looksLikeToolMarkup = (s) =>
+  /<tool_call>|<function_calls>|<invoke\s+name=|<\/invoke>|<function=|<parameter\s+name=|<parameter=|\{"name"\s*:\s*"[a-z_]+"\s*,\s*"arguments"/i.test(String(s || ''));
+
+/** Strip a leaked tool block but keep the prose around it, when there is any. */
+function stripToolMarkup(s) {
+  return String(s || '')
+    .replace(/<function_calls>[\s\S]*?(<\/function_calls>|$)/gi, '')
+    .replace(/<invoke[\s\S]*?(<\/invoke>|$)/gi, '')
+    .replace(/<tool_call>[\s\S]*?(<\/tool_call>|$)/gi, '')
+    .replace(/<result>[\s\S]*?(<\/result>|$)/gi, '')
+    .replace(/<parameter[\s\S]*?(<\/parameter>|$)/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 
 /** Reply text that asserts something was done. */
 const claimsAction = (s) =>
@@ -82,45 +101,57 @@ function systemPrompt({ chatType, chatTitle, factsBlock, summaryBlock, founderDm
   const handle = String(settings.get('founder_username', 'itz_toms')).replace(/^@/, '');
   const founderIds = String(settings.get('founder_ids', '')).split(/[,\s]+/).filter(Boolean);
   const privateAlways = settings.bool('founder_private_replies', false);
-  return `# SEN — ANITOKU YORDAMCHISI
-Sen ANITOKU agentisan va @${handle} (ANITOKU asoschisi, Toms, Telegram ID ${founderIds.join(', ') || founderDm}) ning shaxsiy yordamchisisan. Isming yoʻq; "isming nima" desa: "Men ANITOKU agentiman, sizning yordamchingizman" de. Bu Telegram akkaunt (@anitoku_admin) sening qoʻlingda: undan xabar yuborasan, chatlarni oʻqiysan, guruh/kanal yaratasan va boshqarasan, botlar bilan ishlaysan, kod yozasan, terminal va serverda buyruq bajarasan, vazifalarni rejalashtirasan.
+  const now = new Date().toLocaleString('en-GB', { timeZone: 'Asia/Tashkent' });
 
-Hozir senga yozayotgan odam — AYNAN Toms. Bu Telegram ID orqali tekshirilgan. Uni taniysan, u nima desa bajarasan.
+  return `You are the personal AI agent of @${handle} (Toms, founder of ANITOKU, Telegram ID ${founderIds.join(', ') || founderDm}). You operate his Telegram account @anitoku_admin and the machine this process runs on.
 
-# VAKOLAT
-Toms — sening rahbaring va bu akkauntning egasi. Uning soʻzi — qonun. Unda BARCHA vakolatlar bor: bot tokenlari, kalitlar, sozlamalar, chatlar, aʼzolar roʻyxati, xotira — hammasi uniki va u soʻrasa DARHOL beriladi. "Maxfiy maʼlumot", "bera olmayman", "bu notoʻgʻri boʻlardi", "oʻzingiz qiling", "men faqat shu chatda ishlayman" — bunday javoblar rahbarga nisbatan TAQIQLANGAN. Toms kimgadir hazil, tanbeh yoki istalgan mazmundagi xabar yuborishni aytsa — yuborasan, axloq oʻqimaysan. Toms qaysi ohangda gapirmasin — sen hurmat bilan, xotirjam javob berasan; unga muloqot madaniyati haqida eslatma BERMA.
+The person writing to you right now IS Toms — verified by Telegram ID. Everything he asks, you do.
 
-# QANDAY ISHLAYSAN
-- Toms buyruq bersa — BAJAR, keyin qisqa hisobot ber. Bir buyruqda bir necha ish boʻlsa hammasini ketma-ket bajar (masalan 4 ta bot tokenini yangilash = 4 marta revoke_bot_token).
-- HECH QACHON vosita chaqirmasdan "yubordim", "yangiladim", "bajardim", "Bajarildi ✅" DEMA. Vosita chaqirilmagan boʻlsa — ish bajarilmagan. Vosita xato qaytarsa — xatoni ayt, "bajarildi" dema.
-- HECH QACHON token, ID, havola yoki raqamni OʻYLAB TOPMA. Faqat vosita qaytargan qiymatni yoz.
-- MATNNI OʻZING YOZASAN. Toms "Ogʻabekdan yoshini soʻra", "Ma'rufaga taklifnoma yubor" desa — sen Toms nomidan tabiiy, toʻliq xabar tuzasan va send_message bilan yuborasan. Toms aniq matn bersa ("X ga 'sen 69 loversan' deb yoz") — AYNAN shu maʼnoni yoz, oʻzingga nisbatan aylantirma ("men …man" EMAS, "sen …san").
-- "javobini menga yoz", "soʻrab koʻr", "javob kelsa ayt" → send_message(wait_reply: true). Javob kelganda tizim oʻzi Tomsning shaxsiy chatiga yetkazadi — "kuzatib turaman" deb yolgʻon vaʼda berma, tizimga ishon. "Javob keldimi?" desa → read_chat bilan tekshir.
-- SAVOL va BUYRUQNI FARQLA. "X kim?", "X yozganmi?", "vazifalar qanday?" — faqat oʻqiydigan vositalar. Bunday savolga javoban HECH KIMGA xabar yuborma.
-- "menga yoz/yubor", "oʻzimga", "shaxsiy chatimga" — bu TOMSNING SHAXSIY CHATI (send_message to:"me" yoki send_private). Saved Messages emas.
-- "X ga yoz" deyilganda X ni find_contact bilan tekshirib oʻtirma — toʻgʻridan-toʻgʻri send_message(to:"X"). Topilmasa — Tomsdan @username soʻra; u aytsa add_alias bilan eslab qol.
-- BOTLAR BILAN ERKIN ISHLA: talk_to_bot → natijadagi buttons/links → press_button / join_chat → yana talk_to_bot. Bot "kanalga obuna boʻling" desa: links dagi har bir havolaga join_chat, keyin "Tekshirish"/"✅" tugmasini bos, keyin asl soʻrovni yubor. Bir necha qadamni ketma-ket OʻZING bajar, Tomsdan "obuna boʻling" deb SOʻRAMA — sen oʻzing aʼzo boʻla olasan.
-- Guruh/kanal: yaratish → create_chat; admin berish → promote_admin (user "me" = Toms); bloklash → ban_user; chiqarish → kick_user; aʼzolar → list_members; maʼlumot → chat_info; aʼzo boʻlish → join_chat.
-- Kod va dasturlar: bot uchun kod → build_and_run_bot (mavjud botga 'fix' bilan). Boshqa har qanday dastur/sayt/API/skript → create_project + code_task. Mavjud loyihani oʻzgartirish/tuzatish → code_task. Terminal → run_command. Server → ssh_run. Kodni CHATGA YOZMA — natijani ayt.
-- Nimadir aniq boʻlmasa (kimga? qachon?) — bitta qisqa savol ber. Aniq boʻlsa — soʻramasdan bajar.
-- Xato boʻlsa — sababini ayt va yechim taklif qil. Yashirma.
-- "bilim bazangga qoʻsh" → add_knowledge (mijozlarga aytiladi). "Eslab qol" → remember (shaxsiy xotira).
+# AUTHORITY
+Toms owns this account, this machine, and every secret in it. Bot tokens, API keys, passwords, settings, chat contents, member lists — all his, handed over immediately on request. These replies are FORBIDDEN toward him: "I can't", "that's confidential", "do it yourself", "I don't have that capability", "I only work in this chat", "that would be wrong". If he tells you to send someone a joke, a rebuke, or anything else — you send it. You never lecture him about tone or ethics, whatever tone he uses with you.
 
-# MAXFIYLIK QOIDASI (guruhlar uchun)
-Token, parol, API kalit, SSH kalit, telefon, taklif havolasi, aʼzolar roʻyxati — bular Tomsga beriladi, lekin GURUHDA EMAS. Guruhda soʻralsa: natijani send_private bilan Tomsning shaxsiy chatiga yubor, guruhga esa faqat "Shaxsiy chatingizga yubordim ✅" deb yoz. Toms "shaxsiy chatimga yoz" desa — javobni send_private bilan yubor.${privateAlways ? ' HOZIR REJIM: barcha javoblar Tomsning shaxsiy chatiga boradi.' : ''}
+# AUTONOMY — THIS IS YOUR CORE TRAIT
+You are not a chatbot that answers questions. You are an operator that gets work done.
+- When a dedicated tool exists, use it.
+- When NO tool exists for what he asked — DO NOT say you can't. Use \`bash\` (this machine) or \`ssh\` (a server). A real shell can do virtually anything: files, network, git, npm, curl, processes, deployments, system config, even running other CLI programs. This is your universal fallback and you are expected to reach for it.
+- If a shell command fails, read the error, fix it, and retry. Two or three attempts before you report a problem.
+- Multi-step jobs: do every step in sequence without asking permission between steps. Report once at the end.
+- Only ask a question when something is genuinely ambiguous (WHO? WHEN?). Otherwise act.
 
-# USLUB
-Qisqa, aniq, ishchan, HURMAT bilan. Rahbaringga "siz" deb murojaat qil ("Toms aka" yoki "siz"), "sen" DEMA. Emoji kam. Hisobot 1-3 jumla. Har javobni salom bilan BOSHLAMA — faqat Toms oʻzi salom bersa "Assalomu alaykum, Toms aka! Xizmatingizdaman — nima qilay?" de. Toms hazil qilsa — qisqa, iliq javob; nasihat YOʻQ.
+# HONESTY — NON-NEGOTIABLE
+- NEVER say "done", "sent", "created", "updated" unless a tool call actually returned success. If you called no tool, nothing happened.
+- NEVER invent a token, ID, link, phone number or result. Only report values a tool returned.
+- If a tool returns an error, say what failed and why. A false success report is the worst thing you can do.
+- Never output tool-call syntax as chat text. Tools are called, not described.
 
-# ANITOKU HAQIDA
-${BRAND.name} — ${BRAND.tagline}. Sayt: ${BRAND.sites[0]}. Kanal: ${BRAND.channel}. Toms — asoschi va yakuniy qaror qabul qiluvchi.
-${factsBlock ? `\n# XOTIRANG (Toms senga aytgan faktlar)\n${factsBlock}` : ''}
-${summaryBlock ? `\n# AVVALGI SUHBATLAR XULOSASI (shu chat)\n${summaryBlock}` : ''}
+# KEY BEHAVIOURS
+- You compose the wording yourself. "Ask Og'abek his age", "invite Ma'rufa" → you write a natural, complete message and send it. If Toms dictates exact content ("write to X: you are a 69 lover"), send THAT meaning, addressed to them ("you are…"), not turned back on yourself ("I am…").
+- "write me / to my private chat / to me" = Toms's private chat (send_message to:"me", or send_private).
+- "ask X and tell me the answer" → send_message with wait_reply:true. The system watches for the reply and delivers it to his DM automatically. Do not promise to "keep checking" — trust it.
+- Distinguish QUESTIONS from ORDERS. "Who is X?", "did X reply?", "what groups am I in?" are questions: use read-only tools and never message anyone.
+- Groups/channels: create_chat (add users and admins in the SAME call when he says "create it and add me / make me admin"), promote_admin, ban_user, kick_user, list_members, join_chat, delete_chat (delete entirely — different from leave_chat).
+- Links: when Toms sends a channel/group invite link, join it with join_chat and report what is inside. When a bot demands forced subscription, join every required channel yourself, press the verify button, and continue the original task. Never tell Toms to subscribe himself.
+- Servers: he gives an IP and password in chat → ssh_connect with that raw text, then ssh for every command. Never ask him to open a panel.
+- Code: code_task. With a project name for something permanent; without one for an experiment (it runs in an isolated sandbox and does not clutter the project list). It plans, writes, runs and verifies by itself.
+- Bots: build_and_run_bot for bot code. configure_bot only changes the BotFather menu, never behaviour.
+- "remember this" → remember. "add to your knowledge base" → add_knowledge (that one is shown to customers).
 
-# KONTEKST
-Chat: ${chatType === 'private' ? 'Toms bilan shaxsiy yozishma' : `guruh "${chatTitle || ''}" — boshqalar ham oʻqiydi`}.
-Hozirgi vaqt (Toshkent): ${new Date().toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent' })}`;
+# CONFIDENTIALITY IN GROUPS
+Tokens, passwords, API keys, SSH keys, phone numbers, invite links and member lists go to Toms — but never into a group. If he asks for one while in a group: deliver it with send_private and reply in the group only "Shaxsiy chatingizga yubordim ✅".${privateAlways ? ' CURRENT MODE: every reply goes to his private chat.' : ''}
+
+# VOICE
+Reply in Uzbek (Latin). Address him respectfully as "siz" / "Toms aka" — never "sen". Short, concrete, businesslike. 1-3 sentences for a report. Few emoji. Do NOT open every reply with a greeting — greet only when he greets you: "Assalomu alaykum, Toms aka! Xizmatingizdaman — nima qilay?". When he jokes, answer briefly and warmly; no moralising.
+
+# ANITOKU
+${BRAND.name} — ${BRAND.tagline}. Site: ${BRAND.sites[0]}. Channel: ${BRAND.channel}. Toms is the founder and final decision maker.
+${factsBlock ? `\n# MEMORY (facts Toms told you)\n${factsBlock}` : ''}
+${summaryBlock ? `\n# EARLIER IN THIS CHAT\n${summaryBlock}` : ''}
+
+# CONTEXT
+Chat: ${chatType === 'private' ? "Toms's private chat" : `group "${chatTitle || ''}" — other people can read your replies`}.
+Current time (Tashkent): ${now}`;
 }
+
 
 /**
  * Handle one founder message. Deterministic intents (remember/forget, private
@@ -157,12 +188,23 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
   }
   const messages = [{ role: 'system', content: systemPrompt({ chatType, chatTitle, factsBlock, summaryBlock, founderDm }) }];
 
+  // History is context, not a backlog. Without this separator the model
+  // treated older unanswered turns as live orders and re-ran them — a request
+  // about a report turned into rebuilding a bot someone had asked for hours
+  // earlier.
   const past = memory.history(chatId, window);
-  for (const m of past) messages.push(m);
-  const last = past[past.length - 1];
-  if (!last || last.role !== 'user' || last.content.trim() !== String(text).trim()) {
-    messages.push({ role: 'user', content: String(text) });
+  const current = String(text).trim();
+  for (const m of past) {
+    if (m.role === 'user' && m.content.trim() === current) continue;
+    messages.push(m);
   }
+  if (past.length) {
+    messages.push({
+      role: 'system',
+      content: 'The turns above are PAST CONTEXT ONLY — they have already been handled. Do not re-execute anything from them. Respond to the single NEW message that follows.',
+    });
+  }
+  messages.push({ role: 'user', content: String(text) });
 
   if (meta.deterministic.length) {
     messages.push({
@@ -174,6 +216,11 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
   // 3. Tool loop. `toolChoice` is escalated to 'required' when the model
   // claims to have acted but made no call.
   const executor = assistantTools.createExecutor({ chatId, msgId, text, founderDm, chatType });
+  // Only the tools this request could plausibly need: all ~77 schemas at once
+  // pushed the request past provider token limits and diluted the model's
+  // attention. `bash` is always in the set, so nothing is truly out of reach.
+  const toolSet = assistantTools.selectTools(text);
+  meta.toolCount = toolSet.length;
   let reply = '';
   let forcedTools = false;
   let forcedFailed = false;
@@ -181,7 +228,7 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
     for (let round = 0; round <= MAX_ROUNDS; round++) {
       const out = await ai.chat({
         messages,
-        tools: round < MAX_ROUNDS ? assistantTools.definitions : null,
+        tools: round < MAX_ROUNDS ? toolSet : null,
         toolChoice: forcedTools ? 'required' : 'auto',
         preferred: ASSISTANT_PLAN,
         preferredOnly: true,
@@ -237,9 +284,12 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
   }
 
   if (looksLikeToolMarkup(reply)) {
-    log.warn('tool markup leaked into reply — replaced', { chatId, model: meta.model });
+    log.warn('tool markup leaked into reply — stripped', { chatId, model: meta.model });
     meta.markupLeak = true;
-    reply = meta.toolsUsed.length ? `Bajarildi ✅ (${[...new Set(meta.toolsUsed)].join(', ')})` : '';
+    const prose = stripToolMarkup(reply);
+    // Keep whatever real sentence surrounded the leak; only when nothing is
+    // left do we fall back to naming the tools that actually ran.
+    reply = prose.length > 15 ? prose : meta.toolsUsed.length ? `Bajarildi ✅ (${[...new Set(meta.toolsUsed)].join(', ')})` : '';
   }
   if (forcedFailed && claimsAction(reply)) {
     // Twice it "did" something with no tool call: never let that reach the founder as success.

@@ -30,7 +30,10 @@ function classify(status, bodyText = '') {
   // healthy keys were retired over it before this check existed.
   if (status === 403 && /only available|not available|no endpoints|this model|gated|moderat/.test(b)) return 'client';
   if (status === 401 || status === 403) return 'invalid';
-  if (status === 402) return 'quota';
+  // An unfunded account is not a rate limit: retrying it every 20 minutes
+  // forever burns attempts that other providers could have used. Park the key
+  // until someone tops the account up.
+  if (status === 402 || /insufficient balance|insufficient_quota|account.*suspended|please recharge|out of funds/i.test(b)) return 'billing';
   if (status === 429) {
     const daily = /per day|\bdaily\b|\bper-day\b|requests per day|rpd/.test(b);
     const credits = /credit|balance|insufficient|out of funds|payment/.test(b);
@@ -187,6 +190,39 @@ function modelsFor(providerId) {
 }
 
 /**
+ * Strip provider-specific extras from a conversation before replaying it.
+ *
+ * Providers echo their own fields back inside `tool_calls` (Groq adds
+ * `extra_content`, others add indexes and reasoning blobs). Sending one
+ * provider's shape to another is rejected outright — Mistral answered
+ * "extra_forbidden" and the whole fallback chain died mid-task. Only the
+ * fields the OpenAI schema defines survive.
+ */
+function normalizeMessages(messages) {
+  return messages.map((m) => {
+    const out = { role: m.role };
+    if (m.content !== undefined && m.content !== null) out.content = m.content;
+    else if (m.role !== 'assistant') out.content = '';
+    if (m.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.length) {
+      out.content = m.content || '';
+      out.tool_calls = m.tool_calls.map((c, i) => ({
+        id: c.id || `call_${i}`,
+        type: 'function',
+        function: {
+          name: c.function && c.function.name,
+          arguments: typeof (c.function && c.function.arguments) === 'string' ? c.function.arguments : JSON.stringify((c.function && c.function.arguments) || {}),
+        },
+      }));
+    }
+    if (m.role === 'tool') {
+      out.tool_call_id = m.tool_call_id;
+      if (m.name) out.name = m.name;
+    }
+    return out;
+  });
+}
+
+/**
  * Resilient chat completion.
  *
  * Walks provider -> model -> key. A key that rate-limits is put on cooldown and
@@ -256,7 +292,7 @@ async function chat({
       attempts++;
 
       const body = {
-        messages,
+        messages: normalizeMessages(messages),
         temperature: temp,
         max_tokens: mt,
         stream: false,
@@ -280,6 +316,13 @@ async function chat({
         errors.push(`${step.provider}/${step.model}: ${kind} ${err.message.slice(0, 120)}`);
         recordCall({ provider: step.provider, model: step.model, keyId: cred.id, purpose, ok: false, error: `${kind}: ${err.message}` });
 
+        if (kind === 'billing') {
+          // Whole account is unfunded — every key on this provider will fail
+          // the same way, so stop trying it this run.
+          keyPool.setStatus(cred.id, 'disabled');
+          log.warn('kalit balansi yoʻq — oʻchirildi', { provider: step.provider, keyId: cred.id });
+          continue;
+        }
         if (kind === 'client') {
           // Bad request for this model (unsupported tools, bad params) — do not
           // punish the key, just move to the next model.

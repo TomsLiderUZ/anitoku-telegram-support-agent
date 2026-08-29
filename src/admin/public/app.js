@@ -1191,7 +1191,7 @@ loaders.projects = async () => {
   bind('data-psel', async (s) => { prjSel = s; $('prjDetail').hidden = false; $('prjDetailTitle').textContent = s; showPrjFiles(); });
 
   await renderBots(d.bots || []);
-  renderServers(d.servers || [], d.publicKey);
+  renderServers(d.servers || []);
 };
 
 async function showPrjFiles() {
@@ -1243,26 +1243,86 @@ $('prjCreate').addEventListener('click', async () => {
 });
 $('prjRefresh').addEventListener('click', () => loaders.projects());
 
-function renderServers(list, pubKey) {
-  $('srvPubKey').textContent = pubKey || '(kalit yaratilmadi — ssh-keygen topilmadi)';
+function renderServers(list) {
   $('srvTable').innerHTML = list.length
-    ? list.map((s) => `<tr><td><b>${esc(s.name)}</b>${s.note ? `<div class="hint">${esc(s.note)}</div>` : ''}</td><td class="mono">${esc(s.user)}@${esc(s.host)}:${s.port}</td>
-        <td>${s.last_ok ? fmtTime(s.last_ok) : '—'}${s.last_error ? `<div class="hint">${esc(String(s.last_error).slice(0, 80))}</div>` : ''}</td>
-        <td><div class="row"><button class="btn ghost sm" data-stest="${esc(s.name)}">Tekshirish</button><button class="btn danger sm" data-sdel="${esc(s.name)}">×</button></div></td></tr>`).join('')
-    : '<tr><td colspan="4" class="empty">Server qo\'shilmagan</td></tr>';
-  $('srvTable').querySelectorAll('[data-stest]').forEach((b) => b.addEventListener('click', async () => {
-    $('srvOut').hidden = false; $('srvOut').textContent = 'Ulanmoqda…';
-    try { const r = await api(`/servers/${b.dataset.stest}/run`, { method: 'POST', body: { command: 'hostname && uptime && df -h / | tail -1' } }); $('srvOut').textContent = (r.ok ? '✅ ' : '❌ ') + r.output; } catch (e) { $('srvOut').textContent = e.message; }
-    loaders.projects();
-  }));
-  $('srvTable').querySelectorAll('[data-sdel]').forEach((b) => b.addEventListener('click', async () => { if (!confirm('Server o\'chirilsinmi?')) return; await api(`/servers/${b.dataset.sdel}`, { method: 'DELETE' }); loaders.projects(); }));
+    ? list.map((s) => `<tr><td><b>${esc(s.name)}</b>${s.note ? `<div class="hint">${esc(s.note)}</div>` : ''}</td>
+        <td class="mono">${esc(s.user)}@${esc(s.host)}:${s.port}</td>
+        <td>${s.key_installed ? '<span class="pill ok">o\'rnatilgan</span>' : '<span class="pill">parol bilan</span>'}</td>
+        <td>${s.last_ok ? fmtTime(s.last_ok) : '—'}${s.last_error ? `<div class="hint">${esc(String(s.last_error).slice(0, 80))}</div>` : ''}</td></tr>`).join('')
+    : '<tr><td colspan="4" class="empty">Server ulanmagan. Telegramda agentga IP va parolni yozing — o\'zi ulanadi</td></tr>';
 }
-$('srvAdd').addEventListener('click', async () => {
+
+// ── kod agenti ──────────────────────────────────────────────────────────────
+loaders.code = async () => {
+  const d = await api('/projects');
+  const sel = $('codeProject');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— sinov muhiti (vaqtinchalik) —</option>' +
+    (d.projects || []).map((p) => `<option value="${esc(p.slug)}">${esc(p.name || p.slug)}</option>`).join('');
+  sel.value = cur;
+};
+
+$('codeRun').addEventListener('click', async () => {
+  const task = $('codeTask').value.trim();
+  if (!task) return toast('Vazifani yozing', 'warn');
+  const project = $('codeProject').value;
+  const btn = $('codeRun');
+  btn.disabled = true; btn.textContent = 'Bajarilmoqda…';
+  $('codeStatus').hidden = false; $('codeStatus').className = 'pill info'; $('codeStatus').textContent = 'ishlamoqda';
+  $('codeOut').textContent = 'Agent rejasini tuzmoqda… Bu bir necha daqiqa olishi mumkin.';
   try {
-    await api('/servers', { method: 'POST', body: { name: $('srvName').value.trim(), host: $('srvHost').value.trim(), user: $('srvUser').value.trim() || 'root', port: Number($('srvPort').value) || 22 } });
-    toast('Server saqlandi'); loaders.projects();
+    const r = project
+      ? await api(`/projects/${project}/task`, { method: 'POST', body: { task } })
+      : await api('/code/task', { method: 'POST', body: { task, name: $('codeName').value.trim() || null } });
+    $('codeStatus').className = 'pill ' + (r.ok ? 'ok' : 'warn');
+    $('codeStatus').textContent = r.ok ? 'bajarildi' : 'to\'liq emas';
+    $('codeOut').textContent =
+      `${r.ok ? '✅' : '⚠️'} ${r.summary}\n\n` +
+      (r.todos ? `REJA:\n${r.todos.text}\n\n` : '') +
+      `O'zgargan fayllar: ${(r.changed || []).join(', ') || '—'}\n` +
+      `Buyruqlar: ${(r.commands || []).slice(0, 12).join(' ; ') || '—'}\n` +
+      `Bosqichlar: ${r.rounds}${r.dir ? `\nPapka: ${r.dir}` : ''}`;
+    toast(r.ok ? 'Vazifa bajarildi' : 'Vazifa to\'liq bajarilmadi', r.ok ? 'ok' : 'warn');
+  } catch (e) {
+    $('codeStatus').className = 'pill err'; $('codeStatus').textContent = 'xato';
+    $('codeOut').textContent = 'Xato: ' + e.message;
+  }
+  btn.disabled = false; btn.textContent = 'Boshlash';
+});
+$('codeRefresh').addEventListener('click', () => loaders.code());
+
+// ── doimiy vazifalar ────────────────────────────────────────────────────────
+loaders.routines = async () => {
+  const list = await api('/routines');
+  $('rtTable').innerHTML = list.length
+    ? list.map((r) => `<tr>
+        <td>${r.id}</td>
+        <td><b>${esc(r.title)}</b><div class="hint">${esc(String(r.instruction).slice(0, 110))}</div></td>
+        <td>${esc(r.schedule)}${r.enabled ? '' : ' <span class="pill">to\'xtatilgan</span>'}</td>
+        <td>${esc(r.nextRun || '—')}</td>
+        <td class="num">${r.runs || 0}</td>
+        <td><div class="row"><button class="btn ghost sm" data-rttoggle="${r.id}">${r.enabled ? 'To\'xtat' : 'Yoq'}</button><button class="btn danger sm" data-rtdel="${r.id}">×</button></div></td></tr>`).join('')
+    : '<tr><td colspan="6" class="empty">Doimiy vazifa yo\'q. Telegramda ham aytishingiz mumkin: "har kuni soat 9 da guruhlarni tekshir"</td></tr>';
+  $('rtTable').querySelectorAll('[data-rtdel]').forEach((b) => b.addEventListener('click', async () => {
+    if (!confirm('Doimiy vazifa o\'chirilsinmi?')) return;
+    await api(`/routines/${b.dataset.rtdel}`, { method: 'DELETE' }); loaders.routines();
+  }));
+  $('rtTable').querySelectorAll('[data-rttoggle]').forEach((b) => b.addEventListener('click', async () => {
+    await api(`/routines/${b.dataset.rttoggle}/toggle`, { method: 'POST' }); loaders.routines();
+  }));
+};
+
+$('rtAdd').addEventListener('click', async () => {
+  const instruction = $('rtInstruction').value.trim();
+  const schedule = $('rtSchedule').value.trim();
+  if (!instruction || !schedule) return toast('Vaqt va ko\'rsatmani yozing', 'warn');
+  try {
+    await api('/routines', { method: 'POST', body: { instruction, schedule, title: $('rtTitle').value.trim() || null } });
+    $('rtInstruction').value = ''; $('rtTitle').value = '';
+    toast('Qo\'shildi'); loaders.routines();
   } catch (e) { toast(e.message, 'err'); }
 });
+$('rtRefresh').addEventListener('click', () => loaders.routines());
 
 // ── botlar (loyihalar sahifasi ichida) ──────────────────────────────────────
 let botSel = null;

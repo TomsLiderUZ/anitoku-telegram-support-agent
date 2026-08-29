@@ -26,6 +26,9 @@ const projects = require('../../agent/projects');
 const coder = require('../../agent/coder');
 const servers = require('../../agent/servers');
 const watches = require('../../agent/watches');
+const routines = require('../../agent/routines');
+const shell = require('../../agent/shell');
+const { fmtTashkent } = require('../../agent/timeparse');
 const auth = require('../auth');
 
 const log = createLogger('admin:api');
@@ -560,7 +563,7 @@ router.post(
 );
 
 // ── projects, servers, watches ─────────────────────────────────────────────
-router.get('/projects', (req, res) => res.json({ projects: projects.list(), bots: managedBots.list(), servers: servers.list(), publicKey: servers.publicKey() }));
+router.get('/projects', (req, res) => res.json({ projects: projects.list({ all: req.query.all === '1' }), bots: managedBots.list(), servers: shell.listHosts(), publicKey: shell.publicKey() }));
 router.post(
   '/projects',
   wrap(async (req, res) => {
@@ -608,7 +611,39 @@ router.post(
   })
 );
 
-router.get('/servers', (req, res) => res.json({ servers: servers.list(), publicKey: servers.publicKey() }));
+// ── recurring routines ──────────────────────────────────────────────────────
+router.get('/routines', (req, res) =>
+  res.json(
+    routines.list().map((r) => ({
+      id: r.id, title: r.title, instruction: r.instruction, schedule: routines.describe(r),
+      enabled: !!r.enabled, nextRun: r.next_run ? fmtTashkent(r.next_run) : null, runs: r.runs,
+    }))
+  )
+);
+router.post('/routines', (req, res) => {
+  const { instruction, schedule, title } = req.body || {};
+  if (!instruction || !schedule) return res.status(400).json({ error: "Ko'rsatma va vaqt majburiy" });
+  const founderId = String(settings.get('founder_ids', '')).split(/[,\s]+/).filter(Boolean)[0] || null;
+  res.json(routines.create({ instruction, schedule, title: title || null, chatId: founderId }));
+});
+router.post('/routines/:id/toggle', (req, res) => {
+  const r = routines.get(Number(req.params.id));
+  if (!r) return res.status(404).json({ error: 'topilmadi' });
+  res.json({ ok: routines.setEnabled(r.id, !r.enabled), enabled: !r.enabled });
+});
+router.delete('/routines/:id', (req, res) => res.json({ ok: routines.remove(Number(req.params.id)) }));
+
+/** A coding task with no project — runs in a throwaway sandbox. */
+router.post(
+  '/code/task',
+  wrap(async (req, res) => {
+    const task = String((req.body && req.body.task) || '').trim();
+    if (!task) return res.status(400).json({ error: 'Vazifa boʻsh' });
+    res.json(await coder.runTask({ task, sandboxName: (req.body && req.body.name) || null }));
+  })
+);
+
+router.get('/servers', (req, res) => res.json({ servers: shell.listHosts(), sessions: shell.listSessions(), publicKey: shell.publicKey() }));
 router.post('/servers', (req, res) => {
   try {
     res.json(servers.add({ name: req.body.name, host: req.body.host, user: req.body.user || 'root', port: Number(req.body.port) || 22, keyPath: req.body.keyPath || null, note: req.body.note || null }));
@@ -616,8 +651,8 @@ router.post('/servers', (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
-router.delete('/servers/:name', (req, res) => res.json({ ok: servers.remove(req.params.name) }));
-router.post('/servers/:name/run', wrap(async (req, res) => res.json(await servers.run(req.params.name, String(req.body.command || 'uptime'), { timeoutMs: 180_000 }))));
+router.delete('/servers/:name', (req, res) => res.json({ ok: shell.removeHost(req.params.name) }));
+router.post('/servers/:name/run', wrap(async (req, res) => res.json(await shell.run(String(req.body.command || 'uptime'), { sessionId: 'panel-' + req.params.name, target: 'remote', host: req.params.name, timeoutMs: 180_000 }))));
 
 router.get('/watches', (req, res) => res.json(watches.list({ status: req.query.status || null, limit: 100 })));
 router.post('/watches/:id/cancel', (req, res) => res.json({ ok: watches.cancel(Number(req.params.id)) }));

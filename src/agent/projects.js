@@ -31,6 +31,7 @@ db.exec(`
     env_enc     TEXT,
     spec        TEXT,
     status      TEXT DEFAULT 'stopped',
+    deployed    INTEGER DEFAULT 0,
     pid         INTEGER,
     restarts    INTEGER DEFAULT 0,
     last_error  TEXT,
@@ -91,7 +92,24 @@ function record(slug) {
   };
 }
 
-const list = () => db.prepare('SELECT slug FROM projects ORDER BY updated_at DESC').all().map((r) => record(r.slug));
+/**
+ * Projects worth showing.
+ *
+ * Creating a bot and never running it is an experiment, not a project — it
+ * used to clutter the panel all the same. Only something that has actually
+ * been deployed (started at least once, or explicitly marked) is listed;
+ * `all: true` shows the scratch ones too.
+ */
+const list = ({ all = false } = {}) => {
+  const rows = db.prepare('SELECT slug FROM projects ORDER BY updated_at DESC').all().map((r) => record(r.slug));
+  return all ? rows : rows.filter((p) => p.deployed || p.alive);
+};
+
+/** Mark a project as a real, running deliverable (or take the mark away). */
+function setDeployed(slug, on = true) {
+  db.prepare("UPDATE projects SET deployed = ?, updated_at = datetime('now') WHERE slug = ?").run(on ? 1 : 0, String(slug));
+  return record(slug);
+}
 
 /** Find by slug or name, loosely. */
 function find(ref) {
@@ -244,7 +262,8 @@ function start(slug) {
     ? spawn('cmd.exe', ['/d', '/s', '/c', r.run_cmd], { cwd: dir, env: { ...process.env, ...envOf(r.slug), NODE_ENV: 'production' }, stdio: ['ignore', out, out], windowsHide: true })
     : spawn('/bin/sh', ['-c', r.run_cmd], { cwd: dir, env: { ...process.env, ...envOf(r.slug), NODE_ENV: 'production' }, stdio: ['ignore', out, out] });
   procs.set(r.slug, child);
-  db.prepare("UPDATE projects SET status = 'running', pid = ?, last_error = NULL, updated_at = datetime('now') WHERE slug = ?").run(child.pid, r.slug);
+  // Starting it is what makes it a real project rather than an experiment.
+  db.prepare("UPDATE projects SET status = 'running', deployed = 1, pid = ?, last_error = NULL, updated_at = datetime('now') WHERE slug = ?").run(child.pid, r.slug);
   log.info('loyiha ishga tushdi', { slug: r.slug, pid: child.pid, cmd: r.run_cmd });
 
   child.on('exit', (code, signal) => {
@@ -324,7 +343,7 @@ function stopAll() {
 }
 
 module.exports = {
-  ROOT, create, update, find, record, list, remove, slugify, dirOf, safePath,
+  ROOT, create, update, find, record, list, remove, slugify, dirOf, safePath, setDeployed,
   listFiles, readFile, writeFile, editFile, deleteFile, runCommand,
   start, stop, restart, logs, resumeAll, stopAll, envOf, setEnv,
 };
