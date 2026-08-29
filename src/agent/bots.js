@@ -206,11 +206,17 @@ const remove = (u) => projects.remove(slugOf(u));
  * Keeps a running bot running: the code and token come across intact.
  */
 function migrateLegacy() {
+  const { settings } = require('../core/db');
+  // Once only. Re-running it resurrected a bot the founder had deliberately
+  // deleted, every single time the agent restarted.
+  if (settings.bool('bots_migrated', false)) return 0;
+
   let moved = 0;
   let rows = [];
   try {
     rows = db.prepare('SELECT username, name, spec, status FROM managed_bots').all();
   } catch {
+    settings.set('bots_migrated', '1');
     return 0; // table never existed
   }
   const legacyDir = path.join(require('../config').dataDir, 'bots');
@@ -240,6 +246,7 @@ function migrateLegacy() {
       log.warn('botni koʻchirib boʻlmadi', { username: r.username, error: err.message });
     }
   }
+  settings.set('bots_migrated', '1');
   if (moved) recordEvent('bots', 'Legacy bots migrated to projects', { moved });
   return moved;
 }
