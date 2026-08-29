@@ -1190,7 +1190,6 @@ loaders.projects = async () => {
   bind('data-pdel', async (s) => { if (!confirm(`"${s}" loyihasi fayllari bilan o'chirilsinmi?`)) return; await api(`/projects/${s}`, { method: 'DELETE' }); if (prjSel === s) { prjSel = null; $('prjDetail').hidden = true; } loaders.projects(); });
   bind('data-psel', async (s) => { prjSel = s; $('prjDetail').hidden = false; $('prjDetailTitle').textContent = s; showPrjFiles(); });
 
-  await renderBots(d.bots || []);
   renderServers(d.servers || []);
 };
 
@@ -1323,38 +1322,6 @@ $('rtAdd').addEventListener('click', async () => {
   } catch (e) { toast(e.message, 'err'); }
 });
 $('rtRefresh').addEventListener('click', () => loaders.routines());
-
-// ── botlar (loyihalar sahifasi ichida) ──────────────────────────────────────
-let botSel = null;
-loaders.bots = () => loaders.projects();
-async function renderBots(list) {
-  $('botsTable').innerHTML = list.length
-    ? list
-        .map((b) => {
-          const st = b.alive ? ['ishlayapti', 'ok'] : b.status === 'crashed' ? ['yiqilgan', 'err'] : ['to\'xtagan', ''];
-          return `<tr>
-            <td><b>@${esc(b.username)}</b><div class="hint">${esc(b.name || '')}</div></td>
-            <td><span class="pill ${st[1]}">${st[0]}</span>${b.last_error ? `<div class="hint">${esc(b.last_error)}</div>` : ''}</td>
-            <td style="max-width:280px"><div class="hint">${esc(String(b.spec || '').slice(0, 140))}</div></td>
-            <td class="mono">${b.token ? esc(b.token.slice(0, 12)) + '…' : '—'}</td>
-            <td class="num">${b.restarts || 0}</td>
-            <td><div class="row">
-              <button class="btn ghost sm" data-bsel="${esc(b.username)}">Ko'rish</button>
-              ${b.alive ? `<button class="btn ghost sm" data-bstop="${esc(b.username)}">To'xtat</button>` : b.hasCode ? `<button class="btn ok sm" data-bstart="${esc(b.username)}">Ishga tushir</button>` : ''}
-              <button class="btn danger sm" data-bdel="${esc(b.username)}">×</button>
-            </div></td></tr>`;
-        })
-        .join('')
-    : '<tr><td colspan="6" class="empty">Hali bot yo\'q. Buyruq bering: "anime bot yasab, kod yozib run qil"</td></tr>';
-  const bind = (attr, fn) => $('botsTable').querySelectorAll(`[${attr}]`).forEach((b) => b.addEventListener('click', () => fn(b.getAttribute(attr))));
-  bind('data-bstop', async (u) => { await api(`/bots/${u}/stop`, { method: 'POST' }); loaders.projects(); });
-  bind('data-bstart', async (u) => { try { await api(`/bots/${u}/start`, { method: 'POST' }); } catch (e) { toast(e.message, 'err'); } loaders.projects(); });
-  bind('data-bdel', async (u) => { if (!confirm(`@${u} kodi va jarayoni o'chirilsinmi? (BotFather'dagi bot qoladi)`)) return; await api(`/bots/${u}`, { method: 'DELETE' }); loaders.projects(); });
-  bind('data-bsel', async (u) => { botSel = u; $('botDetail').hidden = false; $('botDetailTitle').textContent = '@' + u; showBotLogs(); });
-}
-async function showBotLogs() { if (!botSel) return; const r = await api(`/bots/${botSel}/logs?lines=150`); $('botDetailBody').textContent = r.logs || '(log bo\'sh)'; }
-$('botShowLogs').addEventListener('click', showBotLogs);
-$('botShowCode').addEventListener('click', async () => { if (!botSel) return; const r = await api(`/bots/${botSel}/code`); $('botDetailBody').textContent = r.code || '(kod yo\'q)'; });
 
 // ── lokal model ─────────────────────────────────────────────────────────────
 const gb = (b) => (b / 1073741824).toFixed(2) + ' GB';

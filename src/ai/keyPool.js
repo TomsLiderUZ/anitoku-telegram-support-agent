@@ -14,13 +14,15 @@ const log = createLogger('ai:keys');
 const COOLDOWN = {
   rate_limit: 20_000,
   quota: 20 * 60_000,
+  // A daily budget resets at the provider's midnight, not in twenty minutes.
+  quota_daily: 6 * 3600_000,
   server: 20_000,
   network: 10_000,
   invalid: 0, // handled by marking dead
 };
 
 /** Hard ceiling so a bogus provider hint can never park a key for a day. */
-const MAX_COOLDOWN_MS = 60 * 60_000;
+const MAX_COOLDOWN_MS = 12 * 3600_000;
 
 /**
  * Identify a provider from the key's prefix.
@@ -157,7 +159,7 @@ function markFailure(keyId, kind, message = '', retryAfterMs = 0) {
   // Rate limits and quotas are transient and often shared across a whole
   // organisation — they must never retire a key permanently. Only repeated
   // hard failures (server/network/unknown) do.
-  const canRetire = !['rate_limit', 'quota'].includes(kind);
+  const canRetire = !['rate_limit', 'quota', 'quota_daily', 'billing'].includes(kind);
   db.prepare(
     `UPDATE api_keys SET failures = failures + 1, cooldown_until = ?, last_error = ?,
      status = CASE WHEN ? = 1 AND failures + 1 >= 12 THEN 'dead' ELSE status END WHERE id = ?`

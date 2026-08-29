@@ -35,9 +35,12 @@ function classify(status, bodyText = '') {
   // until someone tops the account up.
   if (status === 402 || /insufficient balance|insufficient_quota|account.*suspended|please recharge|out of funds/i.test(b)) return 'billing';
   if (status === 429) {
-    const daily = /per day|\bdaily\b|\bper-day\b|requests per day|rpd/.test(b);
+    // A per-day budget ("TPD", "tokens per day") does not come back in
+    // twenty minutes — retrying every twenty minutes just wastes the whole
+    // pool's attempts on a provider that is out until tomorrow.
+    const daily = /per day|\bdaily\b|\bper-day\b|requests per day|\brpd\b|\btpd\b|tokens per day/.test(b);
     const credits = /credit|balance|insufficient|out of funds|payment/.test(b);
-    return daily || credits ? 'quota' : 'rate_limit';
+    return daily ? 'quota_daily' : credits ? 'quota' : 'rate_limit';
   }
   if (status >= 500) return 'server';
   if (status === 0) return 'network';
@@ -330,7 +333,7 @@ async function chat({
           break;
         }
         keyPool.markFailure(cred.id, kind, err.message, err.retryAfterMs || 0);
-        if (kind === 'quota' || kind === 'invalid') continue; // try another key
+        if (kind === 'quota' || kind === 'quota_daily' || kind === 'invalid') continue; // try another key
         if (kind === 'rate_limit') continue;
         if (kind === 'server' || kind === 'network') continue;
       }
