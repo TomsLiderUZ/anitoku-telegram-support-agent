@@ -540,17 +540,35 @@
           <div class="page-desc">Shu kompyuterda ishlaydigan modellar. Fayl yo'q bo'lsa agent cloud provayderlar bilan ishlaydi</div>
         </div>
         <div class="row">
-          <select id="localProfile" style="width:auto"><option value="auto">Profil: avtomatik</option><option value="gpu">GPU (Gemma 3 12B)</option><option value="cpu-small">Kichik server (Gemma 3 1B)</option></select>
+          <select id="localProfile" style="width:auto"><option value="auto">Profil: avtomatik</option><option value="gpu">GPU (7B modellar)</option><option value="cpu-small">Kichik server (1B)</option></select>
+          <select id="localBackend" style="width:auto"><option value="auto">Tezlatgich: avtomatik</option><option value="vulkan">Vulkan (GPU)</option><option value="cuda">CUDA (GPU)</option><option value="cpu">Faqat CPU (sekin, barqaror)</option></select>
           <button class="btn ghost sm" id="localUnload">Bo'shatish</button>
           <button class="btn sm" id="localLoad">Yuklash</button>
         </div>
       </div>
       <div class="grid c4" id="localStats"></div>
+
       <div class="card" style="margin-top:16px">
+        <div class="card-title">Ishlatilishi</div>
+        <div class="grid c4" id="localUsage"></div>
+        <div class="table-wrap" style="margin-top:12px">
+          <table><thead><tr><th>Vazifa turi</th><th class="num">Chaqiruv</th><th class="num">O'rtacha</th></tr></thead><tbody id="localPurposes"></tbody></table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Qaysi ishlarni lokal model bajarsin</div>
+        <div class="hint">Belgilanmaganlari bulut modellarga ketadi. Lokal model bepul, lekin sekinroq.</div>
+        <div class="row" id="localPurposePicks" style="margin-top:10px;gap:14px"></div>
+        <div class="row end" style="margin-top:10px"><button class="btn ghost sm" id="localSavePurposes">Saqlash</button></div>
+      </div>
+
+      <div class="card">
         <div class="card-title">Modellar</div>
         <div id="localModels"></div>
         <div class="row" style="margin-top:10px">
           <button class="btn ghost sm" id="localDlChat">Chat modelini yuklab olish</button>
+          <button class="btn ghost sm" id="localDlCode">Kod modelini yuklab olish</button>
           <button class="btn ghost sm" id="localDlEmbed">Embedding modelini yuklab olish</button>
         </div>
         <div class="hint" style="margin-top:10px">Fayllar <code id="localDir"></code> katalogida. Yuklab olish Hugging Face kalitidan foydalanadi (AI provayderlar bo'limi).</div>

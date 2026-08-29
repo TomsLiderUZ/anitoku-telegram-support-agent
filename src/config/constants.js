@@ -209,6 +209,7 @@ const DEFAULT_SETTINGS = {
   keep_online: '1',
   local_model_enabled: '1',      // use the local GGUF model when its files are present
   local_profile: 'auto',         // auto | gpu | cpu-small
+  local_backend: 'auto',         // auto | vulkan | cuda | cpu — cpu is slowest but never aborts
   local_context_size: '8192',
   local_purposes: 'memory:summary',  // summaries only: Gemma-on-Vulkan answered a customer in transliterated Russian at 28 s; live replies stay on the cloud
   catchup_enabled: '1',          // answer messages that arrived while the agent was down

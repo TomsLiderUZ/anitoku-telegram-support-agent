@@ -243,6 +243,21 @@ async function unload() {
 // in-flight requests fail over to the cloud and the worker is restarted after
 // a pause; the account never goes silent because of it.
 
+/**
+ * Which llama.cpp backend to try, in order.
+ *
+ * 'auto' tries the GPU first and falls back; 'cpu' forces CPU, which is slower
+ * but immune to the driver-level aborts a GPU backend can raise. Settable from
+ * the panel so a crashy card can be worked around without a code change.
+ */
+function backendOrder() {
+  const want = String(settings.get('local_backend', 'auto')).toLowerCase();
+  if (want === 'cpu') return ['cpu'];
+  if (want === 'vulkan') return ['vulkan', 'cpu'];
+  if (want === 'cuda') return ['cuda', 'vulkan', 'cpu'];
+  return ['vulkan', 'auto', 'cpu'];
+}
+
 const WORKER_RESTART_DELAY_MS = 5 * 60_000;
 const pending = new Map(); // id -> { resolve, reject, timer }
 let nextId = 1;
@@ -264,7 +279,7 @@ function startWorker() {
   // junction too — otherwise it silently loads on CPU and aborts 90 s later.
   const junctionScript = 'C:\\anitoku-agent\\src\\ai\\localWorker.js';
   const script = /\s/.test(__dirname) && fs.existsSync(junctionScript) ? junctionScript : path.join(__dirname, 'localWorker.js');
-  const child = fork(script, [JSON.stringify({ modelPath: filePath('chat').replace(/^.*?[\\/]data[\\/]/, fs.existsSync('C:\\anitoku-agent\\data') && /\s/.test(__dirname) ? 'C:\\anitoku-agent\\data\\' : filePath('chat').match(/^.*?[\\/]data[\\/]/)[0]), contextSize, gpuOrder: ['vulkan', 'auto'] })], {
+  const child = fork(script, [JSON.stringify({ modelPath: filePath('chat').replace(/^.*?[\\/]data[\\/]/, fs.existsSync('C:\\anitoku-agent\\data') && /\s/.test(__dirname) ? 'C:\\anitoku-agent\\data\\' : filePath('chat').match(/^.*?[\\/]data[\\/]/)[0]), contextSize, gpuOrder: backendOrder() })], {
     // The binding's self-test cannot cope with spaces in the path; the
     // junction C:anitoku-agent is the documented space-free entry point.
     cwd: /\s/.test(process.cwd()) && fs.existsSync('C:\\anitoku-agent') ? 'C:\\anitoku-agent' : process.cwd(),
@@ -386,6 +401,69 @@ function chat({ messages, maxTokens = 600, temperature = 0.55, timeoutMs = 120_0
   });
 }
 
+/**
+ * What the local models have actually been doing.
+ *
+ * Read from the same `ai_calls` table the cloud providers write to, so the
+ * panel can compare them directly: how many calls, how fast, how many tokens,
+ * and the rate over the last hour.
+ */
+function usage() {
+  const { db } = require('../core/db');
+  const row = (sql, ...a) => {
+    try {
+      return db.prepare(sql).get(...a) || {};
+    } catch {
+      return {};
+    }
+  };
+
+  const all = row(
+    `SELECT COUNT(*) calls, SUM(ok) ok, AVG(latency_ms) avgMs, MAX(latency_ms) maxMs,
+            SUM(COALESCE(tokens_in,0)) tin, SUM(COALESCE(tokens_out,0)) tout
+       FROM ai_calls WHERE provider = 'local'`
+  );
+  const hour = row(
+    `SELECT COUNT(*) calls, AVG(latency_ms) avgMs FROM ai_calls
+      WHERE provider = 'local' AND created_at > datetime('now','-1 hour')`
+  );
+  const day = row(
+    `SELECT COUNT(*) calls, SUM(COALESCE(tokens_in,0)+COALESCE(tokens_out,0)) tokens FROM ai_calls
+      WHERE provider = 'local' AND created_at > datetime('now','-24 hours')`
+  );
+  let byPurpose = [];
+  try {
+    byPurpose = db
+      .prepare(
+        `SELECT purpose, COUNT(*) calls, AVG(latency_ms) avgMs FROM ai_calls
+          WHERE provider = 'local' GROUP BY purpose ORDER BY calls DESC LIMIT 8`
+      )
+      .all();
+  } catch {
+    /* telemetry is optional */
+  }
+
+  const upSec = state.loadedAt ? Math.round((Date.now() - state.loadedAt) / 1000) : 0;
+  return {
+    calls: all.calls || 0,
+    failed: (all.calls || 0) - (all.ok || 0),
+    avgMs: Math.round(all.avgMs || 0),
+    maxMs: Math.round(all.maxMs || 0),
+    tokensIn: all.tin || 0,
+    tokensOut: all.tout || 0,
+    callsLastHour: hour.calls || 0,
+    avgMsLastHour: Math.round(hour.avgMs || 0),
+    rpm: Number(((hour.calls || 0) / 60).toFixed(2)),
+    calls24h: day.calls || 0,
+    tokens24h: day.tokens || 0,
+    uptimeSec: upSec,
+    crashes: state.crashes || 0,
+    lastCrashAt: state.crashedAt ? new Date(state.crashedAt).toISOString() : null,
+    gaveUp: !!state.gaveUp,
+    byPurpose: byPurpose.map((p) => ({ purpose: p.purpose, calls: p.calls, avgMs: Math.round(p.avgMs || 0) })),
+  };
+}
+
 function status() {
   const c = catalog();
   const os = require('node:os');
@@ -403,9 +481,13 @@ function status() {
     vectors: vectors.stats(),
     calls: state.calls,
     avgMs: state.calls ? Math.round(state.totalMs / state.calls) : 0,
+    usage: usage(),
+    contextSize: state.contextSize || null,
+    backend: settings.get("local_backend", "auto"),
+    purposes: String(settings.get("local_purposes", "")).split(",").map((x) => x.trim()).filter(Boolean),
     loadedAt: state.loadedAt,
     modelsDir: MODELS_DIR,
   };
 }
 
-module.exports = { load, unload, chat, status, available, download, profileName, CATALOG, PROFILES, MODELS_DIR };
+module.exports = { load, unload, chat, status, usage, available, download, profileName, CATALOG, PROFILES, MODELS_DIR };

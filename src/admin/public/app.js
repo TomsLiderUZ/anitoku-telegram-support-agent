@@ -1344,7 +1344,40 @@ loaders.local = async () => {
 
   const row = (m, kind) => `<div class="model-card"><div><div class="name">${esc(m.label)}</div><div class="sub">${esc(m.file)} · ${m.sizeGb} GB${m.present ? ' · diskda ' + gb(m.bytes) : m.downloading ? ' · yuklanmoqda ' + gb(m.bytes) : ''}</div></div>
     <span class="pill ${m.loaded ? 'ok' : m.present ? 'info' : m.downloading ? 'warn' : ''}">${m.loaded ? 'xotirada' : m.present ? 'diskda' : m.downloading ? 'yuklanmoqda' : "yo'q"}</span></div>`;
-  $('localModels').innerHTML = row(s.chat, 'chat') + row(s.embed, 'embed');
+  $('localModels').innerHTML = row(s.chat, 'chat') + (s.code ? row(s.code, 'code') : '') + row(s.embed, 'embed');
+
+  // How hard the local models are actually working.
+  const u = s.usage || {};
+  const dur = (sec) => (sec > 3600 ? Math.floor(sec / 3600) + 's ' + Math.floor((sec % 3600) / 60) + 'd' : sec > 60 ? Math.floor(sec / 60) + 'd' : sec + 'soniya');
+  $('localUsage').innerHTML = `
+    <div class="stat"><div class="stat-label">Chaqiruvlar</div><div class="stat-value">${fmtNum(u.calls || 0)}</div><div class="stat-sub">${u.failed ? u.failed + ' ta xato' : 'xatosiz'} · 24s: ${fmtNum(u.calls24h || 0)}</div></div>
+    <div class="stat"><div class="stat-label">Tezlik</div><div class="stat-value" style="font-size:20px">${fmtNum(u.avgMs || 0)} ms</div><div class="stat-sub">eng uzun ${fmtNum(u.maxMs || 0)} ms</div></div>
+    <div class="stat"><div class="stat-label">RPM (1 soat)</div><div class="stat-value" style="font-size:20px">${u.rpm || 0}</div><div class="stat-sub">${fmtNum(u.callsLastHour || 0)} chaqiruv/soat</div></div>
+    <div class="stat ${u.crashes ? 'warn' : ''}"><div class="stat-label">Ishlash vaqti</div><div class="stat-value" style="font-size:18px">${u.uptimeSec ? dur(u.uptimeSec) : '—'}</div><div class="stat-sub">${u.crashes ? u.crashes + ' marta yiqilgan' : 'barqaror'}${u.gaveUp ? ' · o\'chirilgan' : ''}</div></div>`;
+
+  $('localPurposes').innerHTML = (u.byPurpose || []).length
+    ? u.byPurpose.map((p) => `<tr><td class="mono">${esc(p.purpose)}</td><td class="num">${fmtNum(p.calls)}</td><td class="num">${fmtNum(p.avgMs)} ms</td></tr>`).join('')
+    : '<tr><td colspan="3" class="empty">Hali ishlatilmagan</td></tr>';
+
+  // Which jobs the local model is allowed to take.
+  const PURPOSES = [
+    ['reply', 'Mijozlarga javob'],
+    ['reply:retry', 'Javobni qayta urinish'],
+    ['memory:summary', 'Suhbat xulosasi'],
+    ['assistant', 'Sizning buyruqlaringiz'],
+    ['coder', 'Kod yozish'],
+    ['bot:code', 'Bot kodi'],
+  ];
+  const active = new Set(s.purposes || []);
+  $('localPurposePicks').innerHTML = PURPOSES.map(
+    ([id, label]) => `<label class="row" style="gap:6px"><input type="checkbox" data-purpose="${id}"${active.has(id) ? ' checked' : ''}> ${esc(label)}</label>`
+  ).join('');
+
+  const back = $('localBackend');
+  if (back) {
+    back.value = s.backend || 'auto';
+    back.options[0].textContent = `Tezlatgich: avtomatik (${String(s.gpu || '—').toUpperCase()})`;
+  }
   $('localVectors').textContent = v.ready
     ? `${v.embedded} ta hujjat ${v.model} bilan indekslangan (${v.dim} o'lchov). Yangi hujjatlar avtomatik qo'shiladi.`
     : "Embedding modeli yuklanmagan — qidiruv faqat kalit so'zlar bo'yicha ishlaydi.";
@@ -1359,7 +1392,18 @@ $('localProfile').addEventListener('change', async (e) => {
   }
   loaders.local();
 });
-for (const [id, kind] of [['localDlChat', 'chat'], ['localDlEmbed', 'embed']]) {
+$('localBackend').addEventListener('change', async (e) => {
+  await api('/settings', { method: 'POST', body: { values: { local_backend: e.target.value } } });
+  toast('Tezlatgich saqlandi — qayta yuklang', 'ok');
+});
+
+$('localSavePurposes').addEventListener('click', async () => {
+  const picked = [...document.querySelectorAll('[data-purpose]')].filter((c) => c.checked).map((c) => c.dataset.purpose);
+  await api('/settings', { method: 'POST', body: { values: { local_purposes: picked.join(',') } } });
+  toast('Saqlandi'); loaders.local();
+});
+
+for (const [id, kind] of [['localDlChat', 'chat'], ['localDlCode', 'code'], ['localDlEmbed', 'embed']]) {
   $(id).addEventListener('click', async (e) => {
     e.target.disabled = true;
     try {
