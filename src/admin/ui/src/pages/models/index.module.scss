@@ -61,3 +61,20 @@
     accent-color: var(--color-accent);
   }
 }
+
+/* Sozlama belgilangan, lekin amalda ishlatilmayotgan holat — buni
+   aytmaslik foydalanuvchini yolg'on ishonchda qoldiradi. */
+.notice {
+  margin-top: var(--gap-10);
+  padding: var(--padding-10) var(--padding-12);
+  border-left: 2px solid var(--color-warn);
+  border-radius: 0 var(--border-radius-8) var(--border-radius-8) 0;
+  background-color: var(--color-warn-soft);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-12);
+  line-height: 1.55;
+
+  strong {
+    color: var(--color-text-primary);
+  }
+}

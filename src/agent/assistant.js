@@ -348,12 +348,33 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
         } catch {
           args = {};
         }
+        /**
+         * Har bir vosita chaqiruvi YOZILADI.
+         *
+         * Ilgari faqat XATO loglanardi. Ya'ni uzoq davom etayotgan ish
+         * jurnalda umuman ko'rinmasdi va tashqaridan "qotib qolgan" bilan
+         * "beshinchi qadamda ishlayapti" bir xil ko'rinardi: ikkalasi
+         * ham jimlik. Endi har qadam nomi, davomiyligi va natijasi bilan
+         * yoziladi — buni ko'rish uchun panelning Jurnal bo'limi yetarli.
+         */
+        const toolStarted = Date.now();
         let result;
         try {
           result = await executor.execute(c.function.name, args);
+          log.info('vosita ishlatildi', {
+            chatId,
+            tool: c.function.name,
+            ms: Date.now() - toolStarted,
+            ok: result && result.ok !== false,
+          });
         } catch (err) {
           result = { ok: false, error: err.message };
-          log.warn('tool failed', { tool: c.function.name, error: err.message });
+          log.warn('vosita xatosi', {
+            chatId,
+            tool: c.function.name,
+            ms: Date.now() - toolStarted,
+            error: err.message,
+          });
         }
         messages.push({ role: 'tool', tool_call_id: c.id, name: c.function.name, content: JSON.stringify(result).slice(0, 8000) });
       }

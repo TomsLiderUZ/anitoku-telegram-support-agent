@@ -269,8 +269,11 @@ async function chat({
   // Local model first for the purposes it is allowed to serve (support replies
   // by default). No tools, no JSON mode — those stay on the cloud. Any failure
   // simply falls through to the provider plan below.
+  // `available(purpose)` — maqsadsiz emas. Lokal model GPU'siz mashinada
+  // odam kutayotgan ish uchun yaramaydi va ketma-ket sekinlashsa o'zini
+  // tez yo'ldan chetga oladi; sozlamada nima yozilganidan qat'i nazar.
   const localPurposes = String(settings.get('local_purposes', 'reply,reply:retry,memory:summary')).split(',').map((s) => s.trim());
-  if (!provider && !json && local.available() && localPurposes.includes(purpose)) {
+  if (!provider && !json && local.available(purpose) && localPurposes.includes(purpose)) {
     const started = Date.now();
     try {
       const out = await local.chat({ messages, maxTokens: mt, temperature: temp });

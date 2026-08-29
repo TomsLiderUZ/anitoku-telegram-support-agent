@@ -344,19 +344,43 @@ class Runtime extends EventEmitter {
    * Hold the "typing…" indicator up for as long as we are working.
    * Returns the function that takes it down again.
    */
-  keepTyping(chatId) {
+  /**
+   * Keep the "typing…" cue alive while we work.
+   *
+   * MAX_TYPING_MS is a promise, not a decoration. The indicator says "an
+   * answer is coming"; if the work behind it wedges, it goes on saying that
+   * for as long as the process lives. That is worse than no indicator —
+   * the founder waited on a message that was never going to arrive and had
+   * no way to tell. After the cap it stops, and silence at least reads as
+   * silence.
+   */
+  keepTyping(chatId, { maxMs = 8 * 60_000 } = {}) {
     let stopped = false;
+    const startedAt = Date.now();
+
     const push = () => {
-      if (!stopped) tg.setTyping(chatId, true).catch(() => {});
+      if (stopped) return;
+      if (Date.now() - startedAt > maxMs) {
+        log.warn('yozmoqda holati juda uzoq davom etdi — toʻxtatildi', {
+          chatId,
+          minutes: Math.round((Date.now() - startedAt) / 60_000),
+        });
+        stop();
+        return;
+      }
+      tg.setTyping(chatId, true).catch(() => {});
     };
-    push();
-    const timer = setInterval(push, 4000);
-    return () => {
+
+    const stop = () => {
       if (stopped) return;
       stopped = true;
       clearInterval(timer);
       tg.setTyping(chatId, false).catch(() => {});
     };
+
+    push();
+    const timer = setInterval(push, 4000);
+    return stop;
   }
 
   async process(chatId, entry) {
@@ -397,6 +421,22 @@ class Runtime extends EventEmitter {
     const typing = settings.bool('typing_simulation', true);
     const stopTyping = typing ? this.keepTyping(chatId) : () => {};
 
+    /**
+     * Ish boshlangani YOZILADI.
+     *
+     * Ilgari bu yerda hech narsa loglanmasdi: xabar kelgani ham, ish
+     * boshlangani ham. Agent uzoq ishlab qolsa jurnal butunlay bo'sh
+     * ko'rinardi va tashqaridan "o'lib qolgan" bilan "ishlayapti" ni
+     * ajratib bo'lmasdi — faqat to'xtamaydigan "yozmoqda" qolardi.
+     */
+    const startedAt = Date.now();
+    log.info(assistantMode ? 'rahbar buyrugʻi bajarilmoqda' : 'javob tayyorlanmoqda', {
+      chatId,
+      chat: meta.chatTitle || meta.chatType,
+      chars: text.length,
+      preview: text.slice(0, 80),
+    });
+
     const result = assistantMode
       ? await assistant.handle({
           chatId,
@@ -415,6 +455,15 @@ class Runtime extends EventEmitter {
           senderId: meta.senderId,
           senderUsername: meta.senderUsername,
         });
+
+    log.info('javob tayyor', {
+      chatId,
+      ms: Date.now() - startedAt,
+      ok: !!result.ok,
+      model: result.model || null,
+      provider: result.provider || null,
+      tools: Array.isArray(result.tools) ? result.tools.length : undefined,
+    });
 
     if (!result.ok) {
       stopTyping();

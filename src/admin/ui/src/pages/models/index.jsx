@@ -26,8 +26,12 @@ import { ago, compact, dur, gb, ms, num } from "../../utils/format";
  * oʻz-oʻzidan ravshan qiladi.
  */
 
-/** Lokal model bajarishi mumkin boʻlgan ishlar. Odam oʻqiydigan
- *  javob sukut boʻyicha bulutga ketadi — u yerda tezroq va aniqroq. */
+/**
+ * Odam kutib turadigan ishlar — backenddagi INTERACTIVE roʻyxati bilan
+ * bir xil boʻlishi kerak. Ular GPU'siz mashinada baribir bulutga ketadi.
+ */
+const INTERACTIVE = new Set(["assistant", "reply", "reply:retry", "coder", "bot:code"]);
+
 const PURPOSES = [
   ["memory:summary", "Suhbat xulosasi"],
   ["reply:retry", "Javobni qayta urinish"],
@@ -330,6 +334,25 @@ export default function Models() {
               Belgilanmaganlari bulut modellarga ketadi. Odam oʻqiydigan javob va kod uchun bulut
               tezroq va ishonchliroq.
             </small>
+
+            {/* Belgilangan, lekin ishlatilmaydigan holatni ochiq aytamiz —
+                aks holda katakcha belgili turadi va nega ishlamayotgani
+                tushunarsiz boʻlib qoladi. */}
+            {String(local?.gpu || "").toLowerCase() === "cpu" &&
+              [...activePurposes].some((p) => INTERACTIVE.has(p)) && (
+                <p className={styles.notice}>
+                  Bu mashinada GPU yoʻq, shuning uchun <strong>javob, buyruq va kod</strong> baribir
+                  bulutga yuboriladi — CPU’dagi model ularga bir necha daqiqada javob beradi va
+                  odam kutib qoladi. Fon ishlari (xulosa) esa lokal bajarilaveradi.
+                </p>
+              )}
+
+            {usage.slowStreak >= 2 && (
+              <p className={styles.notice}>
+                Lokal model ketma-ket {usage.slowStreak} marta ulgurmadi — interaktiv ishlar
+                vaqtincha bulutga oʻtkazildi. U javob bera boshlashi bilan oʻzi qaytadi.
+              </p>
+            )}
           </div>
 
           {usage.byPurpose?.length > 0 && (

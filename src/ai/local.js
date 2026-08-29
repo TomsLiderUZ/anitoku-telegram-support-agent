@@ -87,6 +87,8 @@ const state = {
   loadedAt: null,
   calls: 0,
   totalMs: 0,
+  slowStreak: 0,      // ketma-ket timeoutlar — available() shunga qaraydi
+  lastTimeoutAt: null,
 };
 
 const filePath = (kind) => path.join(MODELS_DIR, catalog()[kind].file);
@@ -152,8 +154,44 @@ async function download(kind) {
   return { ok: true, started: true, resumeFrom: have };
 }
 
-function available() {
-  return settings.bool('local_model_enabled', true) && fileStatus('chat').present && state.chatModel === true && !!state.worker;
+/**
+ * Jobs a person is waiting on. Everything here has someone watching a
+ * "typing…" indicator while it runs.
+ */
+const INTERACTIVE = new Set(['assistant', 'reply', 'reply:retry', 'coder', 'bot:code']);
+
+/** Timeouts in a row before the local model is taken off the fast path. */
+const SLOW_STREAK_LIMIT = 2;
+
+/**
+ * Is the local model worth trying for THIS job?
+ *
+ * The purpose matters, and it did not used to. On the server — no GPU,
+ * a 1B model on CPU — a founder command took over two minutes: the local
+ * model was asked first, took 120 seconds to not answer, and only then
+ * did the request go to the cloud. That happened on EVERY round of the
+ * tool loop, so a five-step job spent ten minutes doing nothing while the
+ * founder watched "typing…". The log said nothing, because nothing had
+ * failed: it was still waiting.
+ *
+ * Two guards, both automatic — a setting somebody has to remember is not
+ * a guard:
+ *
+ *  1. No GPU → interactive work never goes local. Summarising in the
+ *     background can wait; a person cannot.
+ *  2. Two timeouts in a row → the local model is off the fast path until
+ *     it answers something again. Repeating a known-slow call is the
+ *     difference between slow and stuck.
+ */
+function available(purpose = null) {
+  if (!settings.bool('local_model_enabled', true)) return false;
+  if (!fileStatus('chat').present || state.chatModel !== true || !state.worker) return false;
+
+  if (purpose && INTERACTIVE.has(purpose)) {
+    if (state.gpu === 'cpu') return false;
+    if (state.slowStreak >= SLOW_STREAK_LIMIT) return false;
+  }
+  return true;
 }
 
 async function lib() {
@@ -380,18 +418,37 @@ function stopWorker(reason) {
  * path, where retrieval context is already in the prompt. Founder commands,
  * which need reliable tool calling, stay on the cloud providers.
  */
-function chat({ messages, maxTokens = 600, temperature = 0.55, timeoutMs = 120_000 }) {
+/**
+ * `timeoutMs` — 120 soniya emas, 25.
+ *
+ * Bu chaqiruvning ORQASIDA doim bulut modellar turadi, ya'ni kutish
+ * narxi to'g'ridan-to'g'ri foydalanuvchining kutishi bo'lib chiqadi.
+ * 25 soniyada javob bermagan lokal model 120 soniyada ham yaxshi javob
+ * bermaydi — u shunchaki javobni kechiktiradi.
+ */
+function chat({ messages, maxTokens = 600, temperature = 0.55, timeoutMs = 25_000 }) {
   if (!state.worker || state.chatModel !== true) return Promise.reject(new Error('lokal chat modeli yuklanmagan'));
   const id = nextId++;
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       pending.delete(id);
-      reject(new Error('lokal model javob bermadi (timeout)'));
+      // Ketma-ket sanaymiz: bir marta sekinlashish tasodif, ikki marta —
+      // qoida. `available()` shundan keyin uni tez yo'ldan chiqaradi.
+      state.slowStreak = (state.slowStreak || 0) + 1;
+      state.lastTimeoutAt = Date.now();
+      if (state.slowStreak === SLOW_STREAK_LIMIT) {
+        log.warn('lokal model ketma-ket sekin javob berdi — interaktiv ishlar bulutga oʻtkazildi', {
+          streak: state.slowStreak,
+          timeoutMs,
+        });
+      }
+      reject(new Error(`lokal model javob bermadi (${Math.round(timeoutMs / 1000)}s timeout)`));
     }, timeoutMs);
     pending.set(id, {
       resolve: (r) => {
         state.calls++;
         state.totalMs += r.latencyMs;
+        state.slowStreak = 0; // javob berdi — hisob nolga qaytadi
         resolve(r);
       },
       reject,
@@ -457,6 +514,8 @@ function usage() {
     calls24h: day.calls || 0,
     tokens24h: day.tokens || 0,
     uptimeSec: upSec,
+    slowStreak: state.slowStreak || 0,
+    lastTimeoutAt: state.lastTimeoutAt ? new Date(state.lastTimeoutAt).toISOString() : null,
     crashes: state.crashes || 0,
     lastCrashAt: state.crashedAt ? new Date(state.crashedAt).toISOString() : null,
     gaveUp: !!state.gaveUp,
