@@ -27,7 +27,9 @@ const log = createLogger('shell');
  * because a shell that forgets where it is cannot follow a multi-step job.
  */
 
-const SANDBOX_ROOT = path.join(config.dataDir, 'workspace');
+// The emulation area: throwaway code, test runs, scratch files. Separate
+// from data/projects, which holds only real deliverables.
+const SANDBOX_ROOT = path.join(config.dataDir, 'sandbox');
 fs.mkdirSync(SANDBOX_ROOT, { recursive: true });
 
 db.exec(`
@@ -48,6 +50,21 @@ db.exec(`
 
 const MAX_OUTPUT = 30_000;
 const clip = (s, max = MAX_OUTPUT) => (s.length > max ? s.slice(0, max) + `\n…[${s.length - max} belgi qisqartirildi]` : s);
+
+/**
+ * Git bash reports `$PWD` as `/c/Users/...`, but Node's `spawn` treats that as
+ * a path relative to the drive root and quietly creates `C:\c\Users\...`.
+ * That is how a tree of empty `C:\c\c\c\…` folders appeared on the founder's
+ * disk. Every directory that comes back from a shell goes through here.
+ */
+function toNativePath(p) {
+  if (!p || process.platform !== 'win32') return p;
+  const s = String(p).trim();
+  const m = s.match(/^\/([a-zA-Z])\/(.*)$/);
+  if (m) return `${m[1].toUpperCase()}:\\${m[2].replace(/\//g, '\\')}`;
+  if (/^\/[a-zA-Z]$/.test(s)) return `${s[1].toUpperCase()}:\\`;
+  return s.replace(/\//g, '\\');
+}
 
 // ── hosts ────────────────────────────────────────────────────────────────────
 
@@ -250,7 +267,8 @@ function runLocal(command, { cwd, env = {}, timeoutMs = 120_000 }) {
       if (idx !== -1) {
         // POSIX prints the path on the marker line; cmd prints it on the next.
         const after = out.slice(idx + marker.length);
-        newCwd = (after.split(/\r?\n/).find((l) => l.trim()) || '').trim() || null;
+        const raw = (after.split(/\r?\n/).find((l) => l.trim()) || '').trim();
+        newCwd = raw ? toNativePath(raw) : null;
         out = out.slice(0, idx);
       }
       resolve({ ok: code === 0 && !timedOut, code, timedOut, output: clip(out.trimEnd()), cwd: newCwd, ms: Date.now() - started });
@@ -375,11 +393,20 @@ async function run(command, { sessionId = 'default', target = null, host = null,
     const h = getHost(s.host);
     if (result.ok && h && h.password && !h.key_installed) installKey(s.host).catch(() => {});
   } else {
-    if (!fs.existsSync(s.cwd)) fs.mkdirSync(s.cwd, { recursive: true });
+    s.cwd = toNativePath(s.cwd);
+    // Never silently create a directory that came from a mangled path: only
+    // the session's own sandbox is auto-created.
+    if (!fs.existsSync(s.cwd)) {
+      if (s.cwd.startsWith(SANDBOX_ROOT)) fs.mkdirSync(s.cwd, { recursive: true });
+      else {
+        log.warn('ish papkasi yoʻq — sandboxga qaytarildi', { was: s.cwd });
+        s.cwd = sandbox(sessionId);
+      }
+    }
     result = await runLocal(command, { cwd: s.cwd, env: s.env, timeoutMs });
   }
 
-  if (result.cwd) s.cwd = result.cwd;
+  if (result.cwd) s.cwd = s.target === 'remote' ? result.cwd : toNativePath(result.cwd);
   s.history.push({ command, code: result.code, at: Date.now() });
   if (s.history.length > 200) s.history.shift();
   log.info('terminal', { session: sessionId, target: s.target, cmd: String(command).slice(0, 100), code: result.code, ms: result.ms });

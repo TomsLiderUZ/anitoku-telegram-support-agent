@@ -291,7 +291,8 @@ function startWorker() {
         state.chatModel = true;
         state.gpu = m.gpu;
         state.loadedAt = Date.now();
-        log.info('chat modeli yuklandi (alohida jarayon)', { model: CATALOG.chat.label, gpu: m.gpu, pid: child.pid });
+        state.contextSize = m.contextSize || null;
+        log.info('chat modeli yuklandi (alohida jarayon)', { model: CATALOG.chat.label, gpu: m.gpu, pid: child.pid, ctx: m.contextSize });
         resolve(true);
       } else if (m.type === 'fatal') {
         clearTimeout(readyTimer);

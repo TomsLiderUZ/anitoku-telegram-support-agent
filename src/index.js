@@ -14,7 +14,7 @@ const adminAuth = require('./admin/auth');
 const tasks = require('./agent/tasks');
 const executors = require('./agent/executors');
 const contacts = require('./agent/contacts');
-const managedBots = require('./agent/managedBots');
+const bots = require('./agent/bots');
 const projects = require('./agent/projects');
 const local = require('./ai/local');
 
@@ -178,7 +178,8 @@ async function main() {
   runtime.attach();
   executors.register();
   tasks.start(20_000);
-  managedBots.resumeAll();
+  // Bots are projects now; one migration brings any legacy ones across.
+  bots.migrateLegacy();
   projects.resumeAll();
   tg.on('connected', () => contacts.refreshFromDialogs(300).catch(() => {}));
 
@@ -255,7 +256,6 @@ async function shutdown(signal) {
 
   for (const t of timers) clearInterval(t);
   tasks.stop();
-  managedBots.stopAll();
   projects.stopAll();
   if (httpServer) await new Promise((r) => httpServer.close(r)).catch(() => {});
   try {

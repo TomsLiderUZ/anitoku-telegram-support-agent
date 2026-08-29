@@ -35,9 +35,25 @@ async function init() {
   }
   if (!llama) throw lastErr || new Error('llama.cpp backend topilmadi');
   model = await llama.loadModel({ modelPath: cfg.modelPath, gpuLayers: 'max' });
-  context = await model.createContext({ contextSize: cfg.contextSize || 8192, batchSize: 512, flashAttention: false });
-  sequence = context.getSequence();
-  send({ type: 'ready', gpu: llama.gpu || 'cpu' });
+
+  // How much context fits depends on what else is already on the card — the
+  // embedding model, a browser, a game. Rather than refusing to start, step
+  // down until it fits; a smaller window still answers.
+  const wanted = cfg.contextSize || 8192;
+  const ladder = [wanted, 6144, 4096, 3072, 2048, 1024].filter((n, i, a) => n <= wanted && a.indexOf(n) === i);
+  let lastError = null;
+  for (const size of ladder) {
+    try {
+      context = await model.createContext({ contextSize: size, batchSize: Math.min(512, size), flashAttention: false });
+      sequence = context.getSequence();
+      send({ type: 'ready', gpu: llama.gpu || 'cpu', contextSize: size, requested: wanted });
+      return;
+    } catch (err) {
+      lastError = err;
+      if (!/VRAM|memory|too large/i.test(err.message)) throw err;
+    }
+  }
+  throw lastError || new Error('kontekst yaratib boʻlmadi');
 }
 
 async function chat({ messages, maxTokens = 600, temperature = 0.55 }) {

@@ -7,7 +7,7 @@ const memoryFacts = require('./memoryFacts');
 const contacts = require('./contacts');
 const tasks = require('./tasks');
 const botfather = require('./botfather');
-const managedBots = require('./managedBots');
+const bots = require('./bots');
 const telegramOps = require('./telegramOps');
 const watches = require('./watches');
 const projects = require('./projects');
@@ -287,7 +287,10 @@ function createExecutor(ctx) {
       }
       case 'send_private': {
         if (!founderDm) return { ok: false, error: 'Tomsning shaxsiy chati aniqlanmadi' };
-        return sendTo('me', args.text);
+        const r = await sendTo('me', args.text);
+        // Remember that the DM already went out, so the reply routing at the
+        // end of the turn does not send the same thing a second time.
+        return { ...r, deliveredNow: true };
       }
       case 'delete_message':
         return telegramOps.deleteMessages(args.chat, args.message_ids || null);
@@ -409,46 +412,47 @@ function createExecutor(ctx) {
       // ── bots ───────────────────────────────────────────────────────────
       case 'create_bot': {
         const r = await botfather.createBot({ name: args.name, username: args.username, description: args.description || null, about: args.about || null });
-        if (r.ok && r.token) managedBots.saveToken(r.username, r.token, r.name);
+        if (r.ok && r.token) await bots.ensureProject(r.username, { name: r.name }).catch(() => {});
         return r;
       }
       case 'configure_bot':
         return botfather.configureBot({ username: args.username, name: args.name || null, description: args.description || null, about: args.about || null, commands: args.commands || null });
-      case 'build_and_run_bot': {
-        const u = String(args.username || '').replace(/^@/, '');
-        if (!managedBots.getToken(u)) {
-          const t = await botfather.getToken(u);
-          managedBots.saveToken(u, t.token, args.name || null);
-        }
-        const founderIds = String(settings.get('founder_ids', '')).split(/[,\s]+/).filter(Boolean);
-        const hint = args.fix ? `${args.fix}\n(Rahbar Telegram ID: ${founderIds.join(', ')}, username @${settings.get('founder_username', 'itz_toms')} — admin sifatida shu ID ishlatilsin)` : null;
-        const r = await managedBots.deploy({ username: u, name: args.name || null, spec: args.spec || null, hint });
-        await new Promise((res) => setTimeout(res, 4000));
-        const probe = await botfather.talk('@' + u, '/start', { waitMs: 12_000 }).catch((e) => ({ text: '', error: e.message }));
-        return { ...r, smokeTest: probe.text ? { ok: true, reply: probe.text.slice(0, 300), buttons: (probe.buttons || []).map((b) => b.text) } : { ok: false, note: 'bot 12 s ichida /start ga javob bermadi — bot_logs bilan tekshir' } };
-      }
+      case 'build_and_run_bot':
+        return bots.build({ username: args.username, name: args.name || null, spec: args.spec || null, fix: args.fix || null });
+
       case 'my_bots':
-        return { bots: managedBots.list().map((b) => ({ username: '@' + b.username, name: b.name, status: b.alive ? 'running' : b.status, token: b.token, spec: b.spec, restarts: b.restarts, lastError: b.last_error })) };
+        return {
+          bots: await Promise.all(
+            bots.list().map(async (b) => ({
+              username: '@' + b.username,
+              name: b.name,
+              status: b.status,
+              token: await bots.tokenFor(b.username, { fetchIfMissing: false }),
+              commands: bots.detectCommands(require('node:path').join(projects.dirOf(b.slug), 'index.js')),
+              spec: String(b.spec || '').slice(0, 200),
+              lastError: b.last_error,
+            }))
+          ),
+        };
       case 'list_my_bots':
         return botfather.listMyBots();
       case 'get_bot_token': {
         const u = String(args.username || '').replace(/^@/, '');
-        const cached = managedBots.getToken(u);
+        const cached = await bots.tokenFor(u, { fetchIfMissing: false });
         if (cached) return { ok: true, username: '@' + u, token: cached, source: 'baza' };
         const t = await botfather.getToken(u);
-        managedBots.saveToken(u, t.token);
+        await bots.ensureProject(u).catch(() => {});
         return { ...t, source: 'BotFather' };
       }
       case 'revoke_bot_token': {
         const u = String(args.username || '').replace(/^@/, '');
         const r = await botfather.revokeToken(u);
-        const rec = managedBots.record(u);
-        managedBots.saveToken(u, r.token, rec ? rec.name : null);
+        const p = bots.find(u);
+        if (p) projects.setEnv(p.slug, { BOT_TOKEN: r.token });
         let restarted = false;
-        if (rec && rec.alive) {
-          managedBots.stop(u);
+        if (p && p.alive) {
           try {
-            managedBots.start(u);
+            await projects.restart(p.slug);
             restarted = true;
           } catch (err) {
             log.warn('bot yangi token bilan qayta ishga tushmadi', { username: u, error: err.message });
@@ -458,15 +462,15 @@ function createExecutor(ctx) {
       }
       case 'delete_bot': {
         const r = await botfather.deleteBot(args.username);
-        if (r.ok) managedBots.remove(args.username);
+        if (r.ok) bots.remove(args.username);
         return r;
       }
       case 'stop_bot':
-        return managedBots.stop(args.username);
+        return bots.stop(args.username);
       case 'start_bot':
-        return managedBots.start(args.username);
+        return bots.start(args.username);
       case 'bot_logs':
-        return { logs: managedBots.logs(args.username, Math.min(200, Number(args.lines) || 60)) || '(log boʻsh)' };
+        return { logs: bots.logs(args.username, Math.min(200, Number(args.lines) || 60)) || '(log boʻsh)' };
       case 'talk_to_bot': {
         const r = await botfather.talk(args.bot, args.text, { waitMs: Math.min(60, Number(args.wait_seconds) || 15) * 1000 });
         return { ok: true, replies: r.replies, text: r.text || '(bot javob bermadi)', buttons: r.buttons.map((b) => b.text), links: r.buttons.filter((b) => b.url).map((b) => ({ text: b.text, url: b.url })) };
@@ -482,11 +486,10 @@ function createExecutor(ctx) {
         const env = {};
         if (kind === 'telegram-bot' && args.bot_username) {
           const u = String(args.bot_username).replace(/^@/, '');
-          let tok = managedBots.getToken(u);
+          let tok = await bots.tokenFor(u, { fetchIfMissing: false });
           if (!tok) {
             const t = await botfather.getToken(u);
             tok = t.token;
-            managedBots.saveToken(u, tok);
           }
           env.BOT_TOKEN = tok;
           env.ADMIN_IDS = String(settings.get('founder_ids', ''));
@@ -567,7 +570,7 @@ function createExecutor(ctx) {
       case 'list_projects':
         return {
           projects: projects.list({ all: !!args.all }).map((p) => ({ slug: p.slug, name: p.name, kind: p.kind, status: p.alive ? 'running' : p.status, deployed: !!p.deployed, run_cmd: p.run_cmd, files: p.files, lastError: p.last_error })),
-          bots: managedBots.list().map((b) => ({ username: '@' + b.username, status: b.alive ? 'running' : b.status })),
+          bots: bots.list().map((b) => ({ username: '@' + b.username, status: b.status })),
         };
       case 'project_files':
         return { files: projects.listFiles(projectOf(args.project).slug) };

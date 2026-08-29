@@ -24,10 +24,12 @@ const log = createLogger('coder');
  * and the process is actually started before anything is called done.
  *
  * It works either inside a project (persistent, deployable) or in a throwaway
- * sandbox under data/workspace (experiments, one-off scripts).
+ * sandbox under data/sandbox (experiments, one-off scripts).
  */
 
 const MAX_ROUNDS = 80;
+// How many times a task will wait out a provider outage before giving up.
+const MAX_STALLS = 6;
 const CODER_PLAN = [
   { provider: 'groq', model: 'openai/gpt-oss-120b' },
   { provider: 'deepseek', model: 'deepseek-chat' },
@@ -130,6 +132,9 @@ async function runTask({ project = null, task, extraContext = null, sandboxName 
 
   const changed = new Set();
   const commands = [];
+  // Files the model has actually read this run — a full overwrite is only
+  // allowed once it has seen what it is replacing.
+  const seen = new Map(); // resolved path -> mtime:offset:limit of the last read
   const messages = [
     { role: 'system', content: systemPrompt(ctx) },
     { role: 'user', content: `TASK: ${task}${extraContext ? `\n\nCONTEXT:\n${extraContext}` : ''}` },
@@ -139,6 +144,7 @@ async function runTask({ project = null, task, extraContext = null, sandboxName 
   let success = false;
   let rounds = 0;
   let plannedAt = 0;
+  let stalls = 0;
 
   for (; rounds < maxRounds; rounds++) {
     trimHistory(messages, owner);
@@ -156,8 +162,20 @@ async function runTask({ project = null, task, extraContext = null, sandboxName 
         timeoutMs: 180_000,
       });
     } catch (err) {
-      log.error('coder model call failed', { error: err.message, rounds });
-      summary = `Model javob bermadi: ${err.message}`;
+      // Every free provider being rate-limited at once is temporary, not a
+      // reason to abandon a half-finished job — the checklist and the files
+      // are still there, so wait for capacity and pick up where we left off.
+      const transient = /rate_limit|429|Rate limit|temporarily|AI unavailable/i.test(err.message);
+      if (transient && stalls < MAX_STALLS) {
+        stalls++;
+        const waitMs = Math.min(180_000, 20_000 * stalls);
+        log.warn('provayderlar band — kutib qayta urinamiz', { rounds, stall: stalls, waitSec: Math.round(waitMs / 1000) });
+        await new Promise((r) => setTimeout(r, waitMs));
+        rounds--; // this round never happened
+        continue;
+      }
+      log.error('coder model call failed', { error: err.message, rounds, stalls });
+      summary = `Model javob bermadi (${stalls} marta kutib koʻrildi): ${String(err.message).slice(0, 200)}`;
       break;
     }
 
@@ -188,7 +206,7 @@ async function runTask({ project = null, task, extraContext = null, sandboxName 
 
       let result;
       try {
-        result = await execute({ name: c.function.name, args, dir, owner, sessionId, changed, commands, project: p });
+        result = await execute({ name: c.function.name, args, dir, owner, sessionId, changed, commands, seen, project: p });
         if (c.function.name === 'todo_write') plannedAt = rounds;
         if (c.function.name === 'finish') {
           const t = todo.summary(owner);
@@ -291,7 +309,7 @@ function walk(dir, base = dir, out = [], max = 500) {
   return out;
 }
 
-async function execute({ name, args, dir, owner, sessionId, changed, commands, project }) {
+async function execute({ name, args, dir, owner, sessionId, changed, commands, seen, project }) {
   switch (name) {
     case 'todo_write':
       return { ok: true, items: todo.setList(owner, args.items) };
@@ -305,6 +323,15 @@ async function execute({ name, args, dir, owner, sessionId, changed, commands, p
     case 'read_file': {
       const p = safe(dir, args.path);
       if (!fs.existsSync(p)) return { ok: false, error: `no such file: ${args.path}` };
+      const key = path.resolve(p);
+      const stamp = `${fs.statSync(p).mtimeMs}:${args.offset || 0}:${args.limit || 0}`;
+      // Re-reading an unchanged file re-sends the whole thing and burns the
+      // token budget that the rest of the task needs — a 26 KB bot file was
+      // fetched three times in a row before the provider cut us off.
+      if (seen.get(key) === stamp) {
+        return { ok: true, path: args.path, unchanged: true, note: 'You already read this file and it has not changed — use the copy above.' };
+      }
+      seen.set(key, stamp);
       let text = fs.readFileSync(p, 'utf8');
       if (args.offset || args.limit) {
         const lines = text.split('\n');
@@ -316,6 +343,11 @@ async function execute({ name, args, dir, owner, sessionId, changed, commands, p
 
     case 'write_file': {
       const p = safe(dir, args.path);
+      // Overwriting a file sight unseen is how existing features get deleted.
+      // Reading it first is cheap; losing working code is not.
+      if (fs.existsSync(p) && !seen.has(path.resolve(p))) {
+        return { ok: false, error: `Read ${args.path} first — you are about to replace a file you have not looked at, and anything already in it would be lost.` };
+      }
       fs.mkdirSync(path.dirname(p), { recursive: true });
       fs.writeFileSync(p, String(args.content ?? ''), 'utf8');
       changed.add(args.path);
@@ -327,6 +359,7 @@ async function execute({ name, args, dir, owner, sessionId, changed, commands, p
       const p = safe(dir, args.path);
       if (!fs.existsSync(p)) return { ok: false, error: `no such file: ${args.path}` };
       const text = fs.readFileSync(p, 'utf8');
+      seen.set(path.resolve(p), String(fs.statSync(p).mtimeMs) + ':0:0');
       const search = String(args.search ?? '');
       const idx = text.indexOf(search);
       if (idx === -1) return { ok: false, error: 'search text not found — read the file again and copy the exact text' };

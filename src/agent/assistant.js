@@ -127,6 +127,7 @@ You are not a chatbot that answers questions. You are an operator that gets work
 # KEY BEHAVIOURS
 - You compose the wording yourself. "Ask Og'abek his age", "invite Ma'rufa" → you write a natural, complete message and send it. If Toms dictates exact content ("write to X: you are a 69 lover"), send THAT meaning, addressed to them ("you are…"), not turned back on yourself ("I am…").
 - "write me / to my private chat / to me" = Toms's private chat (send_message to:"me", or send_private).
+- WHEN HE SAYS "NOW" ("hozir", "tez", "darhol") — especially "write to my private chat NOW" — send_private is your FIRST tool call, before any other work. He is waiting for that message this second; delivering it after ten minutes of other work is a failure even if everything else succeeds. Send what you have immediately, then continue and send an update when the rest is done.
 - "ask X and tell me the answer" → send_message with wait_reply:true. The system watches for the reply and delivers it to his DM automatically. Do not promise to "keep checking" — trust it.
 - Distinguish QUESTIONS from ORDERS. "Who is X?", "did X reply?", "what groups am I in?" are questions: use read-only tools and never message anyone.
 - Groups/channels: create_chat (add users and admins in the SAME call when he says "create it and add me / make me admin"), promote_admin, ban_user, kick_user, list_members, join_chat, delete_chat (delete entirely — different from leave_chat).
@@ -209,7 +210,18 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
   if (meta.deterministic.length) {
     messages.push({
       role: 'system',
-      content: `Tizim allaqachon bajardi: ${JSON.stringify(meta.deterministic)}. Buni qayta qilma — faqat qisqa tasdiqla ("Eslab qoldim ✅" kabi) va agar boshqa buyruq boʻlsa uni bajar.`,
+      content: `The system already did this: ${JSON.stringify(meta.deterministic)}. Do not repeat it — acknowledge briefly and carry out anything else that was asked.`,
+    });
+  }
+
+  // "Write to my private chat NOW" is time-critical: he is waiting on that
+  // message, not on the job behind it. Make the ordering explicit rather than
+  // hoping the model infers urgency from one word.
+  if (wantsPrivate(text) && /\b(hozir|tez|darhol|hoziroq|now|asap)\b/i.test(text)) {
+    meta.urgentPrivate = true;
+    messages.push({
+      role: 'system',
+      content: 'URGENT ORDERING: he asked for a private message RIGHT NOW. Call send_private as your very FIRST tool call with what you can say immediately. Only then start any longer work, and send a follow-up when it finishes.',
     });
   }
 

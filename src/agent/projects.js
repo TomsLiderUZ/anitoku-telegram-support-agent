@@ -12,8 +12,8 @@ const log = createLogger('projects');
 /**
  * General projects the assistant creates and runs on this machine: a Telegram
  * bot, an API, a script, a static site — anything with files and optionally
- * a long-running command. Bots written earlier by managedBots.js stay where
- * they are; this is the superset used for everything new.
+ * a long-running command. Telegram bots are projects too (kind
+ * "telegram-bot") — see bots.js, which is a thin layer over this one.
  *
  * Each project is a directory under data/projects/<slug>. Files are read and
  * written only inside it; commands run with it as the working directory.

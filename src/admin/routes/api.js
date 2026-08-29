@@ -21,7 +21,7 @@ const runtime = require('../../agent/runtime');
 const tasks = require('../../agent/tasks');
 const memoryFacts = require('../../agent/memoryFacts');
 const contacts = require('../../agent/contacts');
-const managedBots = require('../../agent/managedBots');
+const bots = require('../../agent/bots');
 const projects = require('../../agent/projects');
 const coder = require('../../agent/coder');
 const servers = require('../../agent/servers');
@@ -526,12 +526,12 @@ router.post(
 );
 
 // ── managed bots ────────────────────────────────────────────────────────────
-router.get('/bots', (req, res) => res.json(managedBots.list()));
-router.post('/bots/:u/start', wrap(async (req, res) => res.json(managedBots.start(req.params.u))));
-router.post('/bots/:u/stop', (req, res) => res.json(managedBots.stop(req.params.u)));
-router.delete('/bots/:u', (req, res) => res.json(managedBots.remove(req.params.u)));
-router.get('/bots/:u/logs', (req, res) => res.json({ logs: managedBots.logs(req.params.u, Number(req.query.lines) || 120) }));
-router.get('/bots/:u/code', (req, res) => res.json({ code: managedBots.code(req.params.u) }));
+router.get('/bots', (req, res) => res.json(bots.list()));
+router.post('/bots/:u/start', wrap(async (req, res) => res.json(bots.start(req.params.u))));
+router.post('/bots/:u/stop', (req, res) => res.json(bots.stop(req.params.u)));
+router.delete('/bots/:u', (req, res) => res.json(bots.remove(req.params.u)));
+router.get('/bots/:u/logs', (req, res) => res.json({ logs: bots.logs(req.params.u, Number(req.query.lines) || 120) }));
+router.get('/bots/:u/code', (req, res) => res.json({ code: bots.code(req.params.u) }));
 
 // ── assistant: tasks & memory ───────────────────────────────────────────────
 
@@ -563,7 +563,7 @@ router.post(
 );
 
 // ── projects, servers, watches ─────────────────────────────────────────────
-router.get('/projects', (req, res) => res.json({ projects: projects.list({ all: req.query.all === '1' }), bots: managedBots.list(), servers: shell.listHosts(), publicKey: shell.publicKey() }));
+router.get('/projects', (req, res) => res.json({ projects: projects.list({ all: req.query.all === '1' }), bots: bots.list(), servers: shell.listHosts(), publicKey: shell.publicKey() }));
 router.post(
   '/projects',
   wrap(async (req, res) => {
