@@ -1,120 +1,137 @@
 /**
  * ============================================
- * ANITOKU AGENT — Rang tokenlari
+ * ANITOKU — Rang tokenlari
  * ============================================
  *
- * SHKALA: sovuq-neytral (hue ~230, to'yinganlik 8-14%). Bu panel kechasi,
- * uzoq vaqt ochiq turadi — shuning uchun asos sof qora emas, biroz ko'kish
- * grafit (#0e1117). Sof qora fon oq matn bilan "vibratsiya" beradi va ko'zni
- * charchatadi; grafit esa chuqurlikni saqlab, yumshoqroq ko'rinadi.
+ * SHKALA: kulranglar NEYTRAL-SOVUQ (hue ~225, to'yinganlik 8-14%).
+ * Sabab — accent siyohrang-binafsha (#7c6cff) ko'k tomonda turadi;
+ * iliq (sarg'ish) kulrang fon uning yonida kir ko'rinardi.
  *
- * Qatlamlar YORUG'LIK bilan ajratiladi (base → raised → overlay), chegara
- * bilan emas. Shuning uchun panelda ramka kam: karta o'z foni bilan ajralib
- * turadi.
+ * Dark asosi sof qora EMAS (#0b0d12) — panel soatlab ochiq turadi va
+ * sof qora ustidagi oq matn ko'zni charchatadi. Qatlamlar faqat
+ * yorug'lik orqali ko'tariladi: primary → secondary → surface.
  *
- * ACCENT — siyohrang-binafsha (#7c6cff). ANITOKU anime platformasi, va bu
- * rang neon bo'lmasdan yosh va zamonaviy ko'rinadi. Grafik ranglar shu
- * ohangdan boshlanadi va bir-biridan yetarlicha uzoq (rangni ajratib
- * bo'lmaydigan foydalanuvchilar uchun ham).
+ * SUKUT BO'YICHA QORONG'I: :root ning o'zi dark qiymatlarni saqlaydi,
+ * chunki panel tungi mavzuda ochiladi. `.light` esa aniq tanlangan
+ * yorug' rejim.
  *
  * QOIDA: komponentda hech qachon to'g'ridan-to'g'ri hex yozilmasin —
- * shu yerdagi tokenlardan foydalanilsin.
+ * shu yerdagi tokenlardan foydalanilsin. Yangi rang kerak bo'lsa
+ * avval shu faylga qo'shiladi.
  */
 
 :root,
-:root[data-theme='dark'] {
-  /* ── Fon ──────────────────────────────────── */
-  --bg-base: #0e1117;        /* Sahifaning eng tashqi foni — <body>, app wrapper */
-  --bg-sunken: #0a0d12;      /* Botiq hudud — sidebar, kod bloki, jadval sarlavhasi */
-  --bg-raised: #161b24;      /* Ko'tarilgan qatlam — karta, panel, input foni */
-  --bg-overlay: #1c2230;     /* Eng yuqori qatlam — modal, dropdown, tooltip, hover */
-  --bg-hover: #ffffff0a;     /* Interaktiv element ustiga sichqoncha kelganda */
+:root.dark {
+  /* ── Background ───────────────────────────── */
+  --color-bg-primary: #0b0d12;       /* Sahifaning eng tashqi foni — <body>. Boshqa hamma fon shundan "ko'tariladi" */
+  --color-bg-secondary: #12151c;     /* Botiq hududlar — sidebar, tabbar, kod bloki, jadval sarlavhasi, input foni */
+  --color-bg-surface: #171a22;       /* Ko'tarilgan yuzalar — Card, Modal, Navbar, Dropdown. Eng ochroq qatlam */
+  --color-bg-hover: #1e222c;         /* Sichqoncha ustiga kelganda — menyu bandi, jadval qatori, tugma */
 
-  /* ── Matn ─────────────────────────────────── */
-  --text-primary: #e8ecf4;   /* Sarlavha va asosiy matn. Kontrast 14.2:1 */
-  --text-secondary: #9aa4b8; /* Tavsif, subtitle, meta ma'lumot. Kontrast 6.8:1 */
-  --text-muted: #6b7488;     /* Placeholder, disabled, bo'sh holat izohi. 4.6:1 */
-  --text-on-accent: #0b0d14; /* Faqat accent fon ustidagi matn uchun */
+  /* ── Text ─────────────────────────────────── */
+  --color-text-primary: #e9ecf3;     /* Sarlavha va asosiy matn. Kontrast 14.2:1 (surface ustida). Sof oq emas — qorong'ida ko'zni qamashtirmaydi */
+  --color-text-secondary: #a3aab9;   /* Tavsif, subtitle, meta (sana, muallif). Kontrast 7.1:1 (surface) */
+  --color-text-muted: #737c8d;       /* Placeholder, disabled, bo'sh holat izohi. Kontrast 4.6:1 — WCAG AA minimumi 4.5:1 */
+  --color-text-on-accent: #0a0716;   /* Accent fon ustidagi matn — accent yorqin bo'lgani uchun har ikki rejimda ham qora */
 
-  /* ── Chegara ──────────────────────────────── */
-  --border: #232a36;         /* Input, select, karta chegarasi (kerak bo'lganda) */
-  --border-soft: #1a202a;    /* Ajratuvchi chiziq — divider, jadval qatorlari */
+  /* ── Border ───────────────────────────────── */
+  --color-border-primary: #2c313d;   /* Input, select, checkbox chegarasi — sezilarli, lekin qattiq emas */
+  --color-border-secondary: #1e222c; /* Divider, jadval qatorlari orasi — deyarli sezilmaydigan */
 
   /* ── Accent ───────────────────────────────── */
-  --accent: #7c6cff;         /* Asosiy CTA — primary tugma, aktiv menyu, fokus */
-  --accent-hover: #8f81ff;   /* Accent hover holati */
-  --accent-soft: #7c6cff26;  /* ~15% shaffoflik — tanlangan qator, badge foni */
-  --accent-dim: #7c6cff14;   /* ~8% — juda yengil urg'u, grafik maydoni */
+  --color-accent: #7c6cff;           /* Asosiy CTA — primary tugma, aktiv menyu bandi, fokus halqasi */
+  --color-brand: #8f7dff;            /* Brend identifikatori — logo, boot ekrani (accent'dan farqli o'rinlarda) */
+  --color-accent-hover: #9184ff;     /* Hover — qorong'ida pasaytirish o'rniga OCHROQ qilib kuchaytiriladi */
+  --color-accent-soft: #7c6cff2e;    /* ~18% shaffoflik — tanlangan qator foni, chip/badge fon */
 
-  /* ── Holat ranglari ───────────────────────── */
-  --ok: #3ddc97;             /* Muvaffaqiyat — ishlayapti, ulangan, bajarildi */
-  --ok-soft: #3ddc9722;
-  --warn: #ffb340;           /* Ogohlantirish — kutilmoqda, limit yaqin */
-  --warn-soft: #ffb34022;
-  --danger: #ff6b6b;         /* Xato — yiqilgan, uzilgan, o'chirish */
-  --danger-soft: #ff6b6b22;
-  --info: #4cc2ff;           /* Neytral ma'lumot */
-  --info-soft: #4cc2ff22;
+  /* ── Holat ranglari ────────────────────────── */
+  --color-ok: #34d399;               /* Muvaffaqiyat — ishlayotgan servis, tayyor kalit, "ulangan" belgisi */
+  --color-ok-soft: #34d39926;
+  --color-warn: #fbbf24;             /* Diqqat — kutayotgan vazifa, tugayotgan bandlik */
+  --color-warn-soft: #fbbf2426;
+  --color-info: #38bdf8;             /* Neytral ma'lumot — jonli oqim, statistika belgisi */
+  --color-info-soft: #38bdf826;
 
-  /* ── Grafik palitrasi ─────────────────────── */
-  /* Bir-biridan ohang va yorqinlik bo'yicha ajraladi, ketma-ket ishlatiladi */
-  --chart-1: #7c6cff;
-  --chart-2: #3ddc97;
-  --chart-3: #4cc2ff;
-  --chart-4: #ffb340;
-  --chart-5: #ff6b9d;
-  --chart-6: #a78bfa;
-  --chart-grid: #232a36;     /* Grafik to'r chiziqlari — deyarli ko'rinmas */
+  /* ── Danger ───────────────────────────────── */
+  --color-danger: #f87171;           /* O'chirish tugmasi FONI, xato ikonkasi, xato holatidagi chegara */
+  --color-danger-hover: #ff8f8f;     /* Hover — accent kabi, dark rejimda ochroq */
+  --color-danger-soft: #f871711f;    /* Error banner/alert foni (~12%) */
+  --color-danger-text: #f87171;      /* Xato MATNI — qorong'i fonda 6.4:1, shuning uchun danger bilan bir xil */
 
-  /* ── Soya ─────────────────────────────────── */
-  --shadow-sm: 0 1px 2px #00000059;
-  --shadow-md: 0 4px 16px #0000006b;
-  --shadow-lg: 0 12px 40px #00000080;
+  /* ── Overlay & Effects ────────────────────── */
+  --color-overlay: #05060acc;        /* Modal/drawer orqa foni — fonning o'zi qorong'i bo'lgani uchun kuchli (80%) */
+  --color-shadow-soft: #00000066;    /* Card/popover soyasi — qorong'ida ko'rinishi uchun kuchaytirilgan (40%) */
+
+  /* ── Liquid glass ─────────────────────────── */
+  --color-glass-bg: #171a22bf;       /* Shishasimon yuza — surface rangining shaffof varianti (navbar, tabbar, banner) */
+  --color-glass-border: #ffffff1f;   /* Shisha chekkasidagi yorug' chiziq */
+  --color-glass-highlight: #ffffff14;/* Yuqori chekkadagi nur aksi (inset shadow) */
+
+  /* ── Grafik palitrasi ──────────────────────────
+     Recharts diagrammalari shu ketma-ketlikda rang oladi. Ranglar
+     ohang bo'yicha ajralib turadi (faqat yorug'lik bilan emas) —
+     rang ko'rmaslik holatida ham seriyalar farqlanadi. */
+  --color-chart-1: #7c6cff;
+  --color-chart-2: #38bdf8;
+  --color-chart-3: #34d399;
+  --color-chart-4: #fbbf24;
+  --color-chart-5: #f472b6;
+  --color-chart-6: #a78bfa;
+  --color-chart-grid: #232834;       /* Diagramma to'ri — fon bilan deyarli qo'shilib ketadi, ma'lumotni bosmaydi */
 }
 
-/**
- * Kunduzgi rejim. Asosiy rejim tungi, lekin yorug' xonada ishlash uchun
- * mavjud — tokenlar bir xil nomda, faqat qiymati almashadi, shuning uchun
- * birorta komponentni o'zgartirish shart emas.
- */
-:root[data-theme='light'] {
-  --bg-base: #f7f8fa;
-  --bg-sunken: #eef0f4;
-  --bg-raised: #ffffff;
-  --bg-overlay: #ffffff;
-  --bg-hover: #0000000a;
+:root.light {
+  /* ── Background ───────────────────────────── */
+  --color-bg-primary: #f3f4f8;
+  --color-bg-secondary: #e9ebf1;
+  --color-bg-surface: #ffffff;
+  --color-bg-hover: #eef0f5;
 
-  --text-primary: #131720;
-  --text-secondary: #515a6e;
-  --text-muted: #79839a;
-  --text-on-accent: #ffffff;
+  /* ── Text ─────────────────────────────────── */
+  --color-text-primary: #12141a;     /* Kontrast 16.9:1 (oq fonda) */
+  --color-text-secondary: #4c5563;   /* Kontrast 8.2:1 (oq) */
+  --color-text-muted: #6b7381;       /* Kontrast 5.3:1 (oq) — WCAG AA */
+  --color-text-on-accent: #ffffff;   /* Yorug' rejimda accent to'qroq, ustiga oq matn tushadi */
 
-  --border: #dfe3ea;
-  --border-soft: #eaedf2;
+  /* ── Border ───────────────────────────────── */
+  --color-border-primary: #d3d7e1;
+  --color-border-secondary: #e5e8ef;
 
-  --accent: #5b4bdb;
-  --accent-hover: #4c3dc4;
-  --accent-soft: #5b4bdb1f;
-  --accent-dim: #5b4bdb0f;
+  /* ── Accent ───────────────────────────────── */
+  --color-accent: #5b4ae0;           /* Oq fonda #7c6cff matn uchun yetarli kontrast bermaydi — to'qroq variant */
+  --color-brand: #5b4ae0;
+  --color-accent-hover: #4c3ccc;     /* Yorug' rejimda hover TO'QROQ bo'ladi */
+  --color-accent-soft: #5b4ae01f;
 
-  --ok: #12a06a;
-  --ok-soft: #12a06a1f;
-  --warn: #c2740a;
-  --warn-soft: #c2740a1f;
-  --danger: #d63b3b;
-  --danger-soft: #d63b3b1f;
-  --info: #0d7fb8;
-  --info-soft: #0d7fb81f;
+  /* ── Holat ranglari ────────────────────────── */
+  --color-ok: #059669;
+  --color-ok-soft: #0596691a;
+  --color-warn: #b45309;
+  --color-warn-soft: #b453091a;
+  --color-info: #0284c7;
+  --color-info-soft: #0284c71a;
 
-  --chart-1: #5b4bdb;
-  --chart-2: #12a06a;
-  --chart-3: #0d7fb8;
-  --chart-4: #c2740a;
-  --chart-5: #d6407a;
-  --chart-6: #7c5cf0;
-  --chart-grid: #e3e7ee;
+  /* ── Danger ───────────────────────────────── */
+  --color-danger: #ef4444;
+  --color-danger-hover: #dc2626;
+  --color-danger-soft: #ef44441a;
+  --color-danger-text: #b91c1c;      /* danger-soft fon ustida o'qilishi shart (5.7:1); --color-danger o'zi matn uchun 3.3:1 — yetarli emas */
 
-  --shadow-sm: 0 1px 2px #1015231a;
-  --shadow-md: 0 4px 16px #10152314;
-  --shadow-lg: 0 12px 40px #1015231f;
+  /* ── Overlay & Effects ────────────────────── */
+  --color-overlay: #0f122059;
+  --color-shadow-soft: #0f172014;
+
+  /* ── Liquid glass ─────────────────────────── */
+  --color-glass-bg: #ffffffbf;
+  --color-glass-border: #ffffffcc;
+  --color-glass-highlight: #ffffff80;
+
+  /* ── Grafik palitrasi ─────────────────────── */
+  --color-chart-1: #5b4ae0;
+  --color-chart-2: #0284c7;
+  --color-chart-3: #059669;
+  --color-chart-4: #b45309;
+  --color-chart-5: #db2777;
+  --color-chart-6: #7c3aed;
+  --color-chart-grid: #e2e5ec;
 }

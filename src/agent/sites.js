@@ -7,6 +7,7 @@ const { createLogger } = require('../core/logger');
 const projects = require('./projects');
 const shell = require('./shell');
 const { shq } = shell;
+const builder = require('./build');
 
 const log = createLogger('sites');
 
@@ -164,56 +165,54 @@ const SITE_BRIEF = (port) => `This is a web project. Requirements:
   real HTML comes back, then kill the pid.`;
 
 /**
+ * The website profile, registered with the shared build pipeline.
+ *
+ * The steps around it — create the project, stop it, write the code, work
+ * out how to start it, start it, verify — are exactly the ones a Telegram
+ * bot goes through (build.js). What differs is only this: a site needs a
+ * free port before coding, and it is proven by an HTTP request rather than
+ * a Telegram message.
+ */
+builder.register('web', {
+  label: 'website',
+  defaultRunCmd: 'node index.js',
+  detectRunCmd,
+
+  // The port must exist before the brief is written — the brief tells the
+  // coding agent which port to listen on and which URL to curl.
+  prepare: async ({ project }) => ({ port: await allocatePort(project.slug) }),
+  brief: ({ port }) => SITE_BRIEF(port),
+
+  /** Prove it answers before claiming it is up. */
+  verify: async ({ project, port }) => {
+    await new Promise((res) => setTimeout(res, 2500));
+    const probe = await shell.run(
+      `curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:${port}/ || true`,
+      { sessionId: `site-${project.slug}`, timeoutMs: 20_000 }
+    );
+    const httpCode = String(probe.output || '').trim().slice(-3);
+
+    return /^[23]\d\d$/.test(httpCode)
+      ? { ok: true, status: httpCode }
+      : { ok: false, status: httpCode || 'javob yoʻq', logs: projects.logs(project.slug, 12) };
+  },
+});
+
+/**
  * Build (or extend) a web project and leave it running locally.
  * Returns the local URL so the founder can open it immediately.
  */
 async function build({ name, spec, fix = null, slug = null, onStep = null }) {
-  const coder = require('./coder');
   const s = projects.slugify(slug || name);
-  let p = projects.record(s);
-  if (!p) {
-    p = projects.create({ name, slug: s, kind: 'web', spec, runCmd: 'node index.js' });
-  } else if (spec) {
-    projects.update(s, { spec });
-  }
+  const r = await builder.run({ kind: 'web', slug: s, name, spec, fix, onStep });
 
-  const port = await allocatePort(s);
-  const existing = fs.existsSync(path.join(p.dir, 'index.js'));
-  const task = existing
-    ? `Modify the existing web project.\n\nWHAT TO CHANGE:\n${fix || spec}\n\nEverything that already works must keep working — read index.js first.\n\n${SITE_BRIEF(port)}`
-    : `Build a website from scratch in this project.\n\nWHAT IT MUST CONTAIN:\n${spec || fix}\n\n${SITE_BRIEF(port)}`;
+  // The port the profile allocated is stored on the project; read it back
+  // rather than passing it around, so the URL always matches what is running.
+  const port = projects.envOf(r.project).PORT || (await allocatePort(r.project));
 
-  if (p.alive) projects.stop(s);
-  const r = await coder.runTask({ project: projects.record(s), task, onStep });
-
-  // Start it the way it was actually built, not the way we assumed.
-  const runCmd = detectRunCmd(projects.dirOf(s));
-  if (runCmd !== projects.record(s).run_cmd) {
-    projects.update(s, { runCmd });
-    log.info('ishga tushirish buyrugʻi aniqlandi', { slug: s, runCmd });
-  }
-
-  let started = null;
-  try {
-    await projects.restart(s);
-    started = true;
-  } catch (err) {
-    started = err.message;
-  }
-
-  // Prove it answers before claiming it is up.
-  await new Promise((res) => setTimeout(res, 2500));
-  const probe = await shell.run(`curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:${port}/ || true`, { sessionId: `site-${s}`, timeoutMs: 20_000 });
-  const httpCode = String(probe.output || '').trim().slice(-3);
-
-  return {
-    ...r,
-    project: s,
-    port,
-    started,
-    url: `http://localhost:${port}`,
-    httpCheck: /^[23]\d\d$/.test(httpCode) ? { ok: true, status: httpCode } : { ok: false, status: httpCode || 'javob yoʻq', logs: projects.logs(s, 12) },
-  };
+  // `httpCheck` is kept as an alias of the pipeline's `check` — the
+  // assistant's tools and existing transcripts use that name.
+  return { ...r, port: Number(port), url: `http://localhost:${port}`, httpCheck: r.check };
 }
 
 // ── publishing to the server ─────────────────────────────────────────────────

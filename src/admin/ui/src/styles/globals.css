@@ -1,201 +1,305 @@
-/**
- * ANITOKU AGENT — global uslublar va qayta ishlatiladigan primitivlar.
- * Sahifalarga xos uslublar o'z CSS module fayllarida turadi; bu yerda faqat
- * hamma joyda takrorlanadigan narsalar: reset, tipografika, tugma, karta,
- * jadval, badge.
- */
-
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-html,
-body,
-#root {
-  height: 100%;
+html {
+  scrollbar-gutter: stable;
+  margin: 0;
+  padding: 0;
 }
 
 body {
   margin: 0;
-  background: var(--bg-base);
-  color: var(--text-primary);
-  font-family: var(--font-ui);
-  font-size: var(--text-base);
-  line-height: 1.55;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-inter);
+  overflow-y: overlay;
+  overflow-x: hidden;
+  height: var(--height-screen);
+  width: var(--width-screen);
+  box-sizing: border-box;
 }
 
-h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
-p { margin: 0; }
-a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
-
-/* Klaviatura bilan yuruvchi uchun fokus har doim ko'rinadi; sichqoncha
-   bosishida esa halaqit bermaydi. */
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: var(--r-sm);
-}
-
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--r-full); border: 3px solid transparent; background-clip: content-box; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-muted); background-clip: content-box; }
-
-/* ── Karta ──────────────────────────────────── */
-.card {
-  background: var(--bg-raised);
-  border-radius: var(--r-lg);
-  padding: var(--sp-5);
-  box-shadow: var(--shadow-sm);
-}
-.card + .card { margin-top: var(--sp-4); }
-
-.card-head {
+.boot-loader {
+  position: fixed;
+  z-index: var(--z-boot);
+  inset: 0;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-3);
-  margin-bottom: var(--sp-4);
-}
-.card-title {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  font-size: var(--text-lg);
-  font-weight: 600;
-}
-.card-title svg { color: var(--text-muted); }
-
-/* ── Tugma ──────────────────────────────────── */
-.btn {
-  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--sp-2);
-  padding: 9px 16px;
-  border: none;
-  border-radius: var(--r-md);
-  background: var(--accent);
-  color: var(--text-on-accent);
-  font: inherit;
-  font-weight: 600;
-  font-size: var(--text-sm);
-  cursor: pointer;
-  transition: background var(--t-fast), transform var(--t-fast), opacity var(--t-fast);
-  white-space: nowrap;
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-inter);
 }
-.btn:hover:not(:disabled) { background: var(--accent-hover); }
-.btn:active:not(:disabled) { transform: translateY(1px); }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.btn.ghost { background: var(--bg-overlay); color: var(--text-secondary); }
-.btn.ghost:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
-.btn.danger { background: var(--danger-soft); color: var(--danger); }
-.btn.danger:hover:not(:disabled) { background: var(--danger); color: #fff; }
-.btn.ok { background: var(--ok-soft); color: var(--ok); }
-.btn.ok:hover:not(:disabled) { background: var(--ok); color: var(--text-on-accent); }
-.btn.sm { padding: 6px 11px; font-size: var(--text-xs); border-radius: var(--r-sm); }
-.btn.block { width: 100%; }
-
-/* ── Forma ──────────────────────────────────── */
-.field { display: block; margin-bottom: var(--sp-4); }
-.field > span { display: block; font-size: var(--text-sm); font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
-.field > small { display: block; font-size: var(--text-xs); color: var(--text-muted); margin-top: 5px; }
-
-input[type='text'],
-input[type='password'],
-input[type='number'],
-select,
-textarea {
-  width: 100%;
-  padding: 9px 12px;
-  background: var(--bg-sunken);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  color: var(--text-primary);
-  font: inherit;
-  font-size: var(--text-base);
-  transition: border-color var(--t-fast), background var(--t-fast);
+.boot-loader span {
+  width: var(--size-dot);
+  height: var(--size-dot);
+  margin: 0 var(--gap-4);
+  border-radius: var(--border-radius-circle);
+  background: var(--color-accent);
+  animation: boot-bounce 0.9s var(--ease-in-out) infinite;
 }
-input:focus, select:focus, textarea:focus {
-  outline: none;
-  border-color: var(--accent);
-  background: var(--bg-base);
+
+.boot-loader span:nth-child(2) {
+  animation-delay: 0.15s;
 }
-input::placeholder, textarea::placeholder { color: var(--text-muted); }
-textarea { resize: vertical; min-height: 84px; font-family: inherit; }
-select { cursor: pointer; }
 
-/* ── Badge ──────────────────────────────────── */
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 9px;
-  border-radius: var(--r-full);
-  background: var(--bg-overlay);
-  color: var(--text-secondary);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  white-space: nowrap;
+.boot-loader span:nth-child(3) {
+  animation-delay: 0.3s;
 }
-.badge.ok { background: var(--ok-soft); color: var(--ok); }
-.badge.warn { background: var(--warn-soft); color: var(--warn); }
-.badge.danger { background: var(--danger-soft); color: var(--danger); }
-.badge.info { background: var(--info-soft); color: var(--info); }
-.badge.accent { background: var(--accent-soft); color: var(--accent); }
 
-.dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
-.dot.pulse { animation: pulse 2s ease-in-out infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes boot-bounce {
+  0%,
+  80%,
+  100% {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
 
-/* ── Jadval ─────────────────────────────────── */
-.table-wrap { overflow-x: auto; border-radius: var(--r-md); }
-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
-thead th {
-  position: sticky;
-  top: 0;
-  background: var(--bg-sunken);
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  text-align: left;
-  padding: 10px 12px;
-  white-space: nowrap;
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
-tbody td { padding: 11px 12px; border-top: 1px solid var(--border-soft); vertical-align: top; }
-tbody tr:hover { background: var(--bg-hover); }
-th.num, td.num { text-align: right; }
-td.mono, .mono { font-family: var(--font-mono); font-size: var(--text-xs); }
 
-/* ── Yordamchi ──────────────────────────────── */
-.row { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
-.row.end { justify-content: flex-end; }
-.grid { display: grid; gap: var(--sp-4); }
-.grid.c2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
-.grid.c3 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-.grid.c4 { grid-template-columns: repeat(auto-fit, minmax(196px, 1fr)); }
-.hint { font-size: var(--text-sm); color: var(--text-muted); }
-.empty { padding: var(--sp-8) var(--sp-4); text-align: center; color: var(--text-muted); font-size: var(--text-sm); }
-.spacer { flex: 1; }
-
-.block {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
   margin: 0;
-  padding: var(--sp-4);
-  background: var(--bg-sunken);
-  border-radius: var(--r-md);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: 1.7;
-  color: var(--text-secondary);
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow: auto;
+  padding: 0;
+}
+
+/* Matn belgilangandagi holat */
+*::selection {
+  background: var(--color-accent-hover);
+  color: var(--color-text-on-accent);
+}
+
+/* Scrollbar dizayni (Toza va flat) */
+body::-webkit-scrollbar {
+  width: 0.8vh;
+}
+
+body::-webkit-scrollbar-track {
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background-color: transparent;
+}
+
+body::-webkit-scrollbar-thumb {
+  background: var(--color-border-primary);
+  border-radius: var(--border-radius-8);
+  transition: background var(--duration-slow) var(--ease-out);
+  height: 5px;
+}
+
+body::-webkit-scrollbar-thumb:hover {
+  cursor: pointer;
+  background: var(--color-accent-hover);
+}
+
+code {
+  font-family:
+    source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+}
+
+/* ── Offline ogohlantirishi (liquid glass) ─────────────────────
+   Pastda, markazda "suzib turadigan" shishasimon panel.
+   backdrop-filter orqasidagi kontentni xiralashtirib, ranglarni
+   to'yintiradi — shu tufayli panel fonga bog'liq holda "tirik"
+   ko'rinadi, lekin matn kontrasti saqlanadi. */
+.offline-banner {
+  position: fixed;
+  z-index: var(--z-toast);
+  bottom: var(--margin-16);
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-10);
+  max-width: calc(100% - var(--margin-40));
+  padding: var(--padding-10-18);
+  border: 1px solid var(--color-glass-border);
+  border-radius: var(--border-radius-pill);
+  background-color: var(--color-glass-bg);
+  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  color: var(--color-text-primary);
+  /* Tashqi soya + ichki yuqori chekkadagi nur aksi — shisha "qirrasi" */
+  box-shadow:
+    var(--shadow-md),
+    inset 0 1px 0 var(--color-glass-highlight);
+  font-family: var(--font-inter);
+  font-size: var(--font-size-13);
+  font-weight: 500;
+  line-height: 1.4;
+  animation: offline-banner-in var(--duration-base) var(--ease-out) both;
+}
+
+.offline-banner.is_leaving {
+  animation: offline-banner-out var(--duration-fast) var(--ease-in) both;
+}
+
+.offline-banner__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+  color: var(--color-danger-text);
+  /* Aloqa yo'qligini ta'kidlab, sekin "nafas oladi" */
+  animation: offline-icon-pulse 2s var(--ease-in-out) infinite;
+}
+
+/* Ikkiga o'ralishga majbur bo'lsa (juda tor ekran) qatorlar teng
+   uzunlikda bo'ladi — "yetim so'z" qolmaydi */
+.offline-banner__text {
+  text-wrap: balance;
+}
+
+@keyframes offline-banner-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 16px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+@keyframes offline-banner-out {
+  from {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translate(-50%, 10px) scale(0.96);
+  }
+}
+
+@keyframes offline-icon-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* backdrop-filter qo'llab-quvvatlanmasa — to'liq shaffofmas fon
+   (aks holda matn o'qilmay qolardi) */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .offline-banner {
+    background-color: var(--color-bg-surface);
+    border-color: var(--color-border-primary);
+  }
+}
+
+/* ── Mobile (--bp-mobile: 768px, variables.css) ────────────────
+   Telefonda uzun matn ikki qatorga o'ralib, "tabletka" shakli
+   cho'zilib ketardi — shuning uchun tafsilot qismi olib tashlanadi
+   va banner biroz ixchamlashadi. Asosiy xabar ("Internet aloqasi
+   yo'q") 320px ekranda ham bitta qatorga sig'adi.
+
+   env(safe-area-inset-bottom) — iPhone'dagi "home indicator"
+   chizig'i ustiga tushib qolmasligi uchun zaxira (qo'llab-quvvatlanmasa 0). */
+@media (max-width: 768px) {
+  .offline-banner {
+    bottom: calc(var(--margin-16) + env(safe-area-inset-bottom, 0px));
+    gap: var(--gap-8);
+    padding: var(--padding-8) var(--padding-16);
+  }
+
+  .offline-banner__detail {
+    display: none;
+  }
+}
+
+/* ── O'ta tor ekran (--bp-tiny: 300px, variables.css) ──────────
+   Galaxy Fold tashqi ekrani (280px), soat brauzerlari va 400%+
+   zoom. Bu yerda "Internet aloqasi yo'q" ham bitta qatorga
+   sig'masligi mumkin — shuning uchun:
+     • chetdagi bo'shliq 12px dan 8px ga tushadi (matnga joy),
+     • radius pill'dan 12px ga o'tadi — matn ikki qatorga o'ralsa
+       cho'zilgan kapsula o'rniga oddiy kartochka ko'rinadi,
+     • ikonka va matn bir pog'ona kichrayadi.
+   Matn UZILMAYDI: mazmun har qanday kenglikda to'liq o'qiladi. */
+@media (max-width: 300px) {
+  .offline-banner {
+    max-width: calc(100% - var(--margin-16));
+    padding: var(--padding-8) var(--padding-12);
+    border-radius: var(--border-radius-12);
+    font-size: var(--font-size-12);
+    text-align: center;
+  }
+
+  .offline-banner__icon {
+    width: var(--size-icon-xs);
+    height: var(--size-icon-xs);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .offline-banner,
+  .offline-banner.is_leaving,
+  .offline-banner__icon {
+    animation: none;
+  }
+}
+
+/* NProgress (Yuklanish chizig'i) */
+#nprogress {
+  pointer-events: none;
+}
+
+#nprogress .bar {
+  background: var(--color-brand);
+  position: fixed;
+  z-index: var(--z-progress);
+  top: 0;
+  left: 0;
+  width: var(--width-100-percent);
+  height: 4px;
+}
+
+#nprogress .peg {
+  display: block;
+  position: absolute;
+  right: 0;
+  width: 100px;
+  height: 100%;
+  box-shadow: none;
+  opacity: 1;
+  transform: rotate(3deg) translate(0, -4px);
+}
+
+/* Sahifa almashish animatsiyasi (Outlet ichidagi kontent).
+   CSS-animatsiya JS state + rAF yechimidan silliqroq: qo'shimcha
+   render sikli yo'q, brauzer compositor'da o'zi bajaradi.
+   Asl ko'rinish: fade + pastdan yuqoriga siljish, lekin MAKSIMAL
+   TEZ (0.15s) — effekt ko'rinadi, kutish sezilmaydi. */
+.page-transition {
+  animation: page-fade-in var(--duration-fast) var(--ease-out) both;
+}
+
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-transition {
+    animation: none;
+  }
 }

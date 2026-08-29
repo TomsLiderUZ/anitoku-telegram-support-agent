@@ -1,0 +1,14 @@
+# ANITOKU — agent boshqaruv paneli.
+# Butun sayt yopiq: bu ichki boshqaruv paneli, qidiruv natijalarida
+# chiqishi shart emas.
+#
+# Eslatma: har bir bo'limni alohida sanab chiqish (Disallow: /users,
+# /logs va h.k.) ATAYLAB olib tashlandi — `Disallow: /` allaqachon
+# hammasini qamraydi, ro'yxat esa admin panel yo'l tuzilmasini
+# bekordan-bekorga oshkor qilardi.
+#
+# Sitemap ham berilmaydi: u aynan shu yopiq sahifalarni sanaydi,
+# ya'ni robots bilan zid bo'lardi.
+
+User-agent: *
+Disallow: /

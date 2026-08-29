@@ -1,49 +1,52 @@
-/**
- * App shell: fixed rail, sticky top bar, scrolling content.
- *
- * Agent status is fetched here and passed down, so every page shares one poll
- * instead of each one hitting /api/status on its own schedule.
- */
-import { useCallback, useEffect, useState } from 'react';
-import { Outlet } from 'react-router-dom';
-import Sidebar from '../components/Sidebar';
-import Navbar from '../components/Navbar';
-import { api, onLoading } from '../api/client';
-import styles from './index.module.css';
+import { Navigate, Outlet, useLocation } from "react-router-dom";
+import styles from "./index.module.scss";
+import Navbar from "../components/navbar/index";
+import Sidebar from "../components/sidebar/index";
+import Tabbar from "../components/tabbar/index";
+import Footer from "../components/footer/index";
+import { findRouteByPath } from "../router/routes";
+import { TokenManager } from "../api/tokenManager";
 
-export default function MainLayout() {
-  const [status, setStatus] = useState(null);
-  const [badges, setBadges] = useState({});
-  const [loading, setLoading] = useState(false);
+function MainLayout() {
+  const { pathname } = useLocation();
+  const route = findRouteByPath(pathname);
 
-  const refresh = useCallback(async () => {
-    try {
-      const s = await api.get('/status', { silent: true });
-      setStatus(s);
-      setBadges({ escalations: s.agent?.openEscalations || 0, tasks: 0 });
-    } catch {
-      /* a failed poll must not blank the shell */
-    }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-    const t = setInterval(refresh, 15_000);
-    return () => clearInterval(t);
-  }, [refresh]);
-
-  useEffect(() => onLoading(setLoading), []);
+  // MUHIM: himoya aynan SHU YERDA — layout render qilinishidan OLDIN.
+  // Tekshiruv faqat ichkarida bo'lsa React Router avval layoutni
+  // (Sidebar/Navbar) chizib, keyin ichkaridagi Navigate'ni bajaradi —
+  // natijada kirmagan foydalanuvchiga admin karkasi bir lahza ko'rinib
+  // ketardi.
+  if (route?.private && !TokenManager.hasAccessToken()) {
+    return <Navigate to="/auth" replace state={{ from: pathname }} />;
+  }
 
   return (
     <div className={styles.wrapper}>
-      <Sidebar badges={badges} brand={status?.brand} />
-      <div className={styles.main}>
-        <div className={`${styles.progress} ${loading ? styles.on : ''}`} />
-        <Navbar status={status} onChanged={refresh} />
+      {/* CHAP: SIDEBAR — mobilda yashiriladi, o'rniga pastdagi Tabbar */}
+      <Sidebar />
+
+      {/* O'NG: ASOSIY USTUN */}
+      <div className={styles.container}>
+        <Navbar />
+
+        {/*
+          Sahifa kontenti. `layout-inner` — navbar bilan BITTA vertikal
+          o'q (panel.css dagi izohga qarang), shuning uchun bu yerda
+          alohida padding YOZILMAYDI.
+        */}
         <main className={styles.content}>
-          <Outlet context={{ status, refresh }} />
+          <div className={`layout-inner ${styles.inner}`}>
+            <Outlet />
+          </div>
         </main>
+
+        <Footer />
       </div>
+
+      {/* Mobil pastki menyu — faqat tor ekranda ko'rinadi */}
+      <Tabbar />
     </div>
   );
 }
+
+export default MainLayout;

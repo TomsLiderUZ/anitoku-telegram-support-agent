@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="uz">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <!-- Qiymat src/styles/colors.css dagi --color-bg-primary bilan bir xil bo'lishi SHART -->
+  <meta name="theme-color" content="#0b0d12" />
+
+  <!--
+    Tema JS bundle'dan OLDIN qo'llanadi — aks holda sahifa avval bir
+    rejimda chizilib, keyin ikkinchisiga "sakrardi" (FOUC).
+
+    Sukut DARK: panel tungi mavzuda ochiladi (ThemeManager bilan bir xil
+    qoida — ikkalasi mos bo'lishi shart, aks holda birinchi kadr bilan
+    keyingisi farq qiladi).
+  -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("theme");
+        var dark = t !== "light" && (t !== "auto" || matchMedia("(prefers-color-scheme: dark)").matches);
+        var root = document.documentElement;
+        root.classList.add(dark ? "dark" : "light");
+        root.style.colorScheme = dark ? "dark" : "light";
+
+        var metaThemeColor = document.querySelector('meta[name="theme-color"]');
+        if (metaThemeColor) {
+          metaThemeColor.setAttribute("content", dark ? "#0b0d12" : "#f3f4f8");
+        }
+      } catch (e) { }
+    })();
+  </script>
+
+  <meta name="application-name" content="ANITOKU Agent" />
+  <meta name="description" content="ANITOKU avtonom Telegram agentining boshqaruv paneli." />
+  <!-- Ichki boshqaruv paneli — qidiruv tizimlariga tushishi kerak emas -->
+  <meta name="robots" content="noindex, nofollow" />
+
+  <link rel="icon" href="%PUBLIC_URL%/favicon.svg" type="image/svg+xml" />
+
+  <title>Boshqaruv paneli | ANITOKU</title>
+</head>
+
+<body>
+  <div id="root">
+    <!--
+      Boot-loader — React bundle yuklanguncha ko'rinadi. HTML ichida
+      turibdi, ya'ni birinchi kadrdayoq mavjud: foydalanuvchi hech
+      qachon bo'sh ekranga qaramaydi.
+    -->
+    <div class="boot-loader" aria-label="Yuklanmoqda">
+      <span></span><span></span><span></span>
+    </div>
+  </div>
+</body>
+
+</html>

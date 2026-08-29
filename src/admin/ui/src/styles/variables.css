@@ -1,59 +1,210 @@
 /**
  * ============================================
- * ANITOKU AGENT — Dizayn tokenlari
+ * ANITOKU — Dizayn tokenlari
  * ============================================
  *
- * Takrorlanadigan o'lchamlar, oraliqlar, radiuslar va animatsiya
- * davomiyliklari shu yerda. Komponent CSS'ida "sehrli raqam" yozilmasin —
- * avval shu fayldan mos token qidiriladi.
+ * Loyihadagi BARCHA takrorlanadigan o'lchamlar, oraliqlar, animatsiya
+ * davomiyliklari, qatlam (z-index) tartiblari va effektlar shu yerda.
  *
- * Oraliqlar 4px shkalasida: har bir qadam ko'z ilg'aydigan darajada farq
- * qiladi, lekin tizim bir butun bo'lib qoladi.
+ * QOIDA: komponent CSS'ida "sehrli raqam" yozilmasin —
+ * avval shu fayldan mos token qidiriladi, yo'q bo'lsa shu yerga
+ * qo'shiladi. Shunda bitta joydan butun ilova ko'rinishi boshqariladi.
  */
 
 :root {
-  /* ── Shrift ───────────────────────────────── */
-  --font-ui: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+  --font-inter: "Inter", sans-serif;
+  --font-goldman: "Goldman", sans-serif;
+}
 
-  --text-xs: 11.5px;
-  --text-sm: 12.5px;
-  --text-base: 13.5px;
-  --text-lg: 15px;
-  --text-xl: 18px;
-  --text-2xl: 24px;
-  --text-3xl: 30px;
+:root {
+  --width-screen: 100%;
+  --height-screen: 100vh;
+  --width-100-percent: 100%;
+  --height-100-percent: 100%;
 
-  /* ── Oraliq ───────────────────────────────── */
-  --sp-1: 4px;
-  --sp-2: 8px;
-  --sp-3: 12px;
-  --sp-4: 16px;
-  --sp-5: 20px;
-  --sp-6: 24px;
-  --sp-8: 32px;
-  --sp-10: 40px;
+  --border-radius-30: 30px;
 
-  /* ── Radius ───────────────────────────────── */
-  --r-sm: 6px;
-  --r-md: 10px;
-  --r-lg: 14px;
-  --r-full: 999px;
+  /* ── Padding ──────────────────────────────── */
+  --padding-20-100: 20px 100px;
+  --padding-24-60: 24px 60px;
+  --padding-16-24: 16px 24px;
+  --padding-12-16: 12px 16px;
+  --padding-10-18: 10px 18px;
+  --padding-50: 50px;
+  --padding-40: 40px;
+  --padding-24: 24px;
+  --padding-16: 16px;
+  --padding-12: 12px;
+  --padding-8: 8px;
 
-  /* ── Tuzilma ──────────────────────────────── */
-  --sidebar-w: 232px;
-  --navbar-h: 56px;
-  --content-max: 1440px;
+  /* ── Margin ───────────────────────────────── */
+  --margin-40: 40px;
+  --margin-30: 30px;
+  --margin-24: 24px;
+  --margin-16: 16px;
+  --margin-8: 8px;
 
-  /* ── Harakat ──────────────────────────────── */
-  /* Tez, lekin sezilarli: 120ms holat o'zgarishi, 220ms qatlam ochilishi */
-  --t-fast: 120ms cubic-bezier(0.4, 0, 0.2, 1);
-  --t-base: 220ms cubic-bezier(0.4, 0, 0.2, 1);
+  /* ── Gap ──────────────────────────────────── */
+  --gap-32: 32px;
+  --gap-24: 24px;
+  --gap-16: 16px;
+  --gap-14: 14px;
+  --gap-10: 10px;
+  --gap-8: 8px;
+  --gap-4: 4px;
 
-  /* ── Qatlamlar ────────────────────────────── */
-  --z-sidebar: 20;
-  --z-navbar: 30;
-  --z-dropdown: 40;
-  --z-modal: 50;
-  --z-toast: 60;
+  /* ── Border radius ────────────────────────── */
+  --border-radius-16: 16px;
+  --border-radius-12: 12px;
+  --border-radius-8: 8px;
+  --border-radius-pill: 999px;   /* Tabletka shakli — banner, chip, badge */
+  --border-radius-circle: 50%;
+
+  /* ── Ikonka / element o'lchamlari ─────────── */
+  --size-icon-xs: 14px;          /* O'ta tor ekranlardagi (--bp-tiny) kichraytirilgan ikonka */
+  --size-icon-sm: 18px;
+  --size-icon-md: 24px;
+  --size-icon-lg: 56px;          /* Bo'sh holat / xato ekranlaridagi katta ikonka */
+  --size-icon-xl: 80px;          /* To'liq ekranli holat ekranlari (offline sahifasi) */
+  --size-dot: 10px;              /* Boot-loader nuqtasi, status indikatori */
+
+  /* ── Matn o'lchamlari ─────────────────────── */
+  --font-size-12: 12px;          /* Eng kichik o'qiladigan o'lcham — faqat --bp-tiny ekranlarda */
+  --font-size-13: 13px;
+  --font-size-14: 14px;
+  --font-size-22: 22px;
+
+  /* ── Qatlamlar (z-index) ──────────────────────
+     Bitta shkala — komponentlarda qo'lda raqam yozilmasin,
+     aks holda qaysi element ustida turishini kuzatib bo'lmaydi. */
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal: 500;
+  --z-toast: 800;                /* Offline banner va boshqa bildirishnomalar */
+  --z-progress: 900;             /* NProgress chizig'i */
+  --z-boot: 1000;                /* Boot-loader — hammasidan ustida */
+
+  /* ── Animatsiya ───────────────────────────── */
+  --duration-fast: 0.15s;        /* Sahifa fade, banner chiqib ketishi */
+  --duration-base: 0.25s;        /* Standart o'tishlar */
+  --duration-slow: 0.4s;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);   /* Tez boshlanib yumshoq tugaydi */
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ── Liquid glass (shishasimon yuza) ──────────
+     Fon rangi colors.css da (--color-glass-*), chunki u temaga bog'liq. */
+  --blur-glass: 20px;
+  --blur-glass-strong: 32px;
+  --saturate-glass: 180%;
+
+  /* ── Soyalar ──────────────────────────────── */
+  --shadow-sm: 0 2px 8px var(--color-shadow-soft);
+  --shadow-md: 0 8px 28px var(--color-shadow-soft);
+  --shadow-lg: 0 16px 48px var(--color-shadow-soft);
+
+  /* ── Breakpointlar ────────────────────────────
+     DIQQAT: media query ichida var() ISHLAMAYDI (CSS cheklovi) —
+     quyidagi qiymatlar @media da QO'LDA yoziladi, lekin manba shu yer.
+     Yangi breakpoint o'ylab topilmasin — shulardan biri ishlatilsin.
+     JS'dan o'qish kerak bo'lsa: getComputedStyle(document.documentElement)
+
+     Loyihada ishlatilayotgani:
+       300px  → o'ta tor ekran (globals.css: offline-banner)
+       768px  → umumiy mobil (variables.css, layouts, auth)
+       950px  → auth sahifasidagi ikki ustunning bir ustunga tushishi  */
+  --bp-tiny: 300px;              /* Galaxy Fold tashqi ekrani (280px), soatlar,
+                                    brauzerda 400%+ zoom — matn sig'masligi mumkin */
+  --bp-mobile: 768px;
+  --bp-auth-stack: 950px;
+  --bp-tablet: 1024px;
+  --bp-desktop: 1280px;
+}
+
+/* ── Mobile (--bp-mobile: 768px) ─────────────── */
+@media (max-width: 768px) {
+  :root {
+    --padding-20-100: 16px 20px;
+    --padding-24-60: 20px 20px;
+    --padding-16-24: 12px 16px;
+    --padding-50: 24px;
+    --padding-40: 20px;
+
+    --margin-40: 24px;
+    --margin-30: 20px;
+
+    --gap-32: 20px;
+    --gap-24: 16px;
+
+    --size-icon-lg: 48px;
+    --size-icon-xl: 64px;
+    --font-size-22: 19px;
+  }
+}
+
+/* ============================================
+   ANITOKU panel tokenlari
+   ============================================
+   Yuqoridagilar — umumiy shkala. Quyidagilar aynan admin panel
+   karkasi uchun: sidebar kengligi, navbar balandligi va eng
+   muhimi — GUTTER.
+
+   GUTTER NIMA UCHUN KERAK:
+   Navbar ichidagi kontent bilan sahifa kontenti bitta vertikal
+   chiziqda turishi kerak. Ilgari navbar o'z padding'ini, sahifa esa
+   o'zinikini yozardi — natijada sarlavha navbar'dagi nomdan bir necha
+   piksel siljib turardi va ko'z buni darhol ilg'ardi. Endi ikkalasi
+   ham AYNAN shu tokendan oladi, ya'ni siljish printsipial jihatdan
+   bo'lishi mumkin emas. */
+:root {
+  --layout-gutter: 28px;         /* Navbar VA main content ning chap/o'ng bo'shlig'i — bittasi o'zgarsa ikkalasi birga siljiydi */
+  --layout-content-max: 1440px;  /* Juda keng monitorda matn qatori cho'zilib ketmasligi uchun */
+  --sidebar-width: 248px;
+  --sidebar-width-collapsed: 72px;
+  --navbar-height: 62px;
+  --tabbar-height: 60px;         /* Mobil pastki menyu — sidebar o'rnini bosadi */
+
+  --z-tabbar: 300;               /* Sticky'dan yuqori, modaldan past */
+
+  /* ── Qo'shimcha oraliqlar ─────────────────── */
+  --gap-20: 20px;
+  --gap-12: 12px;
+  --gap-6: 6px;
+  --gap-2: 2px;
+  --padding-14-18: 14px 18px;
+  --padding-6-10: 6px 10px;
+  --padding-20: 20px;
+  --padding-10: 10px;
+  --padding-6: 6px;
+  --margin-12: 12px;
+  --margin-20: 20px;
+
+  /* ── Qo'shimcha matn o'lchamlari ──────────── */
+  --font-size-11: 11px;
+  --font-size-15: 15px;
+  --font-size-16: 16px;
+  --font-size-18: 18px;
+  --font-size-26: 26px;
+  --font-size-32: 32px;
+
+  --border-radius-6: 6px;
+  --border-radius-20: 20px;
+
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* ── Animatsiya qo'shimchalari ───────────────
+     --ease-spring biroz "otib o'tadi" (overshoot) — tugma bosilishi
+     va kartochka paydo bo'lishi tirik ko'rinadi. Uzun ro'yxatlarda
+     ishlatilmaydi: takrorlanganda bezovta qiladi. */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-slower: 0.6s;
+  --stagger-step: 40ms;          /* Ro'yxat elementlari ketma-ket chiqishidagi qadam */
+}
+
+/* ── Mobile (--bp-mobile: 768px) ─────────────── */
+@media (max-width: 768px) {
+  :root {
+    --layout-gutter: 16px;
+    --navbar-height: 56px;
+  }
 }

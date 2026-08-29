@@ -151,8 +151,13 @@ const GROUPS = {
   core: ['plan', 'plan_step_done', 'send_message', 'send_private', 'read_chat', 'find_contact', 'remember', 'forget', 'list_memory', 'bash', 'agent_status', 'inbox_digest', 'my_chats'],
   messaging: ['schedule_message', 'schedule_task', 'watch_reply', 'list_watches', 'forward_message', 'delete_message', 'add_alias'],
   chats: ['join_chat', 'leave_chat', 'delete_chat', 'create_chat', 'chat_info', 'list_members', 'promote_admin', 'demote_admin', 'ban_user', 'kick_user', 'unban_user', 'add_members', 'invite_link', 'edit_chat', 'pin_message'],
-  bots: ['create_bot', 'configure_bot', 'build_and_run_bot', 'bot_send_message', 'bot_whoami', 'my_bots', 'list_my_bots', 'get_bot_token', 'revoke_bot_token', 'delete_bot', 'stop_bot', 'start_bot', 'bot_logs', 'talk_to_bot', 'press_button', 'read_bot'],
-  code: ['build_site', 'publish_site', 'secure_site', 'code_task', 'create_project', 'list_projects', 'project_files', 'read_project_file', 'write_project_file', 'run_command', 'start_project', 'stop_project', 'restart_project', 'project_logs', 'set_project_env', 'delete_project'],
+  // A bot is a project like any other, so the two groups overlap on purpose:
+  // whichever one the message triggers, the whole build-and-run family is in
+  // reach. Without the overlap "botga yangi buyruq qoʻsh" arrived with the bot
+  // tools but no way to read the code, and "loyihani tuzat" the other way
+  // round — the same job, split in half by a word.
+  bots: ['create_bot', 'configure_bot', 'build_and_run_bot', 'bot_send_message', 'bot_whoami', 'my_bots', 'list_my_bots', 'get_bot_token', 'revoke_bot_token', 'delete_bot', 'stop_bot', 'start_bot', 'bot_logs', 'talk_to_bot', 'press_button', 'read_bot', 'code_task', 'project_files', 'read_project_file', 'project_logs', 'list_projects'],
+  code: ['build_site', 'publish_site', 'secure_site', 'code_task', 'create_project', 'list_projects', 'project_files', 'read_project_file', 'write_project_file', 'run_command', 'start_project', 'stop_project', 'restart_project', 'project_logs', 'set_project_env', 'delete_project', 'build_and_run_bot'],
   servers: ['publish_site', 'secure_site', 'ssh_connect', 'ssh', 'list_servers', 'upload_to_server', 'add_server', 'ssh_public_key'],
   routines: ['add_routine', 'list_routines', 'remove_routine', 'list_tasks', 'cancel_task'],
   knowledge: ['add_knowledge', 'search_knowledge', 'run_training', 'set_setting'],

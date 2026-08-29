@@ -1,88 +1,89 @@
 /**
  * ============================================
- * ANITOKU AGENT — HTTP client
+ * ANITOKU — Axios Client
  * ============================================
  *
- * The panel and the agent share an origin, so the session cookie travels
- * automatically — there is no token to juggle. A 401 means the session
- * lapsed, and the only sane response is to show the login screen again.
+ * Markaziy HTTP client.
+ *  - Base URL va timeout .env dan
+ *  - Sessiya cookie avtomatik yuboriladi (withCredentials)
+ *  - 401 → sessiya tugagan: belgi tozalanadi va "auth:logout" chiqadi
+ *  - Barcha xatolar ApiError ga keltiriladi
  *
- * `silent: true` skips the global loading indicator, for polling that would
- * otherwise make the bar flicker every few seconds.
+ * DODAKINO'DAN FARQ: bu yerda JWT refresh navbati (failedQueue,
+ * isRefreshing) YO'Q. Sabab — backend refresh token bermaydi, sessiya
+ * cookie o'z muddatigacha amal qiladi. Muddati tugasa yagona to'g'ri
+ * xatti-harakat — qayta kirish so'rash. Ishlamaydigan refresh mantiqini
+ * saqlab qo'yish "bor, demak ishlaydi" degan yolg'on taassurot berardi.
  */
 
-const listeners = new Set();
-let inFlight = 0;
+import axios from "axios";
+import NProgress from "../utils/progress";
+import { TokenManager } from "./tokenManager";
+import { ApiError } from "./errors";
 
-/** Subscribe to loading state (used by the top progress bar). */
-export function onLoading(fn) {
-  listeners.add(fn);
-  return () => listeners.delete(fn);
-}
-const emit = () => listeners.forEach((fn) => fn(inFlight > 0));
+// ─── NProgress — haqiqiy so'rovlarga bog'langan progress ─────────
+// Bar birinchi so'rov boshlanganda chiqadi va OXIRGI faol so'rov
+// tugagandagina yakunlanadi — tezlik haqiqiy tarmoq holatini aks
+// ettiradi, soxta timer emas.
+//
+// FON SO'ROVLARI: `client.get(url, { silent: true })` chiziqni umuman
+// ko'rsatmaydi. Panel ko'p joyda 10-20 soniyada avtomatik yangilanadi —
+// silent bo'lmasa bar tinimsiz miltillardi.
+let activeRequests = 0;
 
-export class ApiError extends Error {
-  constructor(message, status) {
-    super(message);
-    this.status = status;
-  }
-}
+const isSilent = (config) => Boolean(config?.silent);
 
-async function request(path, { method = 'GET', body, silent = false, signal } = {}) {
-  if (!silent) {
-    inFlight++;
-    emit();
-  }
-  try {
-    const res = await fetch('/api' + path, {
-      method,
-      headers: body ? { 'Content-Type': 'application/json' } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
-      signal,
-    });
-
-    if (res.status === 401) {
-      window.location.href = '/login';
-      throw new ApiError('unauthorized', 401);
-    }
-
-    const text = await res.text();
-    let data = null;
-    try {
-      data = text ? JSON.parse(text) : null;
-    } catch {
-      throw new ApiError(`Serverdan notoʻgʻri javob (${res.status})`, res.status);
-    }
-    if (!res.ok) throw new ApiError((data && data.error) || `HTTP ${res.status}`, res.status);
-    return data;
-  } finally {
-    if (!silent) {
-      inFlight = Math.max(0, inFlight - 1);
-      emit();
-    }
-  }
-}
-
-export const api = {
-  get: (path, opts) => request(path, { ...opts }),
-  post: (path, body, opts) => request(path, { method: 'POST', body, ...opts }),
-  del: (path, opts) => request(path, { method: 'DELETE', ...opts }),
+const progressStart = () => {
+  if (activeRequests === 0) NProgress.start();
+  activeRequests += 1;
 };
 
-/** Log stream over server-sent events; returns an unsubscribe function. */
-export function streamLogs(onEntry) {
-  const es = new EventSource('/api/logs/stream');
-  es.onmessage = (e) => {
-    try {
-      onEntry(JSON.parse(e.data));
-    } catch {
-      /* a malformed frame must not kill the stream */
-    }
-  };
-  return () => es.close();
-}
+const progressDone = () => {
+  activeRequests = Math.max(0, activeRequests - 1);
+  if (activeRequests === 0) NProgress.done();
+};
 
-export async function logout() {
-  await fetch('/logout', { method: 'POST' });
-  window.location.href = '/login';
-}
+const client = axios.create({
+  baseURL: process.env.REACT_APP_API_BASE_URL || "/api",
+  timeout: Number(process.env.REACT_APP_API_TIMEOUT) || 20000,
+  withCredentials: true, // HttpOnly sessiya cookie'sini yuborish uchun
+  headers: {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  },
+});
+
+// ─── Request interceptor ────────────────────────────────────────
+client.interceptors.request.use(
+  (config) => {
+    if (!isSilent(config)) progressStart();
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// ─── Response interceptor ───────────────────────────────────────
+client.interceptors.response.use(
+  (response) => {
+    if (!isSilent(response.config)) progressDone();
+    return response.data;
+  },
+
+  (error) => {
+    if (!isSilent(error.config)) progressDone();
+
+    const status = error.response?.status;
+    const url = error.config?.url || "";
+
+    // 401 — sessiya yo'q yoki tugagan. Login so'rovining o'zi istisno:
+    // u yerda 401 "parol xato" degani, tizimdan chiqarish emas.
+    if (status === 401 && !url.includes("/login")) {
+      TokenManager.clearTokens();
+      window.dispatchEvent(new CustomEvent("auth:logout"));
+    }
+
+    return Promise.reject(ApiError.fromAxios(error));
+  }
+);
+
+export default client;

@@ -1,0 +1,131 @@
+/**
+ * Navbar — yuqorida "yopishib" turadi, ostidan kontent siljib o'tadi.
+ *
+ * Shishasimon fon (backdrop-filter): ostidan o'tayotgan kontent
+ * xiralashadi, matn esa o'qiladigan bo'lib qoladi. To'liq shaffofmas
+ * fon panelni ikkiga bo'lib ko'rsatardi, umuman shaffofi esa matnni
+ * o'qib bo'lmas holga keltirardi.
+ */
+
+.wrapper {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  width: var(--width-100-percent);
+  border-bottom: 1px solid var(--color-border-secondary);
+  background-color: var(--color-glass-bg);
+  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+}
+
+/* backdrop-filter qo'llab-quvvatlanmasa — shaffofmas fon, aks holda
+   ostidagi matn navbar matni bilan qo'shilib ketardi. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .wrapper {
+    background-color: var(--color-bg-surface);
+  }
+}
+
+/**
+ * `layout-inner` bilan birga ishlaydi: chap/o'ng bo'shliq VA maksimal
+ * kenglik o'shandan keladi, bu yerda faqat balandlik va ichki tartib.
+ * Shu sababli navbardagi sarlavha bilan sahifa kontenti bitta
+ * vertikal chiziqda turadi.
+ */
+.inner {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-16);
+  min-height: var(--navbar-height);
+  padding-top: var(--padding-8);
+  padding-bottom: var(--padding-8);
+}
+
+.titleBox {
+  min-width: 0; // uzun tavsif navbarni cho'zib yubormasin
+  flex: 1;
+}
+
+.title {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-18);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.desc {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-12);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-8);
+  flex-shrink: 0;
+}
+
+.iconBtn {
+  padding: var(--padding-8);
+}
+
+/* Mavzu belgisi almashganda aylanib chiqadi — `key` o'zgargani uchun
+   React elementni qayta mount qiladi va animatsiya qaytadan ishlaydi */
+.themeIcon {
+  display: inline-flex;
+  animation: theme-icon-in var(--duration-base) var(--ease-spring) both;
+}
+
+@keyframes theme-icon-in {
+  from { opacity: 0; transform: rotate(-90deg) scale(0.6); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ── Holat ko'rsatkichi ────────────────────── */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-6);
+  padding: var(--padding-6-10);
+  border-radius: var(--border-radius-pill);
+  font-size: var(--font-size-12);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pillOn {
+  background-color: var(--color-ok-soft);
+  color: var(--color-ok);
+
+  svg {
+    animation: soft-pulse 2.4s var(--ease-in-out) infinite;
+  }
+}
+
+.pillOff {
+  background-color: var(--color-warn-soft);
+  color: var(--color-warn);
+}
+
+/* ── Responsiv ────────────────────────────────
+   Tor ekranda tugma yozuvlari olib tashlanadi (belgi o'zi tushunarli),
+   tavsif esa umuman yashiriladi — u yordamchi matn, sarlavha esa yo'q. */
+@media (max-width: 768px) {
+  .desc,
+  .actionLabel {
+    display: none;
+  }
+
+  .pill {
+    padding: var(--padding-6);
+  }
+
+  .title {
+    font-size: var(--font-size-16);
+  }
+}

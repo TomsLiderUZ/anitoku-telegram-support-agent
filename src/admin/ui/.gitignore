@@ -1,0 +1,31 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# production
+/build
+/dist
+
+# docs
+GIT.md
+.claude
+
+# misc
+.DS_Store
+*.zip
+
+# .env ATAYLAB kuzatiladi: unda sir yoʻq — faqat /api manzili va timeout.
+# CRA bu qiymatlarni build paytida kodga yozadi, demak toza klonda ham
+# boʻlishi shart, aks holda panel API ni topa olmaydi.
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

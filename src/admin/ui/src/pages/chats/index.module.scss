@@ -1,0 +1,140 @@
+/* Chap — ro'yxat, o'ng — yozishma. Tor ekranda ustma-ust. */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  gap: var(--gap-16);
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ── Chatlar ro'yxati ───────────────────────── */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-4);
+  max-height: 560px;
+  overflow-y: auto;
+  // Kartochka ichidagi padding'ni "yeb" ro'yxat chekkagacha borsin
+  margin: calc(var(--padding-8) * -1) calc(var(--padding-12) * -1);
+  padding: var(--padding-8) var(--padding-12);
+}
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-6);
+  width: var(--width-100-percent);
+  padding: var(--padding-10) var(--padding-12);
+  border: 1px solid transparent;
+  border-radius: var(--border-radius-8);
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+
+  &:hover {
+    background-color: var(--color-bg-hover);
+  }
+}
+
+.chatOn {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent-soft);
+}
+
+.chatTitle {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-13);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chatMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-8);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-11);
+}
+
+/* ── Yozishma ───────────────────────────────── */
+.messages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-10);
+  min-height: 320px;
+  max-height: 520px;
+  padding-right: var(--padding-6);
+  overflow-y: auto;
+}
+
+.msg {
+  max-width: 78%;
+  padding: var(--padding-8) var(--padding-12);
+  border-radius: var(--border-radius-12);
+  animation: fade-up var(--duration-fast) var(--ease-out) both;
+}
+
+.in {
+  align-self: flex-start;
+  background-color: var(--color-bg-secondary);
+  border-bottom-left-radius: var(--border-radius-6);
+}
+
+.out {
+  align-self: flex-end;
+  background-color: var(--color-accent-soft);
+  border-bottom-right-radius: var(--border-radius-6);
+}
+
+.msgWho {
+  display: flex;
+  align-items: baseline;
+  gap: var(--gap-8);
+  margin-bottom: 2px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-11);
+  font-weight: 600;
+}
+
+.msgTime {
+  font-weight: 400;
+}
+
+.msgText {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-13);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── Javob kutayotgan savol ─────────────────── */
+.esc {
+  padding: var(--padding-12);
+  border: 1px solid var(--color-warn-soft);
+  border-radius: var(--border-radius-12);
+  background-color: var(--color-warn-soft);
+
+  & + & {
+    margin-top: var(--gap-10);
+  }
+}
+
+.escQ {
+  margin: var(--gap-6) 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-13);
+  line-height: 1.55;
+}

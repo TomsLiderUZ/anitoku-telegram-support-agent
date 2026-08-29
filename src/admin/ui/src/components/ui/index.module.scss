@@ -1,0 +1,255 @@
+/* ── Card ───────────────────────────────────── */
+.card {
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-16);
+  background-color: var(--color-bg-surface);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  animation: fade-up var(--duration-base) var(--ease-out) both;
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-8);
+  padding: var(--padding-14-18);
+  border-bottom: 1px solid var(--color-border-secondary);
+}
+
+.cardIcon {
+  flex-shrink: 0;
+  color: var(--color-accent);
+}
+
+.cardTitle {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-14);
+  font-weight: 600;
+}
+
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-8);
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.cardBody {
+  padding: var(--padding-16) var(--padding-20);
+}
+
+/* ── Stat ───────────────────────────────────── */
+.stat {
+  position: relative;
+  padding: var(--padding-16);
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-12);
+  background-color: var(--color-bg-surface);
+  overflow: hidden;
+  animation: fade-up var(--duration-base) var(--ease-out) both;
+
+  /* Yuqori chekkadagi ingichka rangli chiziq — kartochka turini
+     matnsiz ajratadi. Sukut bo'yicha accent. */
+  &::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 2px;
+    background-color: var(--color-accent);
+    opacity: 0.85;
+  }
+}
+
+.tone_ok::before { background-color: var(--color-ok); }
+.tone_warn::before { background-color: var(--color-warn); }
+.tone_info::before { background-color: var(--color-info); }
+.tone_danger::before { background-color: var(--color-danger); }
+
+.statLabel {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-12);
+  font-weight: 500;
+}
+
+.statValue {
+  display: flex;
+  align-items: baseline;
+  gap: var(--gap-8);
+  margin-top: var(--gap-4);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-26);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.statTrend {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--font-size-12);
+  font-weight: 600;
+}
+
+.trendUp { color: var(--color-ok); }
+.trendDown { color: var(--color-danger-text); }
+
+.statSub {
+  margin-top: var(--gap-4);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-12);
+  line-height: 1.45;
+}
+
+/* ── Badge ──────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-4);
+  padding: 3px var(--padding-8);
+  border-radius: var(--border-radius-pill);
+  background-color: var(--color-bg-hover);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-11);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge_ok { background-color: var(--color-ok-soft); color: var(--color-ok); }
+.badge_warn { background-color: var(--color-warn-soft); color: var(--color-warn); }
+.badge_info { background-color: var(--color-info-soft); color: var(--color-info); }
+.badge_danger { background-color: var(--color-danger-soft); color: var(--color-danger-text); }
+
+/* Jonli holat — "hozir sodir bo'lyapti" */
+.badgePulse::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: var(--border-radius-circle);
+  background-color: currentColor;
+  animation: soft-pulse 1.8s var(--ease-in-out) infinite;
+}
+
+/* ── Meter ──────────────────────────────────── */
+.meter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-6);
+}
+
+.meterHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-12);
+}
+
+.meterRight {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.meterTrack {
+  height: 6px;
+  border-radius: var(--border-radius-pill);
+  background-color: var(--color-bg-secondary);
+  overflow: hidden;
+}
+
+.meterFill {
+  height: 100%;
+  border-radius: inherit;
+  background-color: var(--color-accent);
+  transition: width var(--duration-slow) var(--ease-out);
+}
+
+.meterFill.tone_ok { background-color: var(--color-ok); }
+.meterFill.tone_warn { background-color: var(--color-warn); }
+.meterFill.tone_danger { background-color: var(--color-danger); }
+
+/* ── Sahifa sarlavhasi ──────────────────────── */
+.pageHead {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--gap-16);
+  flex-wrap: wrap;
+}
+
+.pageHeadText {
+  min-width: 0;
+  flex: 1;
+}
+
+.pageTitle {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-16);
+  font-weight: 600;
+}
+
+.pageHeadActions {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-8);
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+/* ── Bo'sh holat ────────────────────────────── */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap-8);
+  padding: var(--padding-40) var(--padding-16);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-13);
+  text-align: center;
+}
+
+/* ── Yuklanmoqda ────────────────────────────── */
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-10);
+  padding: var(--padding-8) 0;
+}
+
+.loadingRow {
+  height: 44px;
+  // Qatorlar birin-ketin paydo bo'ladi
+  animation-delay: calc(var(--i, 0) * var(--stagger-step));
+
+  &:nth-child(2) { width: 82%; }
+  &:nth-child(3) { width: 64%; }
+}
+
+/* ── Xato ───────────────────────────────────── */
+.error {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-10);
+  padding: var(--padding-12) var(--padding-16);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--border-radius-12);
+  background-color: var(--color-danger-soft);
+  color: var(--color-danger-text);
+  font-size: var(--font-size-13);
+  line-height: 1.5;
+  animation: pop-in var(--duration-base) var(--ease-spring) both;
+
+  svg {
+    flex-shrink: 0;
+  }
+
+  button {
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+}

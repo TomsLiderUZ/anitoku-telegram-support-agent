@@ -1,0 +1,105 @@
+/**
+ * ============================================
+ * ANITOKU — Animatsiyalar
+ * ============================================
+ *
+ * Uchta qoida, hech qanday istisnosiz:
+ *
+ *  1. FAQAT transform va opacity. Ular brauzerning compositor
+ *     qatlamida ishlaydi — layout va paint qayta hisoblanmaydi.
+ *     `height`, `top`, `width` animatsiyasi har kadrda butun
+ *     sahifani qayta o'lchashga majbur qiladi va sekin kompyuterda
+ *     darhol sakrab qoladi.
+ *
+ *  2. 0.15-0.4 soniya. Effekt ko'rinadi, kutish sezilmaydi. Panel —
+ *     kuniga o'nlab marta ochiladigan ish quroli; bu yerda uzun
+ *     animatsiya "chiroyli" emas, sekin.
+ *
+ *  3. prefers-reduced-motion — hammasi o'chadi (fayl oxirida).
+ *     Vestibulyar sezgirlikda harakat bosh aylanishiga sabab bo'ladi;
+ *     bu bezak emas, foydalanish imkoni masalasi.
+ */
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* "Hozir ishlayapti" belgisidagi nafas — jonli oqim, aktiv vazifa */
+@keyframes soft-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+
+/* Ma'lumot kelguncha joyni to'ldiruvchi yaltirash (skeleton) */
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position: 200% 0; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Yangilangan raqamga qisqa e'tibor — "bu son hozir o'zgardi" */
+@keyframes value-bump {
+  0%   { transform: none; }
+  35%  { transform: translateY(-3px) scale(1.03); }
+  100% { transform: none; }
+}
+
+.anim-fade-up { animation: fade-up var(--duration-base) var(--ease-out) both; }
+.anim-fade-in { animation: fade-in var(--duration-base) var(--ease-out) both; }
+.anim-pop-in  { animation: pop-in var(--duration-base) var(--ease-spring) both; }
+
+/**
+ * Ro'yxat elementlari birin-ketin chiqadi. Kechikish inline style
+ * orqali beriladi: style={{ "--i": index }}.
+ *
+ * min(var(--i), 10) — ataylab. 50 qatorli jadvalda oxirgi qator 2
+ * soniya kutib tursa, bu jonlilik emas, sekinlik bo'lib seziladi.
+ * O'ninchisidan keyin hammasi birga chiqaveradi.
+ */
+.anim-stagger > * {
+  animation: fade-up var(--duration-base) var(--ease-out) both;
+  animation-delay: calc(min(var(--i, 0), 10) * var(--stagger-step));
+}
+
+/* Skeleton — ma'lumot kelguncha turadigan kulrang blok */
+.skeleton {
+  border-radius: var(--border-radius-8);
+  background-image: linear-gradient(
+    90deg,
+    var(--color-bg-secondary) 25%,
+    var(--color-bg-hover) 37%,
+    var(--color-bg-secondary) 63%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,306 @@
+/**
+ * ============================================
+ * ANITOKU — Panel primitivlari
+ * ============================================
+ *
+ * Butun panelda takrorlanadigan eng kichik qismlar: tugma, kiritish
+ * maydoni, jadval, qator/to'r. Ular CSS-modul EMAS, ataylab global —
+ * har bir sahifada AYNAN bir xil ko'rinishi kerak. Modul bo'lsa har
+ * sahifa o'z nusxasini yozib, ko'rinish asta-sekin bir-biridan
+ * uzoqlashib ketardi.
+ *
+ * globals.css ga tegilmadi — u dodakino'dan kelgan asos (boot-loader,
+ * offline banner, NProgress, sahifa o'tishi). Panelga xos hamma narsa
+ * shu yerda: qaysi qism qayerdan kelgani ko'rinib tursin.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* globals.css da body qat'iy 100vh (bir ekranli sayt uchun to'g'ri).
+   Panelda sahifa uzun bo'ladi — balandlik erkin, lekin ekrandan kam
+   emas: aks holda qisqa sahifada fon tugab, ostida boshqa rangdagi
+   chiziq qolardi. */
+body {
+  height: auto;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Klaviatura bilan yuruvchi qayerdaligini ko'rsin; sichqoncha bilan
+   bosilganda halqa chiqmasin — shuning uchun :focus emas,
+   :focus-visible. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--border-radius-6);
+}
+
+/**
+ * ── Tartib o'qi (.layout-inner) ───────────────
+ *
+ * Navbar, sahifa kontenti va footer AYNAN shu bitta sinfdan
+ * foydalanadi. Sabab — ilgari har biri o'z padding'ini yozardi va
+ * navbardagi sarlavha bilan sahifadagi sarlavha bir necha piksel
+ * siljib turardi. Ko'z buni "nimadir qiyshiq" deb darhol ilg'ardi,
+ * lekin sababini topish qiyin edi.
+ *
+ * Sinf ataylab GLOBAL, CSS-modul emas: modul bo'lsa uchta komponent
+ * uchta nusxa yozardi va ular vaqt o'tib yana ajralib ketardi. Bitta
+ * qoida — siljish printsipial jihatdan mumkin emas.
+ */
+.layout-inner {
+  width: var(--width-100-percent);
+  max-width: var(--layout-content-max);
+  margin: 0 auto;
+  padding-right: var(--layout-gutter);
+  padding-left: var(--layout-gutter);
+}
+
+/* ── Tugma ────────────────────────────────────
+   Bosilganda 1px "cho'kadi" — tegish jismoniy his beradi. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap-6);
+  padding: var(--padding-10) var(--padding-16);
+  border: 1px solid transparent;
+  border-radius: var(--border-radius-8);
+  background-color: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-family: inherit;
+  font-size: var(--font-size-14);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
+}
+
+.btn:hover:not(:disabled) {
+  background-color: var(--color-accent-hover);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn.ghost {
+  background-color: transparent;
+  border-color: var(--color-border-primary);
+  color: var(--color-text-secondary);
+}
+
+.btn.ghost:hover:not(:disabled) {
+  background-color: var(--color-bg-hover);
+  border-color: var(--color-accent);
+  color: var(--color-text-primary);
+}
+
+.btn.danger {
+  background-color: var(--color-danger);
+  color: #14100f;
+}
+
+.btn.danger:hover:not(:disabled) {
+  background-color: var(--color-danger-hover);
+}
+
+.btn.sm {
+  padding: var(--padding-6-10);
+  font-size: var(--font-size-13);
+}
+
+.btn.block {
+  width: var(--width-100-percent);
+}
+
+/* ── Kiritish maydonlari ──────────────────── */
+input,
+select,
+textarea {
+  width: var(--width-100-percent);
+  padding: var(--padding-10) var(--padding-12);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-8);
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-14);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  /* Halqa border kengaytirish orqali emas, soya bilan — element
+     "sakramaydi" va yonidagilar joyidan siljimaydi. */
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-text-muted);
+}
+
+textarea {
+  min-height: 92px;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-6);
+  margin-bottom: var(--margin-16);
+}
+
+.field > span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-13);
+  font-weight: 500;
+}
+
+.field > small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-12);
+  line-height: 1.5;
+}
+
+/* ── Tartib yordamchilari ─────────────────── */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-10);
+  flex-wrap: wrap;
+}
+
+.row.end {
+  justify-content: flex-end;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.grid {
+  display: grid;
+  gap: var(--gap-16);
+}
+
+.grid.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid.c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid.c4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+@media (max-width: 1024px) {
+  .grid.c3,
+  .grid.c4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 768px) {
+  .grid.c2,
+  .grid.c3,
+  .grid.c4 { grid-template-columns: minmax(0, 1fr); }
+}
+
+.hint {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-13);
+  line-height: 1.55;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-12);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+pre.block {
+  margin: 0;
+  padding: var(--padding-16);
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-12);
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-12);
+  line-height: 1.6;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── Jadval ───────────────────────────────────
+   Keng jadval o'z ichida gorizontal siljiydi. Sahifaning O'ZI hech
+   qachon yon tomonga surilmasligi kerak — bu mobil qurilmada eng
+   tez seziladigan buzilish. */
+.table-wrap {
+  width: var(--width-100-percent);
+  overflow-x: auto;
+}
+
+table {
+  width: var(--width-100-percent);
+  border-collapse: collapse;
+  font-size: var(--font-size-13);
+}
+
+thead th {
+  padding: var(--padding-8) var(--padding-12);
+  border-bottom: 1px solid var(--color-border-secondary);
+  color: var(--color-text-muted);
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+}
+
+thead th.num {
+  text-align: right;
+}
+
+tbody td {
+  padding: var(--padding-10) var(--padding-12);
+  border-bottom: 1px solid var(--color-border-secondary);
+  color: var(--color-text-secondary);
+  vertical-align: top;
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+tbody tr {
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+tbody tr:hover {
+  background-color: var(--color-bg-hover);
+}

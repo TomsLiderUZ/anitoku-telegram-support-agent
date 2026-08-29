@@ -1,0 +1,69 @@
+.chart {
+  width: var(--width-100-percent);
+  // Diagramma paydo bo'lganda so'nib chiqadi; recharts o'zi ichkarida
+  // chiziqni chizadi, bu esa butun blok uchun
+  animation: fade-in var(--duration-base) var(--ease-out) both;
+}
+
+.donut {
+  position: relative;
+  width: var(--width-100-percent);
+  animation: fade-in var(--duration-base) var(--ease-out) both;
+}
+
+/**
+ * Halqa o'rtasidagi umumiy son.
+ *
+ * `pointer-events: none` — MAJBURIY: usiz markazdagi matn diagramma
+ * ustidagi sichqonchani ushlab qolib, bo'laklarning tooltipi
+ * ochilmasdi.
+ *
+ * Pastdagi legend balandligi hisobga olinib biroz yuqoriga suriladi
+ * (translateY), aks holda matn halqaning markazidan pastda turardi.
+ */
+.donutCenter {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, calc(-50% - 12px));
+  pointer-events: none;
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* ── Tooltip ────────────────────────────────── */
+.tooltip {
+  padding: var(--padding-8) var(--padding-12);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-8);
+  background-color: var(--color-bg-surface);
+  box-shadow: var(--shadow-md);
+  font-size: var(--font-size-12);
+}
+
+.tooltipLabel {
+  margin-bottom: var(--gap-4);
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.tooltipRow {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-6);
+  color: var(--color-text-secondary);
+
+  strong {
+    margin-left: auto;
+    padding-left: var(--gap-10);
+    color: var(--color-text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.tooltipDot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--border-radius-circle);
+  flex-shrink: 0;
+}

@@ -1,0 +1,52 @@
+/**
+ * Panel karkasi.
+ *
+ * TARTIB: sidebar chapda "yopishib" turadi (sticky), o'ngdagi ustun
+ * esa qolgan kenglikni to'liq egallaydi. `min-width: 0` — flex
+ * bolasining majburiy sozlamasi: usiz ichkaridagi keng jadval yoki
+ * uzun kod qatori butun sahifani cho'zib yuboradi va gorizontal
+ * scrollbar chiqadi.
+ */
+
+.wrapper {
+  display: flex;
+  width: var(--width-screen);
+  min-height: var(--height-screen);
+  background-color: var(--color-bg-primary);
+  position: relative;
+}
+
+.container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: var(--height-screen);
+  min-width: 0; // keng kontent sahifani cho'zib yubormasin
+}
+
+.content {
+  flex: 1;
+  width: var(--width-100-percent);
+  padding-top: var(--gap-24);
+  padding-bottom: var(--gap-32);
+}
+
+/**
+ * Sahifalar ichidagi bloklar orasidagi bo'shliq shu yerdan beriladi.
+ * Har bir sahifa o'zi `margin-bottom` yozgan payt qiymatlar asta-sekin
+ * bir-biridan farq qila boshlagandi — endi bitta manba.
+ */
+.inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-20);
+}
+
+/* ── Mobil (--bp-mobile: 768px) ──────────────────────────────
+   Pastki tabbar kontentning oxirini yopib qo'ymasligi kerak:
+   balandligi + iPhone "home indicator" zaxirasi qo'shiladi. */
+@media (max-width: 1024px) {
+  .content {
+    padding-bottom: calc(var(--tabbar-height) + var(--gap-24) + env(safe-area-inset-bottom, 0px));
+  }
+}

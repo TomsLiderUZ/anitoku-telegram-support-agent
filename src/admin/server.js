@@ -1,5 +1,6 @@
 'use strict';
 const fs = require('node:fs');
+const crypto = require('node:crypto');
 const path = require('node:path');
 const express = require('express');
 const config = require('../config');
@@ -13,6 +14,30 @@ const runtime = require('../agent/runtime');
 
 const log = createLogger('admin');
 
+/** Where `npm run build` puts the React panel. */
+const UI_DIR = path.join(__dirname, 'ui', 'build');
+
+/**
+ * sha256 of every inline <script> in the built shell, formatted for CSP.
+ *
+ * Read once at startup: the file only changes on a rebuild, and a rebuild
+ * restarts the process anyway. Returns an empty list when the panel has not
+ * been built — the policy then simply allows nothing inline.
+ */
+function inlineScriptHashes() {
+  try {
+    const html = fs.readFileSync(path.join(UI_DIR, 'index.html'), 'utf8');
+    const hashes = [];
+    for (const m of html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)) {
+      const digest = crypto.createHash('sha256').update(m[1], 'utf8').digest('base64');
+      hashes.push(`'sha256-${digest}'`);
+    }
+    return hashes;
+  } catch {
+    return [];
+  }
+}
+
 function createServer() {
   const app = express();
   app.disable('x-powered-by');
@@ -23,13 +48,21 @@ function createServer() {
 
   // Baseline hardening. The panel is same-origin and self-contained, so a
   // strict CSP costs nothing and blocks injected content outright.
+  //
+  // The React shell carries one inline script — it applies the saved theme
+  // before the bundle loads, so the page never flashes the wrong colours.
+  // Rather than weaken the policy with 'unsafe-inline', its sha256 is
+  // computed from the built file and allowed by hash: anything else inline
+  // is still refused.
+  const scriptSrc = ["'self'", ...inlineScriptHashes()].join(' ');
+
   app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'same-origin');
     res.setHeader(
       'Content-Security-Policy',
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; frame-ancestors 'none'"
+      `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; frame-ancestors 'none'`
     );
     next();
   });
@@ -50,9 +83,13 @@ function createServer() {
     });
   });
 
+  // The React panel has its own login screen, so /login only forwards there.
+  // requireAuth still redirects here, which keeps one entry point: change the
+  // login page's address and only this line needs to know.
   app.get('/login', (req, res) => {
     const cookies = auth.parseCookies(req.headers.cookie);
     if (auth.readSession(cookies[auth.COOKIE])) return res.redirect('/');
+    if (fs.existsSync(path.join(UI_DIR, 'index.html'))) return res.redirect('/ui/auth');
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
   });
 
@@ -74,29 +111,35 @@ function createServer() {
   // ── protected ─────────────────────────────────────────────────────────────
   app.use('/api', auth.requireAuth, apiRouter);
 
-  // The React panel. Its assets are content-hashed, so they cache for a year
-  // while index.html never does — a stale shell would load a build that no
-  // longer exists.
-  const uiDir = path.join(__dirname, 'public-ui');
+  // ── The React panel ───────────────────────────────────────────────────────
+  // Served WITHOUT requireAuth, deliberately. The shell is just markup and
+  // JavaScript — it holds no data. Every number on it comes from /api, which
+  // is protected; without a session those calls return 401 and the app sends
+  // the visitor to its own login screen. Gating the shell as well would mean
+  // two different login pages for one panel.
+  //
+  // Assets are content-hashed, so they cache for a year while index.html
+  // never does — a stale shell would ask for a build that no longer exists.
+  const uiDir = UI_DIR;
   const hasUi = fs.existsSync(path.join(uiDir, 'index.html'));
 
   if (hasUi) {
     app.use(
-      '/ui/assets',
-      auth.requireAuth,
-      express.static(path.join(uiDir, 'assets'), {
-        immutable: true,
-        maxAge: '365d',
-      })
+      '/ui/static',
+      express.static(path.join(uiDir, 'static'), { immutable: true, maxAge: '365d' })
     );
+
+    // Service worker, favicon and anything else copied from public/.
+    app.use('/ui', express.static(uiDir, { index: false, maxAge: '1h' }));
+
     // Client-side routing: every /ui path serves the same shell.
-    app.get(/^\/ui(\/.*)?$/, auth.requireAuth, (req, res) => {
+    app.get(/^\/ui(\/.*)?$/, (req, res) => {
       res.setHeader('Cache-Control', 'no-cache, must-revalidate');
       res.sendFile(path.join(uiDir, 'index.html'));
     });
   }
 
-  app.get('/', auth.requireAuth, (req, res) => {
+  app.get('/', (req, res) => {
     if (hasUi) return res.redirect('/ui/');
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
   });

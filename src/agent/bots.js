@@ -5,7 +5,7 @@ const { db, recordEvent } = require('../core/db');
 const { createLogger } = require('../core/logger');
 const projects = require('./projects');
 const botfather = require('./botfather');
-const coder = require('./coder');
+const builder = require('./build');
 
 const log = createLogger('bots');
 
@@ -96,6 +96,43 @@ const BOT_BRIEF = `This is a Telegram bot. Requirements:
 - Verify before finishing: node --check index.js, then start it in the BACKGROUND (node index.js > run.log 2>&1 & echo $!), give it 3 seconds, confirm run.log has no crash, then kill the pid. Never run it in the foreground.`;
 
 /**
+ * The bot profile, registered with the shared build pipeline.
+ *
+ * Everything here is what makes a bot a bot; the seven steps around it —
+ * create, stop, write, start, verify, log — live in build.js and are the
+ * same ones a website or a plain script goes through. A bot is not a
+ * different class of work, only a different way of proving it works.
+ */
+builder.register('telegram-bot', {
+  label: 'Telegram bot',
+  defaultRunCmd: 'node index.js',
+  brief: () => BOT_BRIEF,
+
+  // A bot needs its token in the environment before any code is written —
+  // the coding agent verifies by actually starting it.
+  ensure: ({ name, spec, meta }) => ensureProject(meta.username, { name, spec }),
+
+  /**
+   * Ask the bot itself whether it is alive.
+   *
+   * Reading the log would only tell us the process started; sending /start
+   * from a real Telegram account is the only check that covers the token,
+   * the polling loop and the handler at once.
+   */
+  verify: async ({ project, meta }) => {
+    await new Promise((res) => setTimeout(res, 4000));
+    const u = clean(meta.username);
+    const probe = await botfather
+      .talk('@' + u, '/start', { waitMs: 12_000 })
+      .catch((e) => ({ text: '', error: e.message }));
+
+    return probe.text
+      ? { ok: true, reply: String(probe.text).slice(0, 300), buttons: (probe.buttons || []).map((b) => b.text) }
+      : { ok: false, note: 'bot 12 s ichida /start ga javob bermadi — logni tekshir', error: probe.error };
+  },
+});
+
+/**
  * Write (or extend) a bot's code and run it.
  *
  * `fix` describes a change to an existing bot; without it the spec defines the
@@ -105,43 +142,23 @@ const BOT_BRIEF = `This is a Telegram bot. Requirements:
 async function build({ username, name = null, spec = null, fix = null, onStep = null }) {
   const u = clean(username);
   if (!u) throw new Error('bot username kerak');
-  const p = await ensureProject(u, { name, spec });
-  const existing = fs.existsSync(path.join(p.dir, 'index.js'));
 
-  const task = existing
-    ? `Modify the existing Telegram bot in this project.\n\nWHAT TO CHANGE:\n${fix || spec}\n\nEverything the bot already does must keep working — read index.js first and confirm each existing command still exists afterwards.\n\n${BOT_BRIEF}`
-    : `Build a Telegram bot from scratch in this project.\n\nWHAT IT MUST DO:\n${spec || fix}\n\n${BOT_BRIEF}`;
+  const r = await builder.run({
+    kind: 'telegram-bot',
+    slug: slugOf(u),
+    name,
+    spec,
+    fix,
+    meta: { username: u },
+    onStep,
+  });
 
-  const wasAlive = p.alive;
-  if (wasAlive) projects.stop(p.slug); // two pollers on one token fight over updates
-
-  const r = await coder.runTask({ project: projects.record(p.slug), task, onStep });
-
-  let started = null;
-  try {
-    await projects.restart(p.slug);
-    started = true;
-  } catch (err) {
-    started = err.message;
-  }
-
-  // Give it a moment, then ask the bot itself whether it is alive.
-  await new Promise((res) => setTimeout(res, 4000));
-  const probe = await botfather.talk('@' + u, '/start', { waitMs: 12_000 }).catch((e) => ({ text: '', error: e.message }));
-  const commands = detectCommands(path.join(p.dir, 'index.js'));
-
+  const commands = detectCommands(path.join(projects.dirOf(r.project), 'index.js'));
   recordEvent('bots', 'Bot built', { username: u, ok: r.ok, commands });
-  return {
-    ...r,
-    username: '@' + u,
-    project: p.slug,
-    started,
-    commands,
-    smokeTest: probe.text
-      ? { ok: true, reply: String(probe.text).slice(0, 300), buttons: (probe.buttons || []).map((b) => b.text) }
-      : { ok: false, note: 'bot 12 s ichida /start ga javob bermadi — logni tekshir', error: probe.error },
-    logsTail: projects.logs(p.slug, 15),
-  };
+
+  // `smokeTest` is kept as an alias of the pipeline's `check`: the assistant's
+  // tool schema and older transcripts refer to it by that name.
+  return { ...r, username: '@' + u, commands, smokeTest: r.check };
 }
 
 /**

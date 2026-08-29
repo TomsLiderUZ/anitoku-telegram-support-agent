@@ -1,0 +1,29 @@
+/* Yangi ratsion qatori — kenglikda bir qator, torda ustma-ust */
+.newRoutine {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 2fr) auto;
+  gap: var(--gap-8);
+  align-items: center;
+}
+
+@media (max-width: 1024px) {
+  .newRoutine {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.rowTitle {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-13);
+  font-weight: 600;
+}
+
+.err {
+  margin-top: var(--gap-4);
+  color: var(--color-danger-text);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-11);
+  line-height: 1.5;
+  word-break: break-word;
+  max-width: 520px;
+}

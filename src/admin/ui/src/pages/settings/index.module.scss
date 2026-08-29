@@ -1,0 +1,75 @@
+/* ── QR ─────────────────────────────────────── */
+.qr {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+  padding: var(--padding-16);
+  border: 1px dashed var(--color-border-primary);
+  border-radius: var(--border-radius-12);
+  background-color: #ffffff; // QR har doim oq fonda — skanerlash uchun
+  text-align: center;
+
+  svg {
+    width: 100%;
+    max-width: 200px;
+    height: auto;
+  }
+
+  // Tungi mavzuda oq kvadrat ko'zni qamashtirmasin
+  .hint {
+    color: #6b7381;
+  }
+}
+
+.qrNote {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  margin-top: var(--gap-8);
+  text-align: center;
+}
+
+/* ── Jonli jurnal ───────────────────────────── */
+.logs {
+  max-height: 420px;
+  padding: var(--padding-12);
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-12);
+  background-color: var(--color-bg-secondary);
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-11);
+  line-height: 1.65;
+}
+
+.logLine {
+  display: flex;
+  gap: var(--gap-8);
+  color: var(--color-text-secondary);
+  word-break: break-word;
+  animation: fade-in var(--duration-fast) var(--ease-out) both;
+
+  // Oxirgi ustun qolgan joyni egallasin
+  span:last-child {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.logTime {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.logTag {
+  flex-shrink: 0;
+  min-width: 72px;
+  color: var(--color-accent);
+}
+
+.info { color: var(--color-text-secondary); }
+.warn { color: var(--color-warn); }
+.error { color: var(--color-danger-text); }
+.debug { color: var(--color-text-muted); }

@@ -1,0 +1,64 @@
+.big {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-26);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+/* ── Yorliqlar ──────────────────────────────── */
+.tabs {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-8);
+  background-color: var(--color-bg-secondary);
+}
+
+.tab {
+  padding: var(--padding-6-10);
+  border: none;
+  border-radius: var(--border-radius-6);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-12);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+
+  &:hover {
+    color: var(--color-text-primary);
+  }
+}
+
+.tabOn {
+  background-color: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── Ko'nikmalar ────────────────────────────── */
+.skills {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--gap-12);
+}
+
+.skill {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-6);
+  padding: var(--padding-12);
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-12);
+  background-color: var(--color-bg-secondary);
+  animation: fade-up var(--duration-base) var(--ease-out) both;
+
+  strong {
+    color: var(--color-text-primary);
+    font-size: var(--font-size-13);
+  }
+}
