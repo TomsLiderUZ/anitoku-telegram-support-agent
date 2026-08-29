@@ -79,6 +79,12 @@ Platform: ${process.platform}, Node ${process.versions.node}. npm is available. 
    - dependencies: \`npm install <pkg>\` when you import something new
    - behaviour: actually RUN it (\`node script.js\`, \`npm test\`, curl an endpoint) and read the output
    - if it fails, fix it and verify again. Loop until it genuinely passes.
+   - ANYTHING THAT DOES NOT EXIT BY ITSELF (a server, a bot, a watcher) must be
+     started in the background and stopped when you are done, or you will block
+     yourself until the timeout:
+       \`node server.js > run.log 2>&1 & echo $!\`   then \`sleep 2 && curl ...\`
+       finish with \`kill <pid>\`
+     NEVER run a server in the foreground.
 5. Mark each todo item done ONLY after it is verified.
 6. finish() only when the whole checklist is complete.
 
@@ -366,7 +372,11 @@ async function execute({ name, args, dir, owner, sessionId, changed, commands, p
     case 'bash': {
       commands.push(args.command);
       const r = await shell.run(args.command, { sessionId, timeoutMs: Math.min(600, Number(args.timeout_seconds) || 120) * 1000 });
-      return { ok: r.ok, exitCode: r.code, output: r.output, cwd: r.cwd, timedOut: r.timedOut || false };
+      const out = { ok: r.ok, exitCode: r.code, output: r.output, cwd: r.cwd, timedOut: r.timedOut || false };
+      // A blocking server in the foreground eats the whole timeout and the
+      // task stalls there. Say so, rather than leaving the model to guess.
+      if (r.timedOut) out.hint = 'The command never exited — if it is a server or bot, start it in the background (`cmd > run.log 2>&1 &`) and kill it when done.';
+      return out;
     }
 
     case 'set_run_command':
