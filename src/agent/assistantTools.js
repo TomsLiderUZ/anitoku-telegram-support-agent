@@ -15,6 +15,7 @@ const coder = require('./coder');
 const servers = require('./servers');
 const shell = require('./shell');
 const routines = require('./routines');
+const todo = require('./todo');
 const { parseWhen, fmtTashkent } = require('./timeparse');
 const ingest = require('../knowledge/ingest');
 
@@ -90,6 +91,10 @@ const definitions = [
   fn('press_button', "Botning soʻnggi xabaridagi tugmani bosish (inline yoki klaviatura).", { bot: S('@username'), button: S('Tugma matni (qisman ham boʻladi)'), wait_seconds: I('') }, ['bot', 'button']),
   fn('read_bot', 'Bot bilan soʻnggi yozishma va hozirgi tugmalar.', { bot: S(''), limit: I('') }, ['bot']),
 
+  // ── planning ───────────────────────────────────────────────────────────
+  fn('plan', "Koʻp bosqichli ish uchun REJA tuzish. Toms bir xabarda 2 tadan koʻp ish bersa yoki ish uzoq davom etsa — AVVAL shuni chaqir, keyin bosqichma-bosqich bajar. Reja Tomsga ham koʻrinadi.", { steps: { type: 'array', items: { type: 'string' }, description: 'Bosqichlar, tartib bilan' } }, ['steps']),
+  fn('plan_step_done', "Rejadagi bosqichni bajarilgan (yoki toʻsiq/oʻtkazib yuborilgan) deb belgilash. Faqat HAQIQATAN bajarilgach chaqir.", { step: S('Bosqich raqami yoki matnining bir qismi'), status: { type: 'string', enum: ['done', 'blocked', 'skipped'] }, note: S('Natija yoki sabab') }, ['step', 'status']),
+
   // ── terminal: the universal fallback ──────────────────────────────────
   fn('bash', "Shu kompyuterda SHELL BUYRUQ bajarish. Bu sening universal vositang: alohida vosita YOʻQ boʻlgan HAR QANDAY ishni shu orqali qil (fayl, tarmoq, git, npm, curl, jarayonlar, tizim sozlamalari, hatto 'claude' CLI). POSIX shell — mkdir -p, ls, grep, pipe hammasi ishlaydi. Ish papkasi va `cd` sessiya davomida saqlanadi. Xatoni koʻrsang oʻzing tuzatib qayta urin.", { command: S('Shell buyrugʻi'), session: S("Sessiya nomi, standart 'main'"), timeout_seconds: I('standart 120, koʻpi 600') }, ['command']),
   fn('ssh_connect', "Serverga ulanish maʼlumotlarini saqlash. Toms IP va parolni chatda bersa (masalan '206.189.157.53 root MyPass') shuni ishlat — matnni oʻzgartirmasdan `spec` ga ber. Bir marta ulangach kalit oʻrnatiladi va parol boshqa kerak boʻlmaydi.", { spec: S("IP/parol/user boʻlgan matn, xohlagan shaklda"), name: S('Serverga qisqa nom, ixtiyoriy') }, ['spec']),
@@ -137,7 +142,7 @@ const definitions = [
  * that makes a missing group survivable.
  */
 const GROUPS = {
-  core: ['send_message', 'send_private', 'read_chat', 'find_contact', 'remember', 'forget', 'list_memory', 'bash', 'agent_status', 'inbox_digest', 'my_chats'],
+  core: ['plan', 'plan_step_done', 'send_message', 'send_private', 'read_chat', 'find_contact', 'remember', 'forget', 'list_memory', 'bash', 'agent_status', 'inbox_digest', 'my_chats'],
   messaging: ['schedule_message', 'schedule_task', 'watch_reply', 'list_watches', 'forward_message', 'delete_message', 'add_alias'],
   chats: ['join_chat', 'leave_chat', 'delete_chat', 'create_chat', 'chat_info', 'list_members', 'promote_admin', 'demote_admin', 'ban_user', 'kick_user', 'unban_user', 'add_members', 'invite_link', 'edit_chat', 'pin_message'],
   bots: ['create_bot', 'configure_bot', 'build_and_run_bot', 'my_bots', 'list_my_bots', 'get_bot_token', 'revoke_bot_token', 'delete_bot', 'stop_bot', 'start_bot', 'bot_logs', 'talk_to_bot', 'press_button', 'read_bot'],
@@ -224,6 +229,8 @@ function formatSecret(name, r) {
 
 function createExecutor(ctx) {
   const used = [];
+  // One checklist per request, so a multi-step job can be tracked and shown.
+  const planOwner = `assistant:${ctx.chatId}:${ctx.msgId || Date.now()}`;
   const secrets = []; // { tool, text } — delivered privately when the command came from a group
   const founderDm = ctx.founderDm;
 
@@ -487,6 +494,17 @@ function createExecutor(ctx) {
         const p = projects.create({ name: args.name, kind, spec: args.spec || null, runCmd: args.run_cmd || (kind === 'node' || kind === 'telegram-bot' ? 'node index.js' : null), env: Object.keys(env).length ? env : null });
         return { ok: true, project: { slug: p.slug, name: p.name, kind: p.kind, dir: p.dir, run_cmd: p.run_cmd, envKeys: p.envKeys } };
       }
+      // ── planning ───────────────────────────────────────────────────────
+      case 'plan': {
+        const items = todo.setList(planOwner, args.steps);
+        return { ok: true, steps: items.length, plan: todo.summary(planOwner).text };
+      }
+      case 'plan_step_done': {
+        const r = todo.update(planOwner, args.step, args.status || 'done', args.note || null);
+        const s = todo.summary(planOwner);
+        return { ...r, remaining: s ? s.total - s.done : 0, complete: s ? s.complete : true, plan: s ? s.text : null };
+      }
+
       // ── terminal ───────────────────────────────────────────────────────
       case 'bash':
         return shell.run(args.command, {
