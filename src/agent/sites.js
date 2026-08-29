@@ -56,7 +56,40 @@ async function allocatePort(slug) {
   throw new Error('boʻsh port topilmadi');
 }
 
+/**
+ * How this project should actually be started.
+ *
+ * A coding agent may reach for Next.js or Express when a plain server would
+ * do; the run command has to match what it built, or the site is written and
+ * then never starts. `package.json` is the source of truth.
+ */
+function detectRunCmd(dir) {
+  const pkgPath = path.join(dir, 'package.json');
+  if (fs.existsSync(pkgPath)) {
+    let pkg = {};
+    try {
+      pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    } catch {
+      /* malformed package.json — fall through to the file check */
+    }
+    const scripts = pkg.scripts || {};
+    // A framework that needs building must be built before it is served.
+    if (scripts.build && scripts.start) return 'npm run build && npm start';
+    if (scripts.start) return 'npm start';
+    if (pkg.main && fs.existsSync(path.join(dir, pkg.main))) return `node ${pkg.main}`;
+  }
+  for (const f of ['index.js', 'server.js', 'app.js', 'main.js']) {
+    if (fs.existsSync(path.join(dir, f))) return `node ${f}`;
+  }
+  return 'node index.js';
+}
+
 const SITE_BRIEF = (port) => `This is a web project. Requirements:
+- Keep it SIMPLE and dependency-free unless the task truly needs more: a plain
+  node:http server plus static files in public/ starts instantly and cannot
+  break at build time. Do NOT reach for Next.js, React or a database for a
+  content site — you would be adding a build step and a failure mode for
+  nothing.
 - Entry point index.js, started by "node index.js".
 - Listen on process.env.PORT (currently ${port}) and 0.0.0.0 — never a hardcoded port.
 - Serve real HTML: a working page, not a JSON stub. Static assets from a public/ folder.
@@ -90,6 +123,13 @@ async function build({ name, spec, fix = null, slug = null, onStep = null }) {
 
   if (p.alive) projects.stop(s);
   const r = await coder.runTask({ project: projects.record(s), task, onStep });
+
+  // Start it the way it was actually built, not the way we assumed.
+  const runCmd = detectRunCmd(projects.dirOf(s));
+  if (runCmd !== projects.record(s).run_cmd) {
+    projects.update(s, { runCmd });
+    log.info('ishga tushirish buyrugʻi aniqlandi', { slug: s, runCmd });
+  }
 
   let started = null;
   try {
