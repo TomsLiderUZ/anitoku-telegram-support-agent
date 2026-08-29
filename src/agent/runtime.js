@@ -456,13 +456,16 @@ class Runtime extends EventEmitter {
           senderUsername: meta.senderUsername,
         });
 
+    // Model va provayder `meta` ichida keladi (assistant), yoki yuqori
+    // darajada (brain) — ikkalasidan ham o'qiymiz, aks holda jurnalda
+    // "model: null" turib, qaysi model javob berganini aytmaydi.
     log.info('javob tayyor', {
       chatId,
       ms: Date.now() - startedAt,
       ok: !!result.ok,
-      model: result.model || null,
-      provider: result.provider || null,
-      tools: Array.isArray(result.tools) ? result.tools.length : undefined,
+      model: result.model || result.meta?.model || null,
+      provider: result.provider || result.meta?.provider || null,
+      tools: (result.meta?.toolsUsed || result.tools || []).length || undefined,
     });
 
     if (!result.ok) {
