@@ -438,9 +438,18 @@ function cloneInto(slug, url) {
    * yiqilardi. package.json esa to'g'ri javobni o'zida saqlaydi.
    */
   const detected = detectRunCmd(dir);
-  if (detected) {
-    db.prepare("UPDATE projects SET run_cmd = ?, updated_at = datetime('now') WHERE slug = ?").run(detected, slug);
-  }
+
+  /**
+   * Ko'chirilgan repo — ro'yxatda KO'RINADIGAN loyiha.
+   *
+   * `list()` faqat `deployed` yoki ishlab turganlarni ko'rsatadi, chunki
+   * ishga tushirilmagan loyiha odatda tajriba. Lekin git ombordan
+   * ko'chirish tajriba emas: bu ataylab olib kelingan tayyor kod.
+   * Belgisiz u ro'yxatda umuman ko'rinmasdi — "clone qildim" desa ham,
+   * loyihalar bo'limi bo'sh turardi.
+   */
+  db.prepare("UPDATE projects SET run_cmd = COALESCE(?, run_cmd), deployed = 1, updated_at = datetime('now') WHERE slug = ?")
+    .run(detected, slug);
 
   log.info('loyiha git ombordan koʻchirildi', { slug, url: clean, files: files.length, runCmd: detected });
   recordEvent('projects', 'Project cloned', { slug, url: clean, files: files.length });

@@ -22,22 +22,6 @@ const REQUEUE_WAIT_MS = 1_500;
  */
 const MAX_QUEUE_WAIT_MS = 40_000;
 
-/** Agentni chaqiradigan nomlar — @username dan tashqari. */
-const AGENT_NAMES = /(^|[\s,.!?—-])(agent|admin|anitoku[\s_]?admin|bot)([\s,.!?:—-]|$)/i;
-
-/**
- * Guruhdagi xabar agentga qaratilganmi?
- *
- * Uch belgi: agentning xabariga javob, @username bilan chaqirish, yoki
- * nomini aytish. Boshqa hamma narsa — odamlarning o'zaro suhbati.
- */
-function addressedToAgent(text, { isReplyToMe = false, selfUser = '' } = {}) {
-  if (isReplyToMe) return true;
-  const t = String(text || '');
-  if (selfUser && new RegExp(`@${selfUser}\\b`, 'i').test(t)) return true;
-  return AGENT_NAMES.test(t);
-}
-
 /**
  * Bridges Telegram events to the agent brain.
  *
@@ -206,7 +190,7 @@ class Runtime extends EventEmitter {
        * narsa ko'rsatma.
        */
       const replyingToSomeoneElse = !!(msg.replyTo && msg.replyTo.replyToMsgId) && !isReplyToMe;
-      if (chatType !== 'private' && replyingToSomeoneElse && !addressedToAgent(text, { selfUser })) {
+      if (chatType !== 'private' && replyingToSomeoneElse && !guardrails.addressedToAgent(text, { selfUsername: selfUser })) {
         this.stats.skipped++;
         log.debug('skip: rahbar guruhda boshqa odamga javob yozmoqda', { chatId, preview: text.slice(0, 60) });
         return;

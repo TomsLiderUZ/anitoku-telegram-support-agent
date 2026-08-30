@@ -250,6 +250,30 @@ const NOISE_REPLY =
  *   judging: "@anitoku_admin" contains "anitoku" and would otherwise look
  *   on-topic while carrying no request at all.
  */
+/**
+ * Agentni chaqiradigan nomlar.
+ *
+ * "anitoku" YO'Q: bu brend nomi, agentniki emas. Guruhda kimdir shunchaki
+ * "anitoku" deb yozganida agent javob berib yubordi — holbuki gap u haqida
+ * emas edi.
+ */
+const AGENT_NAMES = /(^|[\s,.!?—-])(agent|admin|anitoku[\s_]?admin)([\s,.!?:—-]|$)/i;
+
+/**
+ * Guruhdagi xabar agentga qaratilganmi?
+ *
+ * Uch belgi: agentning xabariga javob, @username, yoki nomini aytish.
+ * BITTA ta'rif — runtime ham shuni ishlatadi. Ikki nusxa bo'lsa, biri
+ * o'zgarib ikkinchisi eskirib qoladi (unvonlar ro'yxati bilan aynan
+ * shunday bo'lgan edi).
+ */
+function addressedToAgent(text, { isReplyToMe = false, selfUsername = null } = {}) {
+  if (isReplyToMe) return true;
+  const t = String(text || '');
+  if (selfUsername && new RegExp('@' + String(selfUsername).replace(/[^\w]/g, '') + '\\b', 'i').test(t)) return true;
+  return AGENT_NAMES.test(t);
+}
+
 function isRelevantForGroup(text, { isReplyToMe = false, selfUsername = null } = {}) {
   const raw = String(text || '').trim();
   if (!raw) return { ok: false, reason: 'empty' };
@@ -267,8 +291,31 @@ function isRelevantForGroup(text, { isReplyToMe = false, selfUsername = null } =
   }
 
   if (NOISE_REPLY.test(t)) return { ok: false, reason: 'noise' };
-  if (t.length < 6 && !/[?？]/.test(t)) return { ok: false, reason: 'too_short' };
 
+  /**
+   * Guruhda CHAQIRILGAN bo'lishi kerak.
+   *
+   * Ilgari mavzuga mos kelishi yetarli edi — "ANITOKU haqida savol
+   * berilibdi, demak javob beray" degan mantiq. Amalda bu guruhdagi
+   * begona suhbatga aralashishga aylandi: kimdir shunchaki "anitoku"
+   * deb yozdi va agent unga javob berdi, keyin uning keyingi
+   * savollariga ham. Rahbar "jim tur" deganidan keyin ham davom etdi,
+   * chunki har yangi xabar mustaqil ravishda "mavzuga mos" edi.
+   *
+   * Endi guruhda javob uch holatda beriladi: agentning xabariga javob
+   * yozilgan, @username bilan chaqirilgan, yoki nomi aytilgan. Shaxsiy
+   * chat bunga tegishli emas — u yerda hamma xabar agentga.
+   */
+  const addressed = addressedToAgent(raw, { isReplyToMe, selfUsername });
+  if (!addressed && settings.bool('group_requires_mention', true)) {
+    return { ok: false, reason: 'not_addressed' };
+  }
+  // Chaqirilgan bo'lsa — mavzudan ham, uzunligidan ham qat'i nazar javob
+  // beradi. Odam agentni ataylab chaqirib "salom" desa, uni qisqaligi
+  // uchun e'tiborsiz qoldirish qo'pol bo'lardi.
+  if (addressed) return { ok: true };
+
+  if (t.length < 6 && !/[?？]/.test(t)) return { ok: false, reason: 'too_short' };
   if (ANITOKU_TOPIC.test(t)) return { ok: true };
   if (isReplyToMe && /[?？]|qanday|nima|qachon|qayer|qancha|bormi|mumkinmi|kim|как|что|когда|сколько/i.test(t)) return { ok: true };
 
@@ -327,4 +374,4 @@ function shouldRespond({ chatType, isReplyToMe, isOutgoing, text, senderId, chat
   return { ok: true };
 }
 
-module.exports = { isFounder, isRelevantForGroup, inspectIncoming, sanitizeOutgoing, scrubSecrets, stripLaunchDates, shouldRespond, flattenMarkdown };
+module.exports = { isFounder, addressedToAgent, AGENT_NAMES, isRelevantForGroup, inspectIncoming, sanitizeOutgoing, scrubSecrets, stripLaunchDates, shouldRespond, flattenMarkdown };
