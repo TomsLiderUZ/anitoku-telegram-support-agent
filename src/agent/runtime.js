@@ -12,6 +12,16 @@ const watches = require('./watches');
 
 const log = createLogger('runtime');
 
+/** Band chat qayta tekshiriladigan oraliq. */
+const REQUEUE_WAIT_MS = 1_500;
+/**
+ * Band chatda xabar eng ko'p shuncha kutadi.
+ *
+ * Undan keyin javob parallel beriladi — uzoq fon ishi tugashini kutib
+ * jim turgandan ko'ra, ikkita javob chiqqani afzal.
+ */
+const MAX_QUEUE_WAIT_MS = 40_000;
+
 /**
  * Bridges Telegram events to the agent brain.
  *
@@ -23,7 +33,10 @@ class Runtime extends EventEmitter {
   constructor() {
     super();
     this.pending = new Map();   // chatId -> { texts, timer, meta }
-    this.processing = new Set();
+    // chatId -> nechta javob ayni paytda tayyorlanmoqda. Set emas, hisoblagich:
+    // kutish chegarasidan keyin ikkinchi javob parallel boshlanishi mumkin, va
+    // birinchisi tugaganda qulf butunlay ochilib qolmasligi kerak.
+    this.processing = new Map();
     this.bound = false;
     this.stats = { received: 0, replied: 0, skipped: 0, failed: 0, escalated: 0, startedAt: Date.now() };
   }
@@ -353,13 +366,37 @@ class Runtime extends EventEmitter {
     if (!entry) return;
     this.pending.delete(chatId);
 
-    if (this.processing.has(chatId)) {
-      // A reply is already in flight for this chat; re-queue briefly.
-      setTimeout(() => this.enqueue({ ...entry.meta, text: entry.texts.join('\n') }), 1500);
-      return;
+    const running = this.processing.get(chatId) || 0;
+    if (running) {
+      /**
+       * Chat band — lekin CHEKSIZ kutmaydi.
+       *
+       * Ilgari bu yerda shart yo'q edi: xabar har 1.5 soniyada navbatga
+       * qaytaverardi, qancha kerak bo'lsa shuncha. Bir marta shaxsiy
+       * chatdagi `code_task` provayder limitlarini kutib 15 daqiqa
+       * ushlab turdi (jurnalda: rounds 38, stalls 6) va rahbarning shu
+       * orada yozgan xabarlari o'sha aylanada qoldi — tashqaridan bu
+       * "agent javob bermayapti" bo'lib ko'rindi, holbuki u ishlayotgan
+       * edi.
+       *
+       * Chegaradan keyin javob PARALLEL boshlanadi. Ikkita javob bir
+       * chatga chiqishi mumkin, lekin jimlikdan ko'ra shu yaxshi:
+       * rahbar savol berganda javob olishi kerak, uzoq fon ishi esa
+       * o'z yo'lida davom etadi.
+       */
+      const waited = (entry.meta.waitedMs || 0) + REQUEUE_WAIT_MS;
+      if (waited < MAX_QUEUE_WAIT_MS) {
+        setTimeout(() => this.enqueue({ ...entry.meta, waitedMs: waited, text: entry.texts.join('\n') }), REQUEUE_WAIT_MS);
+        return;
+      }
+      log.warn('chat band, kutish chegarasi oshdi — javob parallel beriladi', {
+        chatId,
+        waitedSec: Math.round(waited / 1000),
+        running,
+      });
     }
 
-    this.processing.add(chatId);
+    this.processing.set(chatId, running + 1);
     try {
       await this.process(chatId, entry);
     } catch (err) {
@@ -367,7 +404,9 @@ class Runtime extends EventEmitter {
       log.error('process failed', { chatId, error: err.message });
       recordEvent('agent', 'Processing failed', { chatId, error: err.message }, 'error');
     } finally {
-      this.processing.delete(chatId);
+      const left = (this.processing.get(chatId) || 1) - 1;
+      if (left > 0) this.processing.set(chatId, left);
+      else this.processing.delete(chatId);
     }
   }
 
