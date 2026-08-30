@@ -7,6 +7,7 @@ const { NewMessage } = require('telegram/events');
 const { db, settings, recordEvent } = require('../core/db');
 const { encrypt, decrypt } = require('../core/crypto');
 const { createLogger } = require('../core/logger');
+const format = require('./format');
 
 const log = createLogger('telegram');
 
@@ -457,15 +458,38 @@ class TelegramService extends EventEmitter {
   }
 
   // ── outgoing helpers ─────────────────────────────────────────────────────
+  /**
+   * Xabar yuborish — formatlash bilan, lekin formatlash uchun xabarni
+   * qurbon qilmasdan.
+   *
+   * Matnda teg bo'lsa HTML rejimida yuboriladi. Telegram HTML ni juda
+   * qattiq tekshiradi va bitta yaroqsiz teg butun xabarni rad ettiradi —
+   * o'shanda foydalanuvchi HECH NARSA olmasligi mumkin edi. Shuning
+   * uchun rad etilsa, xabar teglarsiz, oddiy matn sifatida qayta
+   * yuboriladi: chiroyli ko'rinish yaxshi, yetkazilgan xabar muhimroq.
+   */
   async sendMessage(chatId, text, { replyTo = null, silent = false } = {}) {
     if (!this.isConnected()) throw new Error('Telegram ulanmagan');
     const entity = await this.resolveEntity(chatId);
-    return this.client.sendMessage(entity, {
-      message: text,
-      replyTo: replyTo || undefined,
-      silent,
-      linkPreview: false,
-    });
+    const base = { replyTo: replyTo || undefined, silent, linkPreview: false };
+
+    if (format.hasMarkup(text)) {
+      try {
+        return await this.client.sendMessage(entity, {
+          ...base,
+          message: format.toTelegramHtml(text),
+          parseMode: 'html',
+        });
+      } catch (err) {
+        log.warn('HTML formatlash rad etildi — oddiy matn sifatida yuborilmoqda', {
+          chatId: String(chatId),
+          error: String(err.message).slice(0, 160),
+        });
+        return this.client.sendMessage(entity, { ...base, message: format.toPlainText(text) });
+      }
+    }
+
+    return this.client.sendMessage(entity, { ...base, message: text });
   }
 
   async setTyping(chatId, on = true) {

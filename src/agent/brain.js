@@ -75,7 +75,7 @@ async function respond({ chatId, text, chatTitle = null, chatType = 'private', u
   }
   meta.memory = !!memorySummary;
 
-  // 4. Assemble the prompt. Founder-taught facts are included so what Toms
+  // 4. Assemble the prompt. Founder-taught facts are included so what Yosh Usta
   // told the agent in private is known when a customer asks in a group.
   const founderFacts = memoryFacts.contextBlock(text, 6);
   meta.founderFacts = founderFacts ? founderFacts.split('\n').length : 0;
@@ -269,8 +269,8 @@ async function respond({ chatId, text, chatTitle = null, chatType = 'private', u
   // anyone else — the prompt rule alone did not hold.
   if (!isFounder) {
     const before = reply;
-    // "Toms aka" is the founder's address alone — a group member who happened
-    // to write next was greeted as Toms aka, which is both wrong and leaks
+    // "Yosh Usta" is the founder's address alone — a group member who happened
+    // to write next was greeted as Yosh Usta, which is both wrong and leaks
     // who the account answers to.
     reply = reply
       .replace(/\b(hurmatli\s+)?(asoschi|rahbar(iyat)?|boss|shef|toms\s+aka|toms)\s*[,!]\s*/gi, '')

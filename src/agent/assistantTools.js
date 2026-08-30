@@ -37,13 +37,13 @@ const B = (description) => ({ type: 'boolean', description });
  */
 const definitions = [
   // ── messaging ──────────────────────────────────────────────────────────
-  fn('send_message', "Telegramda kimgadir xabar yuborish. `to` — ism, @username, telefon, guruh nomi yoki chat ID. 'menga' = Tomsning shaxsiy chati. Matnni Toms aytgan maʼnoda tabiiy va toʻliq jumla qilib yoz. Savol yuborib javobini kutish kerak boʻlsa (\"soʻrab koʻr, javobini menga yoz\") wait_reply=true qil — javob kelganda avtomatik Tomsning shaxsiy chatiga yetkaziladi.",
-    { to: S('Qabul qiluvchi'), text: S('Xabar matni'), wait_reply: B("Javob kelganda Tomsga shaxsiy chatda xabar berish"), reply_note: S("Kuzatuv izohi, masalan 'yoshi'") }, ['to', 'text']),
-  fn('send_private', "Tomsning SHAXSIY chatiga xabar yozish. Token, parol, kalit, havola, hisobot — guruhda soʻralgan boʻlsa ham maxfiy narsa FAQAT shu vosita orqali beriladi.", { text: S('Matn') }, ['text']),
+  fn('send_message', "Telegramda kimgadir xabar yuborish. `to` — ism, @username, telefon, guruh nomi yoki chat ID. 'menga' = Yosh Ustaning shaxsiy chati. Matnni Yosh Usta aytgan maʼnoda tabiiy va toʻliq jumla qilib yoz. Savol yuborib javobini kutish kerak boʻlsa (\"soʻrab koʻr, javobini menga yoz\") wait_reply=true qil — javob kelganda avtomatik Yosh Ustaning shaxsiy chatiga yetkaziladi.",
+    { to: S('Qabul qiluvchi'), text: S('Xabar matni'), wait_reply: B("Javob kelganda Yosh Ustaga shaxsiy chatda xabar berish"), reply_note: S("Kuzatuv izohi, masalan 'yoshi'") }, ['to', 'text']),
+  fn('send_private', "Yosh Ustaning SHAXSIY chatiga xabar yozish. Token, parol, kalit, havola, hisobot — guruhda soʻralgan boʻlsa ham maxfiy narsa FAQAT shu vosita orqali beriladi.", { text: S('Matn') }, ['text']),
   fn('delete_message', "Xabarni oʻchirish (ikkala tomondan). message_ids berilmasa — shu chatdagi oʻzimning oxirgi xabarim oʻchadi. 'eski xabarni oʻchir', 'noto‘g‘ri yubording, oʻchir' desa ishlat.", { chat: S('Chat / odam'), message_ids: { type: 'array', items: { type: 'integer' } } }, ['chat']),
-  fn('schedule_message', "Kelajakdagi vaqtga xabar rejalashtirish. `when` — Toms aytgan vaqt ifodasi, oʻzgartirmasdan.", { when: S("'soat 15:00 da', 'ertaga 9 da', '30 daqiqadan keyin'"), to: S('Qabul qiluvchi'), text: S('Xabar') }, ['when', 'to', 'text']),
+  fn('schedule_message', "Kelajakdagi vaqtga xabar rejalashtirish. `when` — Yosh Usta aytgan vaqt ifodasi, oʻzgartirmasdan.", { when: S("'soat 15:00 da', 'ertaga 9 da', '30 daqiqadan keyin'"), to: S('Qabul qiluvchi'), text: S('Xabar') }, ['when', 'to', 'text']),
   fn('schedule_task', "Kelajakda bajariladigan HAR QANDAY koʻrsatmani rejalashtirish. Belgilangan vaqtda yordamchi koʻrsatmani oʻzi bajaradi.", { when: S('vaqt'), instruction: S('Toʻliq koʻrsatma') }, ['when', 'instruction']),
-  fn('watch_reply', "Biror chatdan keladigan keyingi javobni kuzatib, kelganda Tomsning shaxsiy chatiga yetkazish. Savol allaqachon yuborilgan boʻlsa ishlat.", { chat: S('Kimning javobi kutilmoqda'), note: S('Nima haqida') }, ['chat']),
+  fn('watch_reply', "Biror chatdan keladigan keyingi javobni kuzatib, kelganda Yosh Ustaning shaxsiy chatiga yetkazish. Savol allaqachon yuborilgan boʻlsa ishlat.", { chat: S('Kimning javobi kutilmoqda'), note: S('Nima haqida') }, ['chat']),
   fn('list_watches', 'Kutilayotgan javoblar (kuzatuvlar) roʻyxati.', {}),
   fn('forward_message', 'Bir chatdagi xabarni boshqa chatga forward qilish.', { from_chat: S(''), message_id: I(''), to: S('') }, ['from_chat', 'message_id', 'to']),
   fn('read_chat', "Chatning soʻnggi xabarlarini oʻqish: 'X bilan nima gaplashdik', 'X javob berdimi', 'guruhda nima boʻlyapti'.", { chat: S(''), limit: I('standart 30') }, ['chat']),
@@ -60,12 +60,12 @@ const definitions = [
   // ── chats: membership, creation, moderation ───────────────────────────
   fn('join_chat', "Kanal yoki guruhga aʼzo boʻlish: taklif havolasi (t.me/+…, t.me/joinchat/…) yoki @username. Bot 'majburiy obuna' soʻrasa — havolalarini shu bilan ochib aʼzo boʻl, keyin botdagi 'Tekshirish' tugmasini bos.", { link: S('havola yoki @username') }, ['link']),
   fn('leave_chat', 'Guruh yoki kanaldan chiqish (guruh oʻzi qoladi).', { chat: S('') }, ['chat']),
-  fn('delete_chat', "Guruh yoki kanalni BUTUNLAY oʻchirish. Toms 'guruhni oʻchir' desa — chiqish emas, shu.", { chat: S('') }, ['chat']),
+  fn('delete_chat', "Guruh yoki kanalni BUTUNLAY oʻchirish. Yosh Usta 'guruhni oʻchir' desa — chiqish emas, shu.", { chat: S('') }, ['chat']),
   fn('inbox_digest', "Bugun kimlar yozgan va nima boʻlgan — barcha chatlar boʻyicha xulosa. 'bugun kimlar yozdi', 'xatlarni koʻrib chiq', 'nima yangilik' desa ishlat.", { hours: I('standart 24') }),
-  fn('create_chat', "Yangi KANAL yoki GURUH yaratish. Toms 'guruh yarat, meni qoʻsh, admin qil' desa — hammasini SHU BITTA chaqiruvda qil: add_users va admins ga 'me' yoz. Ommaviy boʻlsa username, maxfiy boʻlsa taklif havolasi qaytadi.", { kind: { type: 'string', enum: ['group', 'channel'] }, title: S('nomi'), about: S('tavsif'), public: B('ommaviy (username bilan)'), username: S('ommaviy boʻlsa @username'), add_users: { type: 'array', items: { type: 'string' }, description: "Qoʻshiladiganlar; Tomsning oʻzi uchun 'me'" }, admins: { type: 'array', items: { type: 'string' }, description: "Admin qilinadiganlar; Tomsning oʻzi uchun 'me'" } }, ['kind', 'title']),
+  fn('create_chat', "Yangi KANAL yoki GURUH yaratish. Yosh Usta 'guruh yarat, meni qoʻsh, admin qil' desa — hammasini SHU BITTA chaqiruvda qil: add_users va admins ga 'me' yoz. Ommaviy boʻlsa username, maxfiy boʻlsa taklif havolasi qaytadi.", { kind: { type: 'string', enum: ['group', 'channel'] }, title: S('nomi'), about: S('tavsif'), public: B('ommaviy (username bilan)'), username: S('ommaviy boʻlsa @username'), add_users: { type: 'array', items: { type: 'string' }, description: "Qoʻshiladiganlar; Yosh Ustaning oʻzi uchun 'me'" }, admins: { type: 'array', items: { type: 'string' }, description: "Admin qilinadiganlar; Yosh Ustaning oʻzi uchun 'me'" } }, ['kind', 'title']),
   fn('chat_info', 'Guruh/kanal/odam haqida maʼlumot: ID, username, aʼzolar soni, tavsif, mening huquqlarim, taklif havolasi.', { chat: S('') }, ['chat']),
   fn('list_members', "Guruh/kanal aʼzolari roʻyxati (ism, @username, ID, roli). Ism boʻyicha qidirish mumkin.", { chat: S(''), query: S('ism boʻyicha filtr'), admins_only: B(''), limit: I('standart 200') }, ['chat']),
-  fn('promote_admin', "Odamni guruh/kanalda admin qilish (toʻliq huquqlar). 'menga admin ber' → user = Toms.", { chat: S(''), user: S(''), rank: S("lavozim nomi, masalan 'Rahbar'") }, ['chat', 'user']),
+  fn('promote_admin', "Odamni guruh/kanalda admin qilish (toʻliq huquqlar). 'menga admin ber' → user = Yosh Usta.", { chat: S(''), user: S(''), rank: S("lavozim nomi, masalan 'Rahbar'") }, ['chat', 'user']),
   fn('demote_admin', 'Adminlikdan olish.', { chat: S(''), user: S('') }, ['chat', 'user']),
   fn('ban_user', "Odamni guruh/kanaldan chiqarib, doimiy bloklash. 'blockla', 'ban qil'.", { chat: S(''), user: S('') }, ['chat', 'user']),
   fn('kick_user', "Odamni guruhdan chiqarib yuborish (qayta kirishi mumkin). 'chiqarib yubor'.", { chat: S(''), user: S('') }, ['chat', 'user']),
@@ -80,11 +80,11 @@ const definitions = [
   fn('create_bot', "BotFather orqali yangi bot yaratish va tokenini olish. Username lotin, kamida 5 belgi, 'bot' bilan tugaydi. AVVAL list_my_bots bilan borlarini tekshir — xuddi shunday bot boʻlsa yangisini yaratma.", { name: S('Koʻrinadigan nomi'), username: S("@username, 'bot' bilan tugaydi"), description: S(''), about: S('') }, ['name', 'username']),
   fn('configure_bot', "FAQAT BotFather'dagi koʻrinish: nom, tavsif, about, menyudagi buyruqlar roʻyxati. KODGA TAʼSIR QILMAYDI — buyruq ishlashi uchun code_task/build_and_run_bot kerak.", { username: S(''), name: S(''), description: S(''), about: S(''), commands: S("Har qatorda 'buyruq - tavsif'") }, ['username']),
   fn('build_and_run_bot', "Bot uchun KOD YOZIB (yoki mavjudini OʻZGARTIRIB) shu kompyuterda ISHGA TUSHIRISH: 'kod yozib run qil', 'buyruq qoʻsh', 'tuzat', 'admin panel qoʻsh'. Bot BotFather'da bor boʻlishi kerak. Spec bermasa oʻzing mantiqiy funksiyalar tanla. Mavjud botga oʻzgartirish — `fix` maydonida. Natijadagi `commands` roʻyxatini hisobotda ayt. Kod chatga YOZILMAYDI.", { username: S('@username'), spec: S('Bot nima qilishi kerak, 3-8 jumla'), name: S(''), fix: S("Mavjud botni tuzatish/kengaytirish: nima kerak") }, ['username']),
-  fn('bot_send_message', "BOTNING OʻZI nomidan xabar yuborish. Toms '@botim menga hello yozsin', 'bot falonchiga xabar bersin' desa — SHU vosita. Bu botga yozish EMAS, bot oʻz nomidan yozadi. 'menga' = Tomsning oʻzi.", { bot: S('@username'), to: S("Kimga: 'menga', @username yoki chat ID"), text: S('Bot yuboradigan matn') }, ['bot', 'to', 'text']),
+  fn('bot_send_message', "BOTNING OʻZI nomidan xabar yuborish. Yosh Usta '@botim menga hello yozsin', 'bot falonchiga xabar bersin' desa — SHU vosita. Bu botga yozish EMAS, bot oʻz nomidan yozadi. 'menga' = Yosh Ustaning oʻzi.", { bot: S('@username'), to: S("Kimga: 'menga', @username yoki chat ID"), text: S('Bot yuboradigan matn') }, ['bot', 'to', 'text']),
   fn('bot_whoami', 'Bot tokeni ishlayotganini va u kimligini tekshirish.', { bot: S('@username') }, ['bot']),
   fn('my_bots', "Agent oʻzi yozgan va boshqarayotgan botlar: holati, tokeni, spec'i.", {}),
   fn('list_my_bots', 'Shu akkauntga tegishli barcha botlar (BotFather /mybots).', {}),
-  fn('get_bot_token', "Bot tokenini olish. Toms soʻrasa BER — u egasi. Guruhda boʻlsang natijani send_private bilan yubor.", { username: S('') }, ['username']),
+  fn('get_bot_token', "Bot tokenini olish. Yosh Usta soʻrasa BER — u egasi. Guruhda boʻlsang natijani send_private bilan yubor.", { username: S('') }, ['username']),
   fn('revoke_bot_token', "Bot tokenini BEKOR QILIB YANGISINI olish (/revoke). 'tokenni yangila' desa shu. Bir nechta bot boʻlsa har biri uchun alohida chaqir. Yangi token bazaga saqlanadi va bot avtomatik qayta ishga tushadi.", { username: S('') }, ['username']),
   fn('delete_bot', "Botni BotFather orqali butunlay oʻchirish.", { username: S('') }, ['username']),
   fn('stop_bot', 'Boshqariladigan botni toʻxtatish.', { username: S('') }, ['username']),
@@ -95,18 +95,18 @@ const definitions = [
   fn('read_bot', 'Bot bilan soʻnggi yozishma va hozirgi tugmalar.', { bot: S(''), limit: I('') }, ['bot']),
 
   // ── planning ───────────────────────────────────────────────────────────
-  fn('plan', "Koʻp bosqichli ish uchun REJA tuzish. Toms bir xabarda 2 tadan koʻp ish bersa yoki ish uzoq davom etsa — AVVAL shuni chaqir, keyin bosqichma-bosqich bajar. Reja Tomsga ham koʻrinadi.", { steps: { type: 'array', items: { type: 'string' }, description: 'Bosqichlar, tartib bilan' } }, ['steps']),
+  fn('plan', "Koʻp bosqichli ish uchun REJA tuzish. Yosh Usta bir xabarda 2 tadan koʻp ish bersa yoki ish uzoq davom etsa — AVVAL shuni chaqir, keyin bosqichma-bosqich bajar. Reja Yosh Ustaga ham koʻrinadi.", { steps: { type: 'array', items: { type: 'string' }, description: 'Bosqichlar, tartib bilan' } }, ['steps']),
   fn('plan_step_done', "Rejadagi bosqichni bajarilgan (yoki toʻsiq/oʻtkazib yuborilgan) deb belgilash. Faqat HAQIQATAN bajarilgach chaqir.", { step: S('Bosqich raqami yoki matnining bir qismi'), status: { type: 'string', enum: ['done', 'blocked', 'skipped'] }, note: S('Natija yoki sabab') }, ['step', 'status']),
 
   // ── terminal: the universal fallback ──────────────────────────────────
   fn('bash', "Shu kompyuterda SHELL BUYRUQ bajarish. Bu sening universal vositang: alohida vosita YOʻQ boʻlgan HAR QANDAY ishni shu orqali qil (fayl, tarmoq, git, npm, curl, jarayonlar, tizim sozlamalari, hatto 'claude' CLI). POSIX shell — mkdir -p, ls, grep, pipe hammasi ishlaydi. Ish papkasi va `cd` sessiya davomida saqlanadi. Xatoni koʻrsang oʻzing tuzatib qayta urin.", { command: S('Shell buyrugʻi'), session: S("Sessiya nomi, standart 'main'"), timeout_seconds: I('standart 120, koʻpi 600') }, ['command']),
-  fn('ssh_connect', "Serverga ulanish maʼlumotlarini saqlash. Toms IP va parolni chatda bersa (masalan '206.189.157.53 root MyPass') shuni ishlat — matnni oʻzgartirmasdan `spec` ga ber. Bir marta ulangach kalit oʻrnatiladi va parol boshqa kerak boʻlmaydi.", { spec: S("IP/parol/user boʻlgan matn, xohlagan shaklda"), name: S('Serverga qisqa nom, ixtiyoriy') }, ['spec']),
+  fn('ssh_connect', "Serverga ulanish maʼlumotlarini saqlash. Yosh Usta IP va parolni chatda bersa (masalan '206.189.157.53 root MyPass') shuni ishlat — matnni oʻzgartirmasdan `spec` ga ber. Bir marta ulangach kalit oʻrnatiladi va parol boshqa kerak boʻlmaydi.", { spec: S("IP/parol/user boʻlgan matn, xohlagan shaklda"), name: S('Serverga qisqa nom, ixtiyoriy') }, ['spec']),
   fn('ssh', "SERVERDA buyruq bajarish. `host` — ssh_connect da bergan nom yoki IP. Serverdagi har qanday ish shu orqali: pm2, docker, nginx, fayl, deploy, log. `cd` sessiya davomida saqlanadi.", { host: S('Server nomi yoki IP'), command: S('Buyruq'), session: S('Sessiya nomi, ixtiyoriy'), timeout_seconds: I('') }, ['host', 'command']),
   fn('list_servers', 'Saqlangan serverlar va terminal sessiyalari.', {}),
 
   // ── projects, code, servers ───────────────────────────────────────────
   fn('create_project', "Yangi dastur/loyiha yaratish (bot, API, sayt, skript — har qanday). Papka ochiladi; keyin code_task bilan kod yoziladi. Telegram bot boʻlsa kind='telegram-bot' va env'ga BOT_TOKEN oʻzi tushadi (username bering).", { name: S('nomi'), kind: { type: 'string', enum: ['node', 'telegram-bot', 'python', 'static', 'other'] }, spec: S('nima qilishi kerak'), run_cmd: S("doimiy ishga tushirish buyrugʻi, masalan 'node index.js' (ixtiyoriy)"), bot_username: S('telegram-bot uchun @username') }, ['name']),
-  fn('build_site', "SAYT / veb-ilova yasash va ISHGA TUSHIRISH. Toms 'sayt yasa', 'veb sayt qil' desa — SHU vosita. Lokalda oʻz portida ishga tushadi va ochiladigan havola qaytadi. Mavjudini oʻzgartirish uchun `fix` bilan. REJA SOʻRAMA — darhol bajar.", { name: S('Sayt nomi, masalan "anitoku-anime"'), spec: S('Sayt nima qilishi, qanday sahifalar boʻlishi — toʻliq tavsif'), fix: S('Mavjud saytni oʻzgartirish uchun') }, ['name']),
+  fn('build_site', "SAYT / veb-ilova yasash va ISHGA TUSHIRISH. Yosh Usta 'sayt yasa', 'veb sayt qil' desa — SHU vosita. Lokalda oʻz portida ishga tushadi va ochiladigan havola qaytadi. Mavjudini oʻzgartirish uchun `fix` bilan. REJA SOʻRAMA — darhol bajar.", { name: S('Sayt nomi, masalan "anitoku-anime"'), spec: S('Sayt nima qilishi, qanday sahifalar boʻlishi — toʻliq tavsif'), fix: S('Mavjud saytni oʻzgartirish uchun') }, ['name']),
   fn('publish_site', "Saytni SERVERGA joylash va subdomenga ulash. 'serverga joyla', 'subdomenga ula' desa ishlat. pm2, nginx va HTTPS avtomatik sozlanadi. DNS yozuvi hali boʻlmasa ham joylaydi va nima qoʻshish kerakligini aytadi.", { project: S('Loyiha nomi'), domain: S('Subdomen, masalan anime.anitoku.uz') }, ['project', 'domain']),
   fn('secure_site', 'DNS tarqalgach saytga HTTPS sertifikatini ulash.', { domain: S('') }, ['domain']),
   fn('code_task', "KOD YOZISH / OʻZGARTIRISH / TUZATISH — Claude Code kabi ishlaydi: reja tuzadi, fayllarni oʻqiydi, yozadi, terminalda ishga tushirib TEKSHIRADI, xato boʻlsa tuzatadi. `project` bersang oʻsha loyihada, bermasang alohida sinov muhitida (sandbox) ishlaydi. Har qanday dastur: bot, sayt, API, skript. Natija — hisobot, kod chatga yozilmaydi.", { project: S('loyiha nomi — doimiy ish uchun; boʻsh qoldirsa sinov muhiti'), task: S('vazifa, toʻliq va aniq'), name: S('sinov muhiti uchun qisqa nom') }, ['task']),
@@ -135,7 +135,7 @@ const definitions = [
   fn('cancel_task', 'Vazifani bekor qilish.', { id: I('') }, ['id']),
   fn('agent_status', 'Agent holati: Telegram, kalitlar, bilim, vazifalar, javoblar.', {}),
   fn('run_training', "Oʻz-oʻzini trening jarayonini boshlash.", {}),
-  fn('set_setting', "Agent sozlamasi. Ruxsat etilgan: reply_in_groups, reply_to_private, typing_simulation, keep_online, quiet_hours, min_delay_ms, max_delay_ms, max_replies_per_chat_hour, temperature, primary_provider, founder_private_replies ('1' = Tomsga barcha javoblar shaxsiy chatga).", { key: S(''), value: S('') }, ['key', 'value']),
+  fn('set_setting', "Agent sozlamasi. Ruxsat etilgan: reply_in_groups, reply_to_private, typing_simulation, keep_online, quiet_hours, min_delay_ms, max_delay_ms, max_replies_per_chat_hour, temperature, primary_provider, founder_private_replies ('1' = Yosh Ustaga barcha javoblar shaxsiy chatga).", { key: S(''), value: S('') }, ['key', 'value']),
 ];
 
 /**
@@ -258,7 +258,7 @@ function createExecutor(ctx) {
     const ref = String(to || '').trim();
     if (SELF_REF.test(ref) && founderDm) {
       target = await tg.resolveEntity(founderDm);
-      name = 'Toms (shaxsiy chat)';
+      name = 'Yosh Usta (shaxsiy chat)';
     } else if (HERE_REF.test(ref) && ctx.chatId) {
       target = await tg.resolveEntity(ctx.chatId);
       name = ctx.chatTitle || 'shu chat';
@@ -274,7 +274,7 @@ function createExecutor(ctx) {
     const out = { ok: true, sentTo: name, chatId, messageId: Number(sent.id) };
     if (wait && founderDm && chatId !== String(founderDm)) {
       out.watchId = watches.create({ chatId, chatName: name, sinceMsg: Number(sent.id), note, notifyChat: founderDm });
-      out.note = 'Javob kelganda Tomsning shaxsiy chatiga yetkaziladi';
+      out.note = 'Javob kelganda Yosh Ustaning shaxsiy chatiga yetkaziladi';
     }
     return out;
   }
@@ -311,7 +311,7 @@ function createExecutor(ctx) {
         return sendTo(args.to, args.text, { wait: wantsWatch, note: args.reply_note || null });
       }
       case 'send_private': {
-        if (!founderDm) return { ok: false, error: 'Tomsning shaxsiy chati aniqlanmadi' };
+        if (!founderDm) return { ok: false, error: 'Yosh Ustaning shaxsiy chati aniqlanmadi' };
         const r = await sendTo('me', args.text);
         // Remember that the DM already went out, so the reply routing at the
         // end of the turn does not send the same thing a second time.
@@ -347,7 +347,7 @@ function createExecutor(ctx) {
         const from = await contacts.resolve(args.from_chat);
         const to = SELF_REF.test(args.to) ? { entity: await tg.resolveEntity(founderDm), contact: null } : await contacts.resolve(args.to);
         await tg.client.forwardMessages(to.entity, { messages: [Number(args.message_id)], fromPeer: from.entity });
-        return { ok: true, forwardedTo: contacts.displayName(to.contact) || 'Toms' };
+        return { ok: true, forwardedTo: contacts.displayName(to.contact) || 'Yosh Usta' };
       }
       case 'read_chat': {
         const r = await contacts.resolve(args.chat);
@@ -451,7 +451,7 @@ function createExecutor(ctx) {
 
       case 'bot_send_message': {
         // Who should receive it — resolved through the same rules as our own
-        // messages, so "menga" reaches Toms and a name reaches that person.
+        // messages, so "menga" reaches Yosh Usta and a name reaches that person.
         let chatId;
         const ref = String(args.to || '').trim();
         if (SELF_REF.test(ref) && founderDm) chatId = founderDm;

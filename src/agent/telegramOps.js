@@ -17,7 +17,7 @@ const isChannel = (e) => e && e.className === 'Channel';
 const isBasicGroup = (e) => e && e.className === 'Chat';
 
 async function resolve(ref) {
-  // Callers pass either a human reference ("Toms", "@x", an id) or an entity
+  // Callers pass either a human reference ("Yosh Usta", "@x", an id) or an entity
   // we already resolved — promoteAdmin hands its own entity to addMembers.
   if (ref && typeof ref === 'object' && ref.id !== undefined && ref.className) return ref;
   const r = await contacts.resolve(ref);
@@ -253,7 +253,7 @@ async function promoteAdmin(chatRef, userRef, { rank = 'admin' } = {}) {
           user: describe(user),
           inviteLink: link,
           reason: again.errorMessage || again.message,
-          message: `Telegram uni admin qilishga ruxsat bermadi (maxfiylik sozlamalari). Toms aka, ${link ? `shu havola orqali oʻzingiz kiring: ${link} — keyin men darhol admin qilaman` : 'guruhga oʻzingiz kiring, keyin admin qilaman'}. Yoki Telegram → Sozlamalar → Maxfiylik → "Guruhlarga qoʻshish" ni "Hamma" qilib qoʻysangiz, keyingi safar oʻzim bajaraman.`,
+          message: `Telegram uni admin qilishga ruxsat bermadi (maxfiylik sozlamalari). Yosh Usta, ${link ? `shu havola orqali oʻzingiz kiring: ${link} — keyin men darhol admin qilaman` : 'guruhga oʻzingiz kiring, keyin admin qilaman'}. Yoki Telegram → Sozlamalar → Maxfiylik → "Guruhlarga qoʻshish" ni "Hamma" qilib qoʻysangiz, keyingi safar oʻzim bajaraman.`,
         };
       }
     } else {

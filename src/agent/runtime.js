@@ -551,7 +551,7 @@ class Runtime extends EventEmitter {
           await tg
             .sendMessage(
               chatId,
-              'Toms aka, hamma AI provayderlar hozir band (limit tugagan) — bir necha marta urinib koʻrdim, ' +
+              'Yosh Usta, hamma AI provayderlar hozir band (limit tugagan) — bir necha marta urinib koʻrdim, ' +
                 'ishni oxiriga yetkaza olmadim. Bir necha daqiqadan keyin qaytadan yozing yoki kalitlarni tekshiring.'
             )
             .catch((err) => log.warn('bandlik xabari yuborilmadi', { chatId, error: err.message }));
@@ -584,7 +584,7 @@ class Runtime extends EventEmitter {
         log.info('javob shaxsiy chatga yuborildi', { from: chatId, to: result.privateTo });
       } catch (err) {
         log.warn('shaxsiy chatga yuborib boʻlmadi', { error: err.message });
-        result.text = `Toms aka, shaxsiy chatingizga yozolmadim (${err.message}). Avval menga shaxsiy xabar yozing.`;
+        result.text = `Yosh Usta, shaxsiy chatingizga yozolmadim (${err.message}). Avval menga shaxsiy xabar yozing.`;
       }
       if (!result.text) {
         stopTyping();
@@ -680,7 +680,7 @@ class Runtime extends EventEmitter {
           msgId: null,
           text:
             `Foydalanuvchi (${esc.chat_title || esc.tg_chat_id}) shuni soʻragan edi: "${String(esc.question || '').slice(0, 400)}".\n` +
-            `Rahbar (Toms) javobi/koʻrsatmasi: "${text}".\n` +
+            `Rahbar (Yosh Usta) javobi/koʻrsatmasi: "${text}".\n` +
             `Vazifa: shu koʻrsatmaga asoslanib foydalanuvchiga yuboriladigan YAKUNIY javob matnini yoz. Kerakli maʼlumotni (havola, fakt) xotirangdan ol. ` +
             `Faqat javob matnini qaytar — "rahbar dedi" deb tushuntirma, vosita chaqirma, oʻzing xabar yuborma.`,
         });

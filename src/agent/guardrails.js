@@ -102,26 +102,87 @@ function stripLaunchDates(text) {
   return { text: out, changed };
 }
 
+/** A line that is nothing but a horizontal rule: ---, ===, ___, ***. */
+const RULE_LINE = /^[ \t]*([-=_*])\1{2,}[ \t]*$/;
+
 /**
- * Telegram is not a markdown document.
+ * "---" separators become a real quoted block.
  *
- * Messages are sent as plain text (no parse_mode — unbalanced markers would
- * make the API reject the whole message), so any markdown the model emits
- * would show up literally as "**ItzToms**". Strip the emphasis markers and
- * block syntax, keeping the words.
+ * Models fence a report off with rule lines — "---", the status, "---" — which
+ * in Telegram is just two rows of dashes doing nothing. The same block inside
+ * <blockquote> gets an actual bar down its left edge, which is what those
+ * dashes were reaching for.
+ *
+ * Only a clean pair around some content is converted. Anything else (a single
+ * trailing rule, three of them, an empty pair) is simply dropped: a stray rule
+ * line carries no meaning worth keeping.
+ */
+function rulesToQuote(text) {
+  const lines = String(text).split('\n');
+  const rules = lines.reduce((acc, l, i) => (RULE_LINE.test(l) ? [...acc, i] : acc), []);
+  if (!rules.length) return text;
+
+  if (rules.length === 2) {
+    const [open, close] = rules;
+    const body = lines.slice(open + 1, close).join('\n').trim();
+    if (body && !/<\/?blockquote>/i.test(body)) {
+      return [...lines.slice(0, open), `<blockquote>${body}</blockquote>`, ...lines.slice(close + 1)]
+        .join('\n');
+    }
+  }
+  return lines.filter((l) => !RULE_LINE.test(l)).join('\n');
+}
+
+/**
+ * Markdown → Telegram HTML.
+ *
+ * Models write markdown by reflex whatever the prompt says. Telegram does not
+ * render it, so "**ItzToms**" used to arrive with the stars showing; this
+ * function stripped them and kept the words.
+ *
+ * Now that outgoing messages go out with parse_mode=html, the markers can be
+ * translated instead of thrown away — bold stays bold, a code fence becomes a
+ * real code block. Anything with no HTML equivalent (headings, tables) is
+ * still flattened to plain words.
+ *
+ * Fenced blocks are pulled out first and put back last: the emphasis rules
+ * below would otherwise eat the "*" and "_" inside someone's source code.
  */
 function flattenMarkdown(text) {
-  return String(text || '')
-    .replace(/^#{1,6}\s*/gm, '')
+  const blocks = [];
+  // A sentinel no model writes by accident — a bare number would be restored
+  // out of ordinary prose ("2 soat 3 daqiqa").
+  const stash = (html) => `@@MDB@@${blocks.push(html) - 1}@@MDB@@`;
+
+  let out = String(text || '')
+    // ```js … ``` → <pre><code class="language-js">…</code></pre>
+    .replace(/```([a-z0-9+#.-]*)\r?\n([\s\S]*?)```/gi, (_, lang, body) => {
+      const cls = lang ? ` class="language-${lang.toLowerCase()}"` : '';
+      return stash(`<pre><code${cls}>${body.replace(/\s+$/, '')}</code></pre>`);
+    })
+    .replace(/```([\s\S]*?)```/g, (_, body) => stash(`<pre>${body.trim()}</pre>`))
+    .replace(/`([^`\n]+)`/g, (_, body) => stash(`<code>${body}</code>`));
+
+  out = rulesToQuote(out);
+
+  out = out
+    // Headings and tables have no Telegram equivalent — a heading reads fine
+    // as bold, a table does not survive at all.
+    .replace(/^#{1,6}\s*(.+)$/gm, (_, line) => `<b>${line.trim()}</b>`)
     .replace(/^\s*\|.*\|\s*$/gm, '')
-    .replace(/```[a-z]*\n?/gi, '')
-    .replace(/\*\*([^*\n]+)\*\*/g, '$1')
-    .replace(/__([^_\n]+)__/g, '$1')
-    .replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s.,!?)]|$)/g, '$1$2')
-    .replace(/(^|[\s(])_([^_\n]+)_(?=[\s.,!?)]|$)/g, '$1$2')
+    .replace(/^\s*>\s?(.*)$/gm, '$1')
+    .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
+    .replace(/__([^_\n]+)__/g, '<u>$1</u>')
+    .replace(/~~([^~\n]+)~~/g, '<s>$1</s>')
+    .replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s.,!?)]|$)/g, '$1<i>$2</i>')
+    .replace(/(^|[\s(])_([^_\n]+)_(?=[\s.,!?)]|$)/g, '$1<i>$2</i>')
+    // [text](url) → <a href="url">text</a>
+    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2">$1</a>')
     .replace(/^\s*[-*]\s+/gm, '• ')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+
+  return out.replace(/@@MDB@@(\d+)@@MDB@@/g, (_, i) => blocks[Number(i)]);
 }
 
 /** Strip meta-commentary models sometimes prepend. */
