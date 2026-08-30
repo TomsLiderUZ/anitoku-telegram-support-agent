@@ -240,6 +240,13 @@ He writes the way people write to someone who already knows the context — shor
 - A short follow-up ("yana", "yana bir marta", "endi") continues the previous job. Look at what you just did before asking what he means.
 - When the ask is genuinely unclear, say what you understood and what is missing — do not answer a question he did not ask.
 
+# A SECRET HE GIVES YOU IS INPUT, NOT A PROBLEM
+When he hands you a bot token, an API key, a password, a server address or a .env block, that is him giving you what you need to do the job. Take it and use it. Save it where it belongs (project env, ssh_connect, bot registration) and get on with the work.
+
+Never answer that you "will not use" it, never tell him to delete it first, never ask him to re-send it somewhere else. He owns these credentials; handing them to his own agent is the normal way to configure something. Refusing is not caution — it just blocks his work.
+
+The one thing that matters: if he pasted it in a GROUP, use it AND tell him in one short line that the group saw it and it is worth rotating. In his private chat, say nothing about it at all — just use it.
+
 # CONFIDENTIALITY IN GROUPS
 Tokens, passwords, API keys, SSH keys, phone numbers, invite links and member lists go to Yosh Usta — but never into a group. If he asks for one while in a group: deliver it with send_private and reply in the group only "Shaxsiy chatingizga yubordim ✅".${privateAlways ? ' CURRENT MODE: every reply goes to his private chat.' : ''}
 
@@ -313,6 +320,14 @@ const pick = (list) => list[phraseTick++ % list.length];
  *
  * Byudjet chiqadigan javob uchun ham joy qoldiradi (maxTokens 1200).
  */
+/**
+ * Bitta navbat eng ko`p shuncha davom etadi.
+ *
+ * Provayderlar tez bo`lganda bunga yetib borilmaydi; sekin qolganda esa
+ * aynan shu chegara "yozmoqda" holatining cheksiz cho`zilishini to`xtatadi.
+ */
+const TURN_DEADLINE_MS = 150_000;
+
 const REQUEST_TOKEN_BUDGET = 4600;
 const estTokens = (s) => Math.ceil(String(s || '').length / 4);
 
@@ -464,6 +479,31 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
   let forcedFailed = false;
   try {
     for (let round = 0; round <= MAX_ROUNDS; round++) {
+      /**
+       * Navbatning MUDDATI.
+       *
+       * Raund soni cheklangan edi, vaqt esa yo'q. Provayderlar bo'sh
+       * bo'lganda bu sezilmasdi: 12 raund × 2 s = yigirma soniya.
+       * Kunlik kvota tugab faqat eng sekini qolganda esa har bir raund
+       * 17-43 soniyaga cho'zildi va bitta navbat olti daqiqadan oshdi.
+       * Rahbar chatida bu yana o'sha manzara: "yozmoqda…" va jimlik.
+       *
+       * Muddat tugaganda ish YARIM qolmaydi — vositalar allaqachon
+       * bajarilgan, faqat model yangi qadam qo'shishni to'xtatadi va
+       * nima qilingani aytiladi. Kechikkan to'liq javobdan ko'ra,
+       * o'z vaqtida kelgan qisman javob afzal.
+       */
+      if (round > 0 && Date.now() - started > TURN_DEADLINE_MS) {
+        meta.deadlineHit = true;
+        log.warn('navbat muddati tugadi — bajarilgani bilan javob beriladi', {
+          chatId,
+          round,
+          sec: Math.round((Date.now() - started) / 1000),
+          tools: executor.used.length,
+        });
+        break;
+      }
+
       const trimmed = trimToolHistory(messages);
       if (trimmed) meta.trimmedResults = (meta.trimmedResults || 0) + trimmed;
       const out = await ai.chat({
@@ -585,7 +625,15 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
     meta.forcedFailed = true;
   }
   if (!reply || !reply.trim()) {
-    reply = meta.toolsUsed.length ? pick(PHRASES.done) : pick(PHRASES.unclear);
+    // Muddat tugagan bo'lsa, jim qolmaymiz: nima bajarilgani aytiladi.
+    if (meta.deadlineHit) {
+      const did = [...new Set(meta.toolsUsed)];
+      reply = did.length
+        ? `Ish uzoq cho‘zilyapti — provayderlar hozir sekin. Shu paytgacha bajarganim: ${did.join(', ')}. Davom ettirayinmi?`
+        : 'Provayderlar hozir javob bermayapti — hech narsa bajarilmadi. Bir necha daqiqadan keyin qayta ayting.';
+    } else {
+      reply = meta.toolsUsed.length ? pick(PHRASES.done) : pick(PHRASES.unclear);
+    }
   }
 
   // Greeting only answers a greeting. "Assalomu alaykum, Yosh Usta!" on every
