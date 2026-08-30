@@ -1,7 +1,7 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
+const { spawn, execFileSync } = require('node:child_process');
 const config = require('../config');
 const { db, recordEvent } = require('../core/db');
 const { encrypt, decrypt } = require('../core/crypto');
@@ -392,6 +392,47 @@ function remove(slug) {
   return { ok: true, dirRemoved: true };
 }
 
+/**
+ * Git omboridan loyiha papkasiga ko'chirish.
+ *
+ * Bu yo'l yo'q edi, va shuning uchun "GitHubdan clone qilib ishlatib
+ * qo'y" degan buyruq amalda bajarilmasdi: agent `bash` bilan biror joyga
+ * clone qilardi, keyin `write_project_file` "Loyiha topilmadi" deb xato
+ * berardi va nusxa loyihalar ro'yxatiga umuman tushmasdi. Ya'ni fayllar
+ * bor, lekin agentning o'zi ularni boshqara olmasdi.
+ *
+ * Endi clone loyihaning o'z papkasiga tushadi — shundan keyin uni
+ * ishga tushirish, to'xtatish, jurnalini o'qish va o'chirish mumkin.
+ */
+function cloneInto(slug, url) {
+  const r = record(slug);
+  if (!r) throw new Error(`loyiha topilmadi: ${slug}`);
+  const clean = String(url).trim();
+  if (!/^https:\/\/[\w.-]+\/[\w./~-]+?(\.git)?$/i.test(clean)) {
+    throw new Error('faqat https:// bilan boshlanadigan git manzili qabul qilinadi');
+  }
+
+  const dir = dirOf(slug);
+  const existing = fs.existsSync(dir) ? fs.readdirSync(dir) : [];
+  if (existing.length) throw new Error(`"${slug}" papkasi boʻsh emas (${existing.length} ta element)`);
+
+  try {
+    execFileSync('git', ['clone', '--depth', '1', clean, dir], {
+      stdio: 'pipe',
+      timeout: 180_000,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    });
+  } catch (err) {
+    const why = String(err.stderr || err.message).replace(/\s+/g, ' ').slice(0, 200);
+    throw new Error(`clone boʻlmadi: ${why}`);
+  }
+
+  const files = fs.readdirSync(dir).filter((f) => f !== '.git');
+  log.info('loyiha git ombordan koʻchirildi', { slug, url: clean, files: files.length });
+  recordEvent('projects', 'Project cloned', { slug, url: clean, files: files.length });
+  return { ok: true, files, hasPackageJson: files.includes('package.json') };
+}
+
 /** Sweep project folders whose database row is gone. */
 function sweepOrphans() {
   if (!fs.existsSync(ROOT)) return 0;
@@ -434,7 +475,7 @@ function stopAll() {
 }
 
 module.exports = {
-  ROOT, create, update, find, record, list, remove, sweepOrphans, slugify, dirOf, safePath, setDeployed, killStray,
+  ROOT, create, update, find, record, list, remove, sweepOrphans, slugify, dirOf, safePath, setDeployed, killStray, cloneInto,
   listFiles, readFile, writeFile, editFile, deleteFile, runCommand,
   start, stop, restart, logs, resumeAll, stopAll, envOf, setEnv,
 };

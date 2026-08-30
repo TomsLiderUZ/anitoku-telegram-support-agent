@@ -105,7 +105,8 @@ const definitions = [
   fn('list_servers', 'Saqlangan serverlar va terminal sessiyalari.', {}),
 
   // ── projects, code, servers ───────────────────────────────────────────
-  fn('create_project', "Yangi dastur/loyiha yaratish (bot, API, sayt, skript — har qanday). Papka ochiladi; keyin code_task bilan kod yoziladi. Telegram bot boʻlsa kind='telegram-bot' va env'ga BOT_TOKEN oʻzi tushadi (username bering).", { name: S('nomi'), kind: { type: 'string', enum: ['node', 'telegram-bot', 'python', 'static', 'other'] }, spec: S('nima qilishi kerak'), run_cmd: S("doimiy ishga tushirish buyrugʻi, masalan 'node index.js' (ixtiyoriy)"), bot_username: S('telegram-bot uchun @username') }, ['name']),
+  fn('create_project', "Yangi loyiha yaratish (bot, API, sayt, skript — har qanday). GitHubdan koʻchirish kerak boʻlsa `git_url` ber — repo shu loyihaning papkasiga clone qilinadi va SHUNDAN KEYIN uni ishga tushirish, toʻxtatish, jurnalini oʻqish mumkin boʻladi. Rahbar .env bergan boʻlsa — `env` ga oʻsha kalit/qiymatlarni oʻzgartirmasdan qoʻy. Telegram bot uchun kind='telegram-bot'. Bot BotFather roʻyxatida boʻlmasa ham loyiha yaratiladi: ishlashi uchun faqat BOT_TOKEN kerak.",
+    { name: S('nomi'), kind: { type: 'string', enum: ['node', 'telegram-bot', 'python', 'static', 'other'] }, spec: S('nima qilishi kerak'), run_cmd: S("ishga tushirish buyrugʻi, masalan 'node index.js'"), bot_username: S('telegram-bot uchun @username'), git_url: S('https://github.com/... — koʻchiriladigan repo'), env: { type: 'object', description: 'Muhit oʻzgaruvchilari: BOT_TOKEN, API kalitlar va h.k.', additionalProperties: { type: 'string' } } }, ['name']),
   fn('build_site', "SAYT / veb-ilova yasash va ISHGA TUSHIRISH. Yosh Usta 'sayt yasa', 'veb sayt qil' desa — SHU vosita. Lokalda oʻz portida ishga tushadi va ochiladigan havola qaytadi. Mavjudini oʻzgartirish uchun `fix` bilan. REJA SOʻRAMA — darhol bajar.", { name: S('Sayt nomi, masalan "anitoku-anime"'), spec: S('Sayt nima qilishi, qanday sahifalar boʻlishi — toʻliq tavsif'), fix: S('Mavjud saytni oʻzgartirish uchun') }, ['name']),
   fn('publish_site', "Saytni SERVERGA joylash va subdomenga ulash. 'serverga joyla', 'subdomenga ula' desa ishlat. pm2, nginx va HTTPS avtomatik sozlanadi. DNS yozuvi hali boʻlmasa ham joylaydi va nima qoʻshish kerakligini aytadi.", { project: S('Loyiha nomi'), domain: S('Subdomen, masalan anime.anitoku.uz') }, ['project', 'domain']),
   fn('secure_site', 'DNS tarqalgach saytga HTTPS sertifikatini ulash.', { domain: S('') }, ['domain']),
@@ -167,7 +168,10 @@ const TRIGGERS = {
   messaging: /(rejalashtir|eslat|soat|ertaga|keyin|forward|o['‘’ʻ]?chir(ib)?\s*tashla|javob(i|ini)?\s*(kel|kut)|kuzat|esingda tursin|alias|schedule|remind)/i,
   chats: /(guruh|kanal|group|channel|a['‘’ʻ]?zo|azo|admin|blok|ban|kick|chiqar|qo['‘’ʻ]?sh|taklif|invite|obuna|join|link|havola|t\.me|yarat|och\b|ochib)/i,
   bots: /(bot|botfather|token|@\w+bot|majburiy|tugma|button)/i,
-  code: /(kod|code|dastur|loyiha|project|yoz\b.*\b(bot|sayt|api|skript)|sayt|api|skript|script|npm|node|python|dеploy|deploy|test|xato.*tuzat|tuzat.*kod)/i,
+  // github / clone / .env — "GitHubdan clone qilib ishlatib qoʻy" va rahbar
+  // tashlagan .env bloki shu guruhga tushishi kerak, aks holda create_project
+  // va set_project_env umuman yuborilmaydi va buyruq bajarilmay qoladi.
+  code: /(kod|code|dastur|loyiha|project|github|gitlab|clone|repo(zitoriy)?|\.git\b|git\s?hub|\.env\b|BOT_TOKEN|API_KEY|yoz\b.*\b(bot|sayt|api|skript)|sayt|api|skript|script|npm|node|python|dеploy|deploy|test|xato.*tuzat|tuzat.*kod)/i,
   servers: /(server|ssh|vps|pm2|nginx|docker|deploy|206\.|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|parol.*server|host)/i,
   routines: /(har\s*kuni|har\s*hafta|har\s*\d+\s*(soat|daqiqa)|doim|doimiy|ratsion|routine|vazifa(lar)?\s*ro['‘’ʻ]?yxat|rejalashtirilgan)/i,
   knowledge: /(bilim|baza|knowledge|trening|o['‘’ʻ]?qit|sozlama|setting)/i,
@@ -546,19 +550,61 @@ function createExecutor(ctx) {
       // ── projects ───────────────────────────────────────────────────────
       case 'create_project': {
         const kind = args.kind || 'node';
-        const env = {};
-        if (kind === 'telegram-bot' && args.bot_username) {
-          const u = String(args.bot_username).replace(/^@/, '');
-          let tok = await bots.tokenFor(u, { fetchIfMissing: false });
-          if (!tok) {
-            const t = await botfather.getToken(u);
-            tok = t.token;
+        const env = { ...(args.env && typeof args.env === 'object' ? args.env : {}) };
+        const notes = [];
+
+        if (kind === 'telegram-bot') {
+          env.ADMIN_IDS = env.ADMIN_IDS || String(settings.get('founder_ids', ''));
+          /**
+           * BotFather'dan token olish — IXTIYORIY qadam.
+           *
+           * Ilgari bu yerda xato tashlanardi va butun loyiha yaratilmasdan
+           * qolardi. Sabab noto'g'ri edi: bot BotFather ro'yxatida yo'qligi
+           * uni ishga tushirib bo'lmasligini bildirmaydi. Bot ishlashi
+           * uchun faqat TOKEN kerak, uni kim yaratgani muhim emas —
+           * BotFather egaligi faqat menyu/nom o'zgartirish uchun kerak.
+           *
+           * Shuning uchun token topilmasa, loyiha baribir yaratiladi va
+           * tokenni keyin berish mumkinligi aytiladi.
+           */
+          if (!env.BOT_TOKEN && args.bot_username) {
+            const u = String(args.bot_username).replace(/^@/, '');
+            try {
+              let tok = await bots.tokenFor(u, { fetchIfMissing: false });
+              if (!tok) tok = (await botfather.getToken(u)).token;
+              env.BOT_TOKEN = tok;
+            } catch (err) {
+              notes.push(`@${u} BotFather roʻyxatida yoʻq — tokenni oʻzingiz bersangiz bot baribir ishlaydi (set_project_env bilan BOT_TOKEN).`);
+            }
           }
-          env.BOT_TOKEN = tok;
-          env.ADMIN_IDS = String(settings.get('founder_ids', ''));
         }
-        const p = projects.create({ name: args.name, kind, spec: args.spec || null, runCmd: args.run_cmd || (kind === 'node' || kind === 'telegram-bot' ? 'node index.js' : null), env: Object.keys(env).length ? env : null });
-        return { ok: true, project: { slug: p.slug, name: p.name, kind: p.kind, dir: p.dir, run_cmd: p.run_cmd, envKeys: p.envKeys } };
+
+        const p = projects.create({
+          name: args.name,
+          kind,
+          spec: args.spec || null,
+          runCmd: args.run_cmd || (kind === 'node' || kind === 'telegram-bot' ? 'node index.js' : null),
+          env: Object.keys(env).length ? env : null,
+        });
+
+        // Git ombordan ko'chirish — loyiha yaratilgandan keyin, uning papkasiga.
+        let cloned = null;
+        if (args.git_url) {
+          try {
+            cloned = projects.cloneInto(p.slug, args.git_url);
+            notes.push(`clone qilindi: ${cloned.files.length} ta element${cloned.hasPackageJson ? ' (package.json bor — npm install kerak)' : ''}`);
+          } catch (err) {
+            notes.push(`clone boʻlmadi: ${err.message}`);
+          }
+        }
+
+        const fresh = projects.record(p.slug);
+        return {
+          ok: true,
+          project: { slug: fresh.slug, name: fresh.name, kind: fresh.kind, dir: fresh.dir, run_cmd: fresh.run_cmd, envKeys: fresh.envKeys, files: fresh.files },
+          cloned: cloned ? cloned.files.slice(0, 20) : null,
+          notes: notes.length ? notes : undefined,
+        };
       }
       // ── planning ───────────────────────────────────────────────────────
       case 'plan': {
