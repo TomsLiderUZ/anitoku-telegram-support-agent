@@ -13,19 +13,38 @@ const { BRAND, POLICY } = require('../config/constants');
 const log = createLogger('assistant');
 
 const MAX_ROUNDS = 12;
-// Tool-capable models in order of measured reliability. gpt-oss-120b calls
-// tools cleanly; when its daily quota is spent the next ones still follow
-// multi-step instructions. mistral-small and the free OpenRouter models are
-// deliberately last — they narrate "done ✅" without calling anything.
+/**
+ * Provayderlar tartibi — o'lchangan natija bo'yicha, taxmin bo'yicha emas.
+ *
+ * Bir sutkalik ai_calls yozuvi (muvaffaqiyat ulushi / o'rtacha tezlik):
+ *
+ *   mistral-medium    146/239 = 61%   1 793 ms   ← eng ishonchlisi
+ *   minimax-m3         41/45  = 91%   5 099 ms   sekin, lekin javob beradi
+ *   gpt-oss-120b       23/257 =  9%     104 ms   ← eng tezi, sig'sa
+ *   gemini-3.7-flash    3/346 =  0.9%   308 ms
+ *   glm-5.2:free        3/49  =  6%     189 ms
+ *   qwen3.8-27b         1/150 =  0.7%     6 ms
+ *
+ * Ilgari ro'yxat boshida deyarli hech qachon javob bermaydigan uchta
+ * model turardi, ya'ni har bir javob ular orqali o'tib, keyin
+ * ishlaydiganiga tushardi — o'lchovda bitta javobga o'rtacha 9 urinish.
+ *
+ * gpt-oss-120b baribir birinchi: u ishlaganda 104 ms, ya'ni eng arzon
+ * urinish. Uning 9% ulushi sabab so'rov hajmi edi (Groq chegarasi 8 000
+ * token), va u endi tuzatilgan — shuning uchun ulush ko'tarilishi kutiladi.
+ * Undan keyin darhol ishonchli mistral keladi, taxminiy modellar esa
+ * oxiriga suriladi.
+ */
 const ASSISTANT_PLAN = [
   { provider: 'groq', model: 'openai/gpt-oss-120b' },
-  { provider: 'groq', model: 'qwen/qwen3.8-27b' },
-  { provider: 'gemini', model: 'gemini-3.7-flash' },
   { provider: 'mistral', model: 'mistral-medium-latest' },
-  { provider: 'groq', model: 'openai/gpt-oss-20b' },
+  { provider: 'gemini', model: 'gemini-3.7-flash' },
+  { provider: 'openrouter', model: 'minimax/minimax-m3:free' },
   { provider: 'cerebras', model: 'llama-3.3-70b' },
-  { provider: 'openrouter', model: 'z-ai/glm-5.2:free' },
   { provider: 'gemini', model: 'gemini-3.1-flash-lite' },
+  { provider: 'groq', model: 'qwen/qwen3.8-27b' },
+  { provider: 'openrouter', model: 'z-ai/glm-5.2:free' },
+  { provider: 'groq', model: 'openai/gpt-oss-20b' },
 ];
 
 /**
@@ -283,6 +302,61 @@ Current time (Tashkent): ${now}`;
 let phraseTick = 0;
 const pick = (list) => list[phraseTick++ % list.length];
 
+/**
+ * So'rov uchun token byudjeti.
+ *
+ * Groq bepul yo'nalishida daqiqasiga 8 000 token — va bu CHEGARA
+ * so'rovning o'ziga ham tegishli. O'lchovda xato matni aynan shunday
+ * dedi: "Limit 8000, Requested 33336". Ya'ni so'rov chegaradan to'rt
+ * baravar oshib ketgan va eng tez provayder (o'rtacha 104 ms) har safar
+ * darhol rad etgan — javob esa sekin zaxiralardan kelgan.
+ *
+ * Byudjet chiqadigan javob uchun ham joy qoldiradi (maxTokens 1200).
+ */
+const REQUEST_TOKEN_BUDGET = 4600;
+const estTokens = (s) => Math.ceil(String(s || '').length / 4);
+
+/** Eng yangi shuncha natija to'liq qoladi — qaror shular asosida qabul qilinadi. */
+const FRESH_TOOL_RESULTS = 2;
+const MIN_TOOL_RESULT_CHARS = 200;
+
+/**
+ * O'sib ketgan vosita natijalarini byudjetga sig'dirish.
+ *
+ * Har bir natija 8 000 belgigacha (~2 000 token) saqlanardi. Uch-to'rt
+ * raunddan keyin so'rov shundan shishardi: "juda katta" xatolarining 178
+ * tasi (265 dan) aynan 4-va undan keyingi urinishlarda sodir bo'lgan.
+ * Ish qancha uzoq davom etsa, agent shuncha sekinlashardi — eng yomoni
+ * shundaki, murakkab ish aynan tez javobga muhtoj edi.
+ *
+ * Eski natijalar qisqartiriladi, lekin HECH QACHON o'chirilmaydi:
+ * tool_call_id juftligi buzilsa, ba'zi provayderlar butun so'rovni rad
+ * etadi. Qisqartirish oxirgi natijalarga tegmaydi va byudjetga
+ * sig'guncha bosqichma-bosqich kuchayadi.
+ */
+function trimToolHistory(messages) {
+  const idx = [];
+  for (let i = 0; i < messages.length; i++) if (messages[i].role === 'tool') idx.push(i);
+  const older = idx.slice(0, Math.max(0, idx.length - FRESH_TOOL_RESULTS));
+  if (!older.length) return 0;
+
+  const total = () => messages.reduce((n, m) => n + estTokens(m.content) + estTokens(JSON.stringify(m.tool_calls || '')), 0);
+  let trimmed = 0;
+
+  // Eskisidan yangisiga qarab, byudjetga sig'guncha.
+  for (const cap of [1200, 600, MIN_TOOL_RESULT_CHARS]) {
+    if (total() <= REQUEST_TOKEN_BUDGET) break;
+    for (const i of older) {
+      const body = String(messages[i].content || '');
+      if (body.length <= cap) continue;
+      messages[i].content = `${body.slice(0, cap)}… [qisqartirildi]`;
+      trimmed++;
+      if (total() <= REQUEST_TOKEN_BUDGET) break;
+    }
+  }
+  return trimmed;
+}
+
 const PHRASES = {
   sentPrivate: ['Shaxsiy chatingizga tashladim.', 'Shaxsiyga yubordim.', 'Shaxsiy chatga yozdim.'],
   done: ['Bajarildi.', 'Tayyor.', 'Qildim.'],
@@ -383,13 +457,15 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
   // Only the tools this request could plausibly need: all ~77 schemas at once
   // pushed the request past provider token limits and diluted the model's
   // attention. `bash` is always in the set, so nothing is truly out of reach.
-  const toolSet = assistantTools.selectTools(text);
+  let toolSet = assistantTools.selectTools(text);
   meta.toolCount = toolSet.length;
   let reply = '';
   let forcedTools = false;
   let forcedFailed = false;
   try {
     for (let round = 0; round <= MAX_ROUNDS; round++) {
+      const trimmed = trimToolHistory(messages);
+      if (trimmed) meta.trimmedResults = (meta.trimmedResults || 0) + trimmed;
       const out = await ai.chat({
         messages,
         tools: round < MAX_ROUNDS ? toolSet : null,
@@ -410,6 +486,15 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
           log.warn('model narrated instead of acting — forcing tools', { chatId, narrated, said: String(out.content).slice(0, 90) });
           meta.forcedTools = true;
           forcedTools = true;
+          // The narrow set is a speed optimisation, not a restriction: if the
+          // model could not act, the tool it needed may simply not have been
+          // sent. Widen to everything for the retry — one expensive request
+          // beats a wrong answer.
+          if (toolSet.length < assistantTools.definitions.length) {
+            toolSet = assistantTools.definitions;
+            meta.toolsWidened = true;
+            log.info('vositalar to‘liq ro‘yxatga kengaytirildi', { chatId, count: toolSet.length });
+          }
           messages.push({
             role: 'system',
             content: narrated
@@ -459,7 +544,10 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
             error: err.message,
           });
         }
-        messages.push({ role: 'tool', tool_call_id: c.id, name: c.function.name, content: JSON.stringify(result).slice(0, 8000) });
+        // 8 000 belgi (~2 000 token) bitta natija uchun juda ko'p edi: uch
+        // natija butun byudjetni yeb qo'yardi. Model uchun muhimi natijaning
+        // boshi — nima qaytgani, xato bormi.
+        messages.push({ role: 'tool', tool_call_id: c.id, name: c.function.name, content: JSON.stringify(result).slice(0, 2500) });
       }
       meta.toolsUsed = executor.used.slice();
     }

@@ -187,8 +187,22 @@ function available(purpose = null) {
   if (!settings.bool('local_model_enabled', true)) return false;
   if (!fileStatus('chat').present || state.chatModel !== true || !state.worker) return false;
 
+  /**
+   * GPU yo'q bo'lsa — umuman ishlatilmaydi.
+   *
+   * Ilgari bu cheklov faqat interaktiv ish uchun edi: fonda ishlaydigan
+   * xulosa yoki trening lokal modelga tushaverardi. O'lchov shuni
+   * ko'rsatdi: bir sutkada 33 chaqiruv, MUVAFFAQIYATLI 0 ta, har biriga
+   * o'rtacha 52 soniya — jami 28 daqiqa. Ikki yadroli serverda 1B model
+   * hech qanday maqsad uchun foyda bermaydi, lekin o'sha ikki yadroni
+   * band qilib, javob kutayotgan odamni ham sekinlashtiradi.
+   *
+   * Shuning uchun endi maqsadidan qat'i nazar rad etiladi. GPU paydo
+   * bo'lsa, o'zi qayta ishlay boshlaydi.
+   */
+  if (state.gpu === 'cpu') return false;
+
   if (purpose && INTERACTIVE.has(purpose)) {
-    if (state.gpu === 'cpu') return false;
     if (state.slowStreak >= SLOW_STREAK_LIMIT) return false;
   }
   return true;

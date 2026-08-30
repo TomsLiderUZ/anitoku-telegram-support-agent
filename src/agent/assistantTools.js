@@ -183,8 +183,24 @@ function selectTools(text) {
   for (const [group, re] of Object.entries(TRIGGERS)) {
     if (re.test(t)) for (const n of GROUPS[group]) picked.add(n);
   }
-  // A short or unclear message gets the common groups rather than nothing.
-  if (picked.size <= GROUPS.core.length + 2) for (const n of [...GROUPS.chats, ...GROUPS.bots, ...GROUPS.routines]) picked.add(n);
+  /**
+   * Tanilmagan xabar uchun zaxira to'plam — TOR bo'lishi kerak.
+   *
+   * Ilgari bu yerga chats + bots + routines qo'shilardi, ya'ni hech qaysi
+   * guruhga tushmagan oddiy xabar ("Mirvohidga salom yozib yubor") 54 ta
+   * vosita bilan ketardi: ~4 700 token. Tizim prompti va tarix ustiga
+   * qo'shilganda so'rov 10 000 tokendan oshib, Groq uni "Request too
+   * large" deb rad etardi — o'lchovda bir sutkada 265 marta. Ya'ni eng
+   * tez provayder (o'rtacha 104 ms) umuman ishlatilmay, javob sekin
+   * zaxiralardan kelardi.
+   *
+   * Xabar hech qaysi guruhga tushmasa, u deyarli har doim oddiy yozishma
+   * yoki savol bo'ladi — buning uchun core + messaging yetadi. Kerakli
+   * vosita chetda qolsa, chaqiruvchi to'liq ro'yxat bilan qayta uradi
+   * (assistant.js dagi forcedTools yo'li), shuning uchun hech narsa
+   * yo'qolmaydi — faqat har bir so'rov arzonlashadi.
+   */
+  if (picked.size <= GROUPS.core.length + 2) for (const n of GROUPS.messaging) picked.add(n);
   return definitions.filter((d) => picked.has(d.function.name));
 }
 
