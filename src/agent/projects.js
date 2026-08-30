@@ -128,6 +128,17 @@ function record(slug) {
     envKeys: Object.keys(envOf(r.slug)),
     dir: dirOf(r.slug),
     alive: isAlive(r.slug),
+    /**
+     * Panel shu nom bilan o'qiydi.
+     *
+     * UI hamma joyda `running` deb kutadi, bu yer esa faqat `alive`
+     * qaytarardi — ya'ni maydon har doim undefined edi. Natijada
+     * ro'yxatdagi belgi doim "to'xtagan" bo'lib turdi, "N ta ishlamoqda"
+     * har doim nol ko'rsatdi, va eng muhimi TO'XTATISH tugmasi hech
+     * qachon chiqmadi: u `project?.running` shartiga bog'langan.
+     * Tugma kodda bor edi, faqat unga yetib borib bo'lmasdi.
+     */
+    running: isAlive(r.slug),
     files: fs.existsSync(dirOf(r.slug)) ? fs.readdirSync(dirOf(r.slug)).filter((f) => !SKIP_DIRS.has(f)).length : 0,
   };
 }
