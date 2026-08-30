@@ -40,6 +40,24 @@ db.exec(`
   )
 `);
 
+/**
+ * Keyin qo'shilgan ustunlar.
+ *
+ * `CREATE TABLE IF NOT EXISTS` mavjud jadvalga yangi ustun QO'SHMAYDI —
+ * u shunchaki hech narsa qilmaydi. Shuning uchun jadval eski bo'lgan
+ * o'rnatishlarda `deployed` ustuni yo'q edi, va uni yozmoqchi bo'lgan
+ * har bir joy jimgina yiqilardi: loyihani ishga tushirish ham,
+ * ro'yxatda ko'rsatish ham. Xato faqat "no such column: deployed"
+ * bo'lib chiqardi, ya'ni sabab kod emas, sxema edi.
+ */
+for (const [col, def] of [['deployed', 'INTEGER DEFAULT 0']]) {
+  const has = db.prepare('PRAGMA table_info(projects)').all().some((c) => c.name === col);
+  if (!has) {
+    db.exec(`ALTER TABLE projects ADD COLUMN ${col} ${def}`);
+    log.info('projects jadvaliga ustun qoʻshildi', { col });
+  }
+}
+
 const procs = new Map();
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '.cache', '__pycache__']);
 
