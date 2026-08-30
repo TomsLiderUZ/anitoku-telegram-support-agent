@@ -22,6 +22,22 @@ const REQUEUE_WAIT_MS = 1_500;
  */
 const MAX_QUEUE_WAIT_MS = 40_000;
 
+/** Agentni chaqiradigan nomlar — @username dan tashqari. */
+const AGENT_NAMES = /(^|[\s,.!?—-])(agent|admin|anitoku[\s_]?admin|bot)([\s,.!?:—-]|$)/i;
+
+/**
+ * Guruhdagi xabar agentga qaratilganmi?
+ *
+ * Uch belgi: agentning xabariga javob, @username bilan chaqirish, yoki
+ * nomini aytish. Boshqa hamma narsa — odamlarning o'zaro suhbati.
+ */
+function addressedToAgent(text, { isReplyToMe = false, selfUser = '' } = {}) {
+  if (isReplyToMe) return true;
+  const t = String(text || '');
+  if (selfUser && new RegExp(`@${selfUser}\\b`, 'i').test(t)) return true;
+  return AGENT_NAMES.test(t);
+}
+
 /**
  * Bridges Telegram events to the agent brain.
  *
@@ -166,6 +182,33 @@ class Runtime extends EventEmitter {
       const addressedElsewhere = text.match(/^\/[a-z0-9_]+@([a-z0-9_]+)/i);
       if (addressedElsewhere && addressedElsewhere[1].toLowerCase() !== selfUser.toLowerCase()) {
         log.debug('skip: command addressed to another bot', { chatId, bot: addressedElsewhere[1] });
+        return;
+      }
+
+      /**
+       * GURUHDA rahbarning har gapi buyruq EMAS.
+       *
+       * Shaxsiy chatda u faqat agent bilan gaplashadi, shuning uchun har
+       * xabar ko'rsatma. Guruhda esa u boshqa odamlar bilan gaplashadi —
+       * va aynan shu farq hisobga olinmagan edi. Natijasi guruhda ko'rindi:
+       * u boshqa a'zoga javoban "Bugla ko'p" deb yozdi, agent buni o'ziga
+       * buyruq deb tushunib, o'sha matnni chatga qayta yubordi va "xabar
+       * yuborildi" deb hisobot berdi. Hech kim so'ramagan ish.
+       *
+       * Qoida ataylab TOR: faqat rahbar BOSHQA ODAMNING xabariga javob
+       * yozayotgan holat chetlab o'tiladi — bu suhbat kim bilan
+       * ketayotganining eng aniq belgisi. Manzilsiz buyruq ("Mirvohidga
+       * salom yoz") avvalgidek bajarilaveradi, chunki "agent meni
+       * eshitmadi" bundan ham yomon nuqson.
+       *
+       * Rahbar shu javobda agentni ham chaqirsa (@username yoki nomi),
+       * u baribir bajaradi. Shaxsiy chat o'zgarishsiz — u yerda hamma
+       * narsa ko'rsatma.
+       */
+      const replyingToSomeoneElse = !!(msg.replyTo && msg.replyTo.replyToMsgId) && !isReplyToMe;
+      if (chatType !== 'private' && replyingToSomeoneElse && !addressedToAgent(text, { selfUser })) {
+        this.stats.skipped++;
+        log.debug('skip: rahbar guruhda boshqa odamga javob yozmoqda', { chatId, preview: text.slice(0, 60) });
         return;
       }
 

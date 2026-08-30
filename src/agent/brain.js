@@ -269,13 +269,28 @@ async function respond({ chatId, text, chatTitle = null, chatType = 'private', u
   // anyone else — the prompt rule alone did not hold.
   if (!isFounder) {
     const before = reply;
-    // "Yosh Usta" is the founder's address alone — a group member who happened
-    // to write next was greeted as Yosh Usta, which is both wrong and leaks
-    // who the account answers to.
+    /**
+     * Rahbarga atalgan murojaat begonaga ketmasin.
+     *
+     * Guruhda navbat bilan yozgan boshqa odam "Yosh Usta" deb chaqirildi —
+     * bu ham noto'g'ri, ham akkaunt kimga bo'ysunishini oshkor qiladi.
+     *
+     * DIQQAT: murojaat nomi o'zgarsa, SHU RO'YXAT ham o'zgarishi kerak.
+     * Bir marta nom "Toms aka" dan "Yosh Usta" ga ko'chirildi, bu yerdagi
+     * ro'yxat esa eskisicha qoldi — natijada himoya jimgina ishlamay
+     * qo'ydi va begona odamlar rahbarning nomi bilan chaqirila boshladi.
+     */
+    const RESERVED = String.raw`yosh\s*usta|hurmatli\s+asoschi|asoschi|rahbar(iyat)?|boss|shef|toms\s+aka|toms`;
     reply = reply
-      .replace(/\b(hurmatli\s+)?(asoschi|rahbar(iyat)?|boss|shef|toms\s+aka|toms)\s*[,!]\s*/gi, '')
-      .replace(/,\s*(hurmatli\s+)?(asoschi|rahbar|toms\s+aka|toms)\b\s*!?/gi, '')
-      .replace(/\b(labbay|xizmatingizdaman)\s*,?\s*(hurmatli\s+)?(asoschi|rahbar|toms\s+aka)\b/gi, '$1');
+      .replace(new RegExp(String.raw`^\s*(?:${RESERVED})\s*[,!:—-]+\s*`, 'gi'), '')
+      .replace(new RegExp(String.raw`\b(?:hurmatli\s+)?(?:${RESERVED})\s*[,!]\s*`, 'gi'), '')
+      .replace(new RegExp(String.raw`,\s*(?:hurmatli\s+)?(?:${RESERVED})\b\s*!?`, 'gi'), '')
+      .replace(new RegExp(String.raw`\b(labbay|xizmatingizdaman)\s*,?\s*(?:hurmatli\s+)?(?:${RESERVED})\b`, 'gi'), '$1')
+      // Murojaat olingach osilib qoladigan tinish belgisi: "Rahmat, " → "Rahmat."
+      .replace(/[ \t]*,[ \t]*$/, '.')
+      .replace(/[ \t]*,[ \t]*([.!?])/g, '$1')
+      .trim();
+    if (reply && /^[a-zа-я]/.test(reply)) reply = reply[0].toUpperCase() + reply.slice(1);
     if (reply !== before) meta.flags.push('honorific_stripped');
   }
   const clean = guardrails.sanitizeOutgoing(reply);
