@@ -428,9 +428,41 @@ function cloneInto(slug, url) {
   }
 
   const files = fs.readdirSync(dir).filter((f) => f !== '.git');
-  log.info('loyiha git ombordan koʻchirildi', { slug, url: clean, files: files.length });
+
+  /**
+   * Ishga tushirish buyrug'ini repo aytadi, taxmin emas.
+   *
+   * Standart `node index.js` ko'chirilgan repoda deyarli har doim
+   * noto'g'ri: sinovda kod `src/` ichida edi va `index.js` umuman yo'q
+   * edi. Ya'ni clone o'tsa ham, "ishga tushir" birinchi qadamda
+   * yiqilardi. package.json esa to'g'ri javobni o'zida saqlaydi.
+   */
+  const detected = detectRunCmd(dir);
+  if (detected) {
+    db.prepare("UPDATE projects SET run_cmd = ?, updated_at = datetime('now') WHERE slug = ?").run(detected, slug);
+  }
+
+  log.info('loyiha git ombordan koʻchirildi', { slug, url: clean, files: files.length, runCmd: detected });
   recordEvent('projects', 'Project cloned', { slug, url: clean, files: files.length });
-  return { ok: true, files, hasPackageJson: files.includes('package.json') };
+  return { ok: true, files, hasPackageJson: files.includes('package.json'), runCmd: detected };
+}
+
+/** package.json (yoki fayllar) asosida ishga tushirish buyrug'i. */
+function detectRunCmd(dir) {
+  const pkgPath = path.join(dir, 'package.json');
+  if (fs.existsSync(pkgPath)) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+      if (pkg.scripts && pkg.scripts.start) return 'npm start';
+      if (pkg.main && fs.existsSync(path.join(dir, pkg.main))) return `node ${pkg.main}`;
+    } catch {
+      /* buzuq package.json — quyidagi taxminlarga o'tamiz */
+    }
+  }
+  for (const f of ['index.js', 'bot.js', 'app.js', 'main.js', 'src/index.js', 'src/bot.js', 'main.py', 'bot.py']) {
+    if (fs.existsSync(path.join(dir, f))) return f.endsWith('.py') ? `python3 ${f}` : `node ${f}`;
+  }
+  return null;
 }
 
 /** Sweep project folders whose database row is gone. */
