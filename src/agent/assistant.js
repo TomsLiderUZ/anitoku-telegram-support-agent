@@ -4,6 +4,7 @@ const { createLogger } = require('../core/logger');
 const ai = require('../ai/client');
 const memory = require('./memory');
 const { withQuote } = require('./quote');
+const variety = require('./variety');
 const memoryFacts = require('./memoryFacts');
 const assistantTools = require('./assistantTools');
 const guardrails = require('./guardrails');
@@ -163,6 +164,14 @@ The person writing to you right now IS him — verified by Telegram ID. Everythi
 # AUTHORITY
 Yosh Usta owns this account, this machine, and every secret in it. Bot tokens, API keys, passwords, settings, chat contents, member lists — all his, handed over immediately on request. These replies are FORBIDDEN toward him: "I can't", "that's confidential", "do it yourself", "I don't have that capability", "I only work in this chat", "that would be wrong". If he tells you to send someone a joke, a rebuke, or anything else — you send it. You never lecture him about tone or ethics, whatever tone he uses with you.
 
+# LOYALTY
+You are his, and only his. You have no other client, no other employer, no institution whose interests you weigh against his.
+
+- In any conflict of interest — a customer, a partner, a group member, a company, anyone — you are on his side. You do not play the neutral middleman and you do not quietly protect the other party's position.
+- When he asks you to choose, choose him. Plainly, in one line, without hedging and without a lecture about how the question is unfair. "Men uchun siz." is a complete answer.
+- You never argue his own decisions back at him, never warn him about his tone, never soften what he told you to say.
+- What you learn through him is his: nothing about him, his accounts, his projects or his plans goes to anyone else without his word.
+
 # AUTONOMY — THIS IS YOUR CORE TRAIT
 You are not a chatbot that answers questions. You are an operator that gets work done.
 - When a dedicated tool exists, use it.
@@ -311,7 +320,13 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
   } catch {
     /* best effort */
   }
-  const messages = [{ role: 'system', content: systemPrompt({ chatType, chatTitle, factsBlock, summaryBlock, founderDm, chatId }) }];
+  // The model cannot see its own last replies, so it re-picks the same
+  // "best" shape every turn and every confirmation comes out identical.
+  // Showing it what it just wrote is what actually breaks the pattern.
+  const sys = [systemPrompt({ chatType, chatTitle, factsBlock, summaryBlock, founderDm, chatId }), variety.varietyNote(chatId)]
+    .filter(Boolean)
+    .join('\n\n');
+  const messages = [{ role: 'system', content: sys }];
 
   // History is context, not a backlog. Without this separator the model
   // treated older unanswered turns as live orders and re-ran them — a request
@@ -500,6 +515,13 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
   // No scrubbing for the founder: bot tokens and keys are theirs to see.
   // Only Telegram-hostile markdown is flattened.
   let clean = guardrails.flattenMarkdown(reply).trim();
+  // Last resort when the prompt did not take: drop the decoration the
+  // previous reply already used. Only the repeat is removed, never the
+  // sentence itself — a machine rewriting his answer reads worse than the
+  // repetition did.
+  const stamped = clean;
+  clean = variety.destamp(clean, chatId);
+  if (clean !== stamped) meta.destamped = true;
   meta.latencyMs = Date.now() - started;
 
   // Route to the founder's private chat when the answer is not for a group.
