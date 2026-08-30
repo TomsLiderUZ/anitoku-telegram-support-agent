@@ -30,6 +30,8 @@ const log = createLogger('coder');
 const MAX_ROUNDS = 80;
 // How many times a task will wait out a provider outage before giving up.
 const MAX_STALLS = 6;
+/** Provayderlar bandligini kutishning UMUMIY chegarasi. */
+const MAX_STALL_TOTAL_MS = 4 * 60_000;
 const CODER_PLAN = [
   { provider: 'groq', model: 'openai/gpt-oss-120b' },
   { provider: 'deepseek', model: 'deepseek-chat' },
@@ -167,6 +169,7 @@ async function runTask({ project = null, task, extraContext = null, sandboxName 
   let rounds = 0;
   let plannedAt = 0;
   let stalls = 0;
+  let stallWaitedMs = 0;
 
   for (; rounds < maxRounds; rounds++) {
     trimHistory(messages, owner);
@@ -188,10 +191,31 @@ async function runTask({ project = null, task, extraContext = null, sandboxName 
       // reason to abandon a half-finished job — the checklist and the files
       // are still there, so wait for capacity and pick up where we left off.
       const transient = /rate_limit|429|Rate limit|temporarily|AI unavailable/i.test(err.message);
-      if (transient && stalls < MAX_STALLS) {
+      /**
+       * Kutish ham CHEGARALANGAN bo'lishi kerak.
+       *
+       * Kutishning o'zi to'g'ri: yarim bajarilgan ishni tashlab ketmaslik
+       * kerak. Lekin eski hisob 20+40+60+80+100+120 = 7 daqiqa sof uxlash
+       * berardi, ustiga so'rov vaqtlari. Rahbar chatida bu 15 daqiqalik
+       * "yozmoqda…" bo'lib ko'rindi — ya'ni tashqaridan agent qotib
+       * qolgandek edi.
+       *
+       * Muhimi shuki, kunlik kvota tugaganda kutishning ma'nosi yo'q:
+       * u ertaga tiklanadi, 7 daqiqada emas. Shuning uchun umumiy kutish
+       * to'rt daqiqa bilan chegaralanadi — undan keyin ish to'xtaydi va
+       * nima bo'lgani aytiladi. To'xtash yomon, jimgina osilib turish
+       * undan ham yomon.
+       */
+      if (transient && stalls < MAX_STALLS && stallWaitedMs < MAX_STALL_TOTAL_MS) {
         stalls++;
-        const waitMs = Math.min(180_000, 20_000 * stalls);
-        log.warn('provayderlar band — kutib qayta urinamiz', { rounds, stall: stalls, waitSec: Math.round(waitMs / 1000) });
+        const waitMs = Math.min(60_000, 15_000 * stalls, MAX_STALL_TOTAL_MS - stallWaitedMs);
+        stallWaitedMs += waitMs;
+        log.warn('provayderlar band — kutib qayta urinamiz', {
+          rounds,
+          stall: stalls,
+          waitSec: Math.round(waitMs / 1000),
+          jamiKutildi: Math.round(stallWaitedMs / 1000),
+        });
         await new Promise((r) => setTimeout(r, waitMs));
         rounds--; // this round never happened
         continue;
