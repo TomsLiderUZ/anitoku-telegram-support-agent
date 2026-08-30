@@ -13,7 +13,9 @@ function register() {
   tasks.register('send_message', async ({ to, text }) => {
     if (!tg.isConnected()) throw new Error('Telegram ulanmagan');
     const r = await contacts.resolve(to);
-    const sent = await tg.client.sendMessage(r.entity, { message: String(text), linkPreview: false });
+    // Xizmat qatlami orqali: formatlash va rad etilganda oddiy matnga qaytish
+    // shu yerda ham amal qilsin (assistantTools dagi bilan bir xil sabab).
+    const sent = await tg.sendMessage(String(r.entity.id), String(text));
     if (sent) ingest.saveMessage(String(r.entity.id), sent, { isAgent: true });
     return { sentTo: contacts.displayName(r.contact) || to, messageId: Number(sent.id) };
   });

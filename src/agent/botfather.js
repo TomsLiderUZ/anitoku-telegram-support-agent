@@ -65,6 +65,9 @@ function shape(list) {
 async function talk(botRef, text, { waitMs = 15_000 } = {}) {
   if (!tg.isConnected()) throw new Error('Telegram ulanmagan');
   const entity = await tg.resolveEntity(botRef);
+  // ATAYLAB xom GramJS orqali: botga yuborilgan matn buyruq, ko'rsatiladigan
+  // xabar emas. "/setdescription" yoki bot username'i formatlovchidan o'tsa,
+  // qabul qiluvchi bot uni tanimay qoladi. Bu yerda hech narsa o'zgarmasin.
   const sent = await tg.client.sendMessage(entity, { message: text });
   const list = await collectReplies(entity, Number(sent.id), { waitMs });
   return { sent: text, ...shape(list) };

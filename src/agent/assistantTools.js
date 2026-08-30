@@ -287,7 +287,15 @@ function createExecutor(ctx) {
       target = r.entity;
       name = contacts.displayName(r.contact) || to;
     }
-    const sent = await tg.client.sendMessage(target, { message: String(text), linkPreview: false });
+    /**
+     * Xizmatning o'z sendMessage'i orqali — GramJS'ni to'g'ridan-to'g'ri emas.
+     *
+     * Bu yo'l formatlovchini chetlab o'tardi, shuning uchun guruhda
+     * "<blockquote>…</blockquote>" teg ko'rinishida, matn bo'lib chiqdi.
+     * Xizmat qatlamida HTML tozalanadi va Telegram rad etsa oddiy matnga
+     * qaytiladi — o'sha himoya shu yerda ham kerak.
+     */
+    const sent = await tg.sendMessage(String(target.id), String(text));
     const chatId = String(target.id);
     if (sent) ingest.saveMessage(chatId, sent, { isAgent: true });
     log.info('xabar yuborildi', { to: name, chars: String(text).length });
