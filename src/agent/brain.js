@@ -4,6 +4,7 @@ const { createLogger } = require('../core/logger');
 const ai = require('../ai/client');
 const store = require('../knowledge/store');
 const skills = require('./skills');
+const { withQuote } = require('./quote');
 const memory = require('./memory');
 const memoryFacts = require('./memoryFacts');
 const tools = require('./tools');
@@ -34,7 +35,7 @@ const FALSE_REFUSAL =
  * @param {string} [input.userName]
  * @returns {Promise<{ok:boolean, text?:string, meta:object}>}
  */
-async function respond({ chatId, text, chatTitle = null, chatType = 'private', userName = null, senderId = null, senderUsername = null }) {
+async function respond({ chatId, text, chatTitle = null, chatType = 'private', userName = null, senderId = null, senderUsername = null, quoted = null }) {
   const started = Date.now();
   const meta = { chatId, toolsUsed: [], escalated: null, flags: [], provider: null, model: null };
 
@@ -121,7 +122,7 @@ async function respond({ chatId, text, chatTitle = null, chatType = 'private', u
   const last = past[past.length - 1];
   const tail = String(text).trim().split('\n').pop().trim();
   if (!last || last.role !== 'user' || last.content.trim() !== tail) {
-    messages.push({ role: 'user', content: String(text) });
+    messages.push({ role: 'user', content: withQuote(text, quoted) });
   }
 
   // Language lock, last position — see LANGUAGE_DIRECTIVE.

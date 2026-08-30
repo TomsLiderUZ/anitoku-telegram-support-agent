@@ -98,15 +98,44 @@ class Runtime extends EventEmitter {
     // Is the agent addressed?
     let isMentioned = false;
     let isReplyToMe = false;
+
+    /**
+     * Iqtibos qilingan xabar — MATNI bilan.
+     *
+     * Ilgari bu yerdan faqat "menga javob berildimi?" degan ha/yo'q
+     * olinardi, iqtibosning MATNI esa hech qayerga uzatilmasdi. Natijada
+     * eski xabarga javob berib "shu backendning MongoDB URLini ber"
+     * deyilganda, agent "shu" nimaga ishora qilayotganini bilmasdi va
+     * yaqin tarixdan taxmin qilardi — ko'pincha noto'g'ri.
+     *
+     * Iqtibos — gapning yarmi. Usiz gap tugallanmagan bo'ladi.
+     */
+    let quoted = null;
     try {
       const myUser = tg.me && tg.me.username ? '@' + tg.me.username.toLowerCase() : null;
       if (myUser && text.toLowerCase().includes(myUser)) isMentioned = true;
+
       if (msg.replyTo && msg.replyTo.replyToMsgId) {
         const replied = await msg.getReplyMessage();
-        if (replied && replied.out) isReplyToMe = true;
+        if (replied) {
+          if (replied.out) isReplyToMe = true;
+          const body = String(replied.message || '').trim();
+          if (body) {
+            quoted = {
+              fromMe: !!replied.out,
+              author: replied.out
+                ? 'agent'
+                : (replied.sender && (replied.sender.firstName || replied.sender.username)) || 'foydalanuvchi',
+              // Uzun iqtibos kontekstni bosib ketmasin: gapning kimga
+              // tegishli ekanini anglash uchun boshi yetarli.
+              text: body.slice(0, 1200),
+              at: replied.date ? new Date(replied.date * 1000).toISOString() : null,
+            };
+          }
+        }
       }
     } catch {
-      /* optional */
+      /* iqtibosni o'qib bo'lmadi — xabarning o'zi baribir qayta ishlanadi */
     }
 
     const senderId = msg.senderId ? String(msg.senderId) : null;
@@ -130,6 +159,7 @@ class Runtime extends EventEmitter {
       this.enqueue({
         chatId, text, chatTitle, chatType, userName, senderId, senderUsername,
         msgId: Number(msg.id),
+        quoted,
         mode: 'assistant',
       });
       return;
@@ -173,6 +203,7 @@ class Runtime extends EventEmitter {
       msgId: Number(msg.id),
       senderId,
       senderUsername,
+      quoted,
       mode: 'support',
     });
   }
@@ -463,6 +494,7 @@ class Runtime extends EventEmitter {
             chatTitle: meta.chatTitle,
             msgId: meta.msgId,
             senderId: meta.senderId,
+            quoted: meta.quoted || null,
           })
         : await brain.respond({
             chatId,
@@ -472,6 +504,7 @@ class Runtime extends EventEmitter {
             userName: meta.userName,
             senderId: meta.senderId,
             senderUsername: meta.senderUsername,
+            quoted: meta.quoted || null,
           });
 
       // Faqat "modellar band" holati qayta uriniladi. Boshqa xato —

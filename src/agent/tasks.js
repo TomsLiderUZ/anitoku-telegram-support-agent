@@ -137,7 +137,7 @@ class TaskRunner extends EventEmitter {
     try {
       const result = await exec(task.payload, task);
       this.finish(id, { ok: true, result });
-      await this.notifyOrigin(task, `✅ Bajarildi: ${task.title || task.kind}${summarize(result)}`);
+      await this.notifyOrigin(task, doneMessage(task, result));
     } catch (err) {
       const retry = task.attempts < 2 && /timeout|network|FLOOD|ulanmagan/i.test(err.message);
       if (retry) {
@@ -185,9 +185,34 @@ function safeJson(s) {
 function summarize(result) {
   if (!result || typeof result !== 'object') return '';
   if (result.token) return `\n\n🤖 @${result.username}\nToken: ${result.token}\n${result.link}`;
-  if (result.sentTo) return `\n→ ${result.sentTo}`;
+  if (result.sentTo) return ` — ${result.sentTo}`;
   if (result.summary) return `\n${String(result.summary).slice(0, 600)}`;
   return '';
+}
+
+/**
+ * Bajarilgan vazifa haqidagi xabar — odam yozgandek.
+ *
+ * Ilgari bu qator ichki yozuvni to'g'ridan-to'g'ri chatga chiqarardi:
+ * "✅ Bajarildi: me ga xabar → ItzToms". "me ga xabar" — bu vazifaning
+ * ichki nomi, "→ ItzToms" esa ichki belgi. Rahbar chatda tizimning
+ * ichki tilini emas, nima bo'lganini o'qishi kerak.
+ */
+const DONE_OPENERS = ['Bajardim', 'Tayyor', 'Qildim'];
+let doneTick = 0;
+
+function doneMessage(task, result) {
+  const opener = DONE_OPENERS[doneTick++ % DONE_OPENERS.length];
+
+  // Rejalashtirilgan xabar — eng ko'p uchraydigan holat, shuning uchun
+  // uni alohida, tushunarli qilib yozamiz.
+  if (task.kind === 'send_message') {
+    const to = (result && result.sentTo) || String(task.title || '').replace(/\s*ga xabar$/i, '');
+    return `${opener}: ${to || 'kerakli kishi'}ga xabar yuborildi.`;
+  }
+
+  const what = task.title || task.kind;
+  return `${opener}: ${what}${summarize(result)}`;
 }
 
 module.exports = new TaskRunner();

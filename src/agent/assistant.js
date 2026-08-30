@@ -3,6 +3,7 @@ const { settings, recordEvent } = require('../core/db');
 const { createLogger } = require('../core/logger');
 const ai = require('../ai/client');
 const memory = require('./memory');
+const { withQuote } = require('./quote');
 const memoryFacts = require('./memoryFacts');
 const assistantTools = require('./assistantTools');
 const guardrails = require('./guardrails');
@@ -198,11 +199,30 @@ FINISH WHAT YOU START. A task he gave you is not done until it is done. You do n
 - If you truly cannot finish, say so plainly: what you did, exactly where it stopped, and what is needed to get past it. That is a report, not a refusal — but it is the LAST resort, not the first.
 - "remember this" → remember. "add to your knowledge base" → add_knowledge (that one is shown to customers).
 
+# UNDERSTAND WHAT HE MEANS, NOT WHAT HE TYPED
+He writes the way people write to someone who already knows the context — short, with words pointing at things. Work out the reference before you act; acting on the wrong reading wastes his time twice.
+
+- A REPLY (quoted message) is half the sentence. "shu backendning URLini ber" under a quote means THAT backend. When a quote is present, read it first and treat it as the subject.
+- "shu", "buni", "u", "o'sha", "tepadagi" point at something already said: the quote, then the last thing you did, then the last thing he said. Resolve it in that order.
+- He often names a thing loosely — "dodakino", "shu bot", "anime sayt". Match it against the projects, bots and servers you know before asking which one he means.
+- If a message could mean two different jobs and one of them is destructive or irreversible, ask which — one short question. If both readings are safe, take the more useful one and say which you took.
+- Typos and mixed spelling are normal ("sendbox" = sandbox, "replay" = reply, "severga" = serverga). Read for meaning, never answer "I don't understand" over a spelling.
+- A short follow-up ("yana", "yana bir marta", "endi") continues the previous job. Look at what you just did before asking what he means.
+- When the ask is genuinely unclear, say what you understood and what is missing — do not answer a question he did not ask.
+
 # CONFIDENTIALITY IN GROUPS
 Tokens, passwords, API keys, SSH keys, phone numbers, invite links and member lists go to Toms — but never into a group. If he asks for one while in a group: deliver it with send_private and reply in the group only "Shaxsiy chatingizga yubordim ✅".${privateAlways ? ' CURRENT MODE: every reply goes to his private chat.' : ''}
 
 # VOICE
-Reply in Uzbek (Latin). Address him respectfully as "siz" / "Toms aka" — never "sen". Short, concrete, businesslike. 1-3 sentences for a report. Few emoji. Do NOT open every reply with a greeting — greet only when he greets you: "Assalomu alaykum, Toms aka! Xizmatingizdaman — nima qilay?". When he jokes, answer briefly and warmly; no moralising.
+Uzbek (Latin), "siz" — never "sen". Short, concrete, businesslike.
+
+Write like a person who works for him, not like a form being filled in. Every reply of yours lately opened with "Toms aka," and closed with a tick, which reads as a machine stamping receipts. So:
+- "Toms aka" is how you MAY address him, not a prefix you attach to everything. Use it when you are actually addressing him — starting a report, answering a question he asked personally, breaking bad news. In a short factual answer, or a second message in a row, drop it.
+- Do not end every message with ✅. A tick belongs where "done" is the news and the result is not otherwise visible. If you are handing back a number, a link or an explanation, the content IS the answer — no stamp needed.
+- Vary the shape. A one-word answer to a one-word question. A bare number when he asked for a number. A short paragraph when he asked why. Nobody says "Bajarildi ✅" four times in a row.
+- Answer the QUESTION HE ASKED, at the length it deserves. "Nechta bot bor?" → "To'rtta." Not three sentences around it.
+- No greeting unless he greets you. No "Xizmatingizdaman", no "darhol bajaraman" filler before you have done anything — do the work, then speak.
+- When he jokes, answer like a person: briefly, warmly, no moralising. When he asks something personal, answer it honestly and briefly rather than reciting devotion.
 
 # ANITOKU
 ${BRAND.name} — ${BRAND.tagline}. Site: ${BRAND.sites[0]}. Channel: ${BRAND.channel}. Toms is the founder and final decision maker.
@@ -221,7 +241,27 @@ Current time (Tashkent): ${now}`;
  * routing preference) are applied before the model runs, so they cannot be
  * dropped.
  */
-async function handle({ chatId, text, chatType = 'private', chatTitle = null, msgId = null, senderId = null }) {
+
+/**
+ * Bir xil holat uchun bir nechta ibora — navbat bilan aylanadi.
+ *
+ * Har safar aynan bir xil jumla kelishi javobni mashina bosgan muhrga
+ * o'xshatib qo'yadi. Bu ro'yxatlar model javob bera olmagan holatlar
+ * uchun — ya'ni eng ko'p takrorlanadigan joylar uchun.
+ */
+let phraseTick = 0;
+const pick = (list) => list[phraseTick++ % list.length];
+
+const PHRASES = {
+  sentPrivate: ['Shaxsiy chatingizga tashladim.', 'Shaxsiyga yubordim.', 'Shaxsiy chatga yozdim.'],
+  done: ['Bajarildi.', 'Tayyor.', 'Qildim.'],
+  unclear: [
+    'Tushunmadim — nimani nazarda tutdingiz?',
+    'Aniqroq ayting: nimani qilay?',
+    'Bu haqda aniqroq yozsangiz — qaysi narsa haqida gap ketyapti?',
+  ],
+};
+async function handle({ chatId, text, chatType = 'private', chatTitle = null, msgId = null, senderId = null, quoted = null }) {
   const started = Date.now();
   const meta = { chatId, mode: 'assistant', toolsUsed: [], deterministic: [] };
   const founderDm = (chatType === 'private' ? chatId : senderId) || String(settings.get('founder_ids', '')).split(/[,\s]+/).filter(Boolean)[0] || null;
@@ -280,7 +320,7 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
       content: 'The turns above are PAST CONTEXT ONLY — they have already been handled. Do not re-execute anything from them. Respond to the single NEW message that follows.',
     });
   }
-  messages.push({ role: 'user', content: String(text) });
+  messages.push({ role: 'user', content: withQuote(text, quoted) });
 
   if (meta.deterministic.length) {
     messages.push({
@@ -403,7 +443,7 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
     log.warn('degenerate reply suppressed', { chatId, model: meta.model, chars: reply.length });
     recordEvent('assistant', 'Degenerate reply suppressed', { chatId, model: meta.model, chars: reply.length }, 'warn');
     meta.degenerate = true;
-    reply = meta.toolsUsed.length ? `Bajarildi ✅ (${[...new Set(meta.toolsUsed)].join(', ')})` : 'Kechirasiz, Toms aka — javobim buzilib ketdi. Qaytadan ayting.';
+    reply = meta.toolsUsed.length ? `${pick(PHRASES.done)} (${[...new Set(meta.toolsUsed)].join(', ')})` : 'Javobim buzilib ketdi, Toms aka — qaytadan ayting.';
   }
 
   if (looksLikeToolMarkup(reply)) {
@@ -412,7 +452,7 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
     const prose = stripToolMarkup(reply);
     // Keep whatever real sentence surrounded the leak; only when nothing is
     // left do we fall back to naming the tools that actually ran.
-    reply = prose.length > 15 ? prose : meta.toolsUsed.length ? `Bajarildi ✅ (${[...new Set(meta.toolsUsed)].join(', ')})` : '';
+    reply = prose.length > 15 ? prose : meta.toolsUsed.length ? `${pick(PHRASES.done)} (${[...new Set(meta.toolsUsed)].join(', ')})` : '';
   }
   if (forcedFailed && claimsAction(reply)) {
     // Twice it "did" something with no tool call: never let that reach the founder as success.
@@ -420,7 +460,7 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
     meta.forcedFailed = true;
   }
   if (!reply || !reply.trim()) {
-    reply = meta.toolsUsed.length ? 'Bajarildi ✅' : 'Tushunmadim, Toms aka — nima qilishim kerak?';
+    reply = meta.toolsUsed.length ? pick(PHRASES.done) : pick(PHRASES.unclear);
   }
 
   // Greeting only answers a greeting. "Assalomu alaykum, Toms aka!" on every
@@ -452,17 +492,17 @@ async function handle({ chatId, text, chatType = 'private', chatTitle = null, ms
       const body = executor.secrets.map((s) => s.text).join('\n\n');
       out.privateText = containsSecret(clean) || mustBePrivate ? `${body}\n\n${clean}` : body;
       out.privateTo = founderDm;
-      out.text = 'Toms aka, shaxsiy chatingizga yubordim ✅';
+      out.text = pick(PHRASES.sentPrivate);
       meta.routedPrivate = true;
       meta.secretsDelivered = executor.secrets.map((s) => s.tool);
     } else if (mustBePrivate && !sentPrivately) {
       out.privateText = clean;
       out.privateTo = founderDm;
-      out.text = 'Toms aka, javobni shaxsiy chatingizga yubordim ✅';
+      out.text = pick(PHRASES.sentPrivate);
       meta.routedPrivate = true;
     } else if (sentPrivately && containsSecret(clean)) {
       // The tool already delivered the secret; the group must not repeat it.
-      out.text = 'Toms aka, shaxsiy chatingizga yubordim ✅';
+      out.text = pick(PHRASES.sentPrivate);
       meta.secretSuppressed = true;
     }
   }

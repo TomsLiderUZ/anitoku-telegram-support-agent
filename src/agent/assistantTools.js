@@ -330,7 +330,11 @@ function createExecutor(ctx) {
       case 'schedule_message': {
         const when = parseWhen(args.when);
         if (!when) return { ok: false, error: `Vaqtni tushunmadim: "${args.when}". Masalan: "soat 15:00 da", "ertaga 9 da", "30 daqiqadan keyin"` };
-        const id = tasks.create({ kind: 'send_message', title: `${args.to} ga xabar`, payload: { to: SELF_REF.test(args.to) ? founderDm : args.to, text: args.text }, runAt: when.at.getTime(), originChat: ctx.chatId, originMsg: ctx.msgId });
+        // Sarlavha keyinchalik rahbarning chatiga chiqadi, shuning uchun
+        // ichki yozuv emas, odam o'qiydigan nom bo'lishi kerak: "me" —
+        // bu vositaning ichki so'zi, chatda esa "sizga" deb ko'rinadi.
+        const toLabel = SELF_REF.test(args.to) ? 'sizga' : `${args.to} ga`;
+        const id = tasks.create({ kind: 'send_message', title: `${toLabel} xabar`, payload: { to: SELF_REF.test(args.to) ? founderDm : args.to, text: args.text }, runAt: when.at.getTime(), originChat: ctx.chatId, originMsg: ctx.msgId });
         return { ok: true, taskId: id, runAt: fmtTashkent(when.at), message: `Rejalashtirildi: ${fmtTashkent(when.at)} da ${args.to} ga yuboriladi.` };
       }
       case 'schedule_task': {
